@@ -94,11 +94,12 @@ final vpnStateProvider =
 class VpnStateNotifier extends StateNotifier<VpnState> {
   VpnStateNotifier(this._ref)
       : super(VpnState(status: _ref.read(vpnServiceProvider).getStatus())) {
-    _loadProtocol();
+    _protocolLoadFuture = _loadProtocol();
   }
 
   final Ref _ref;
   final _predictor = const MarLXGBPredictor();
+  late final Future<void> _protocolLoadFuture;
   int _stabilitySuccesses = 0;
   int _stabilityFailures = 0;
   DateTime? _lastAutoReconnectAt;
@@ -110,6 +111,11 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
   }
 
   void selectServer(String? serverId) {
+    if (_selectionLocked) return;
+    _setSelectedServer(serverId);
+  }
+
+  void _setSelectedServer(String? serverId) {
     state = state.copyWith(
       selectedServerId: serverId,
       clearSelectedServer: serverId == null,
@@ -123,6 +129,8 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
   }
 
   Future<void> selectProtocol(VpnProtocol protocol) async {
+    await _protocolLoadFuture;
+    if (_selectionLocked) return;
     state = state.copyWith(protocol: protocol);
     await SecureStorage().saveString(
       SecureStorage.vpnProtocolKey,
@@ -131,7 +139,12 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
   }
 
   Future<void> connect() async {
+    await _protocolLoadFuture;
     if (state.isBusy) return;
+
+    final protocol = state.protocol;
+    final requestedServerId = state.selectedServerId;
+    final protocolKey = vpnProtocolStorageValue(protocol);
 
     // User intent: VPN should be on.
     final now = DateTime.now();
@@ -148,12 +161,12 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
       final service = _ref.read(vpnServiceProvider);
       final api = _ref.read(apiClientProvider);
       String? config;
+      String? connectedServerId = requestedServerId;
 
       if (service.isNativeAvailable) {
         final identity = await DeviceIdentity.load();
         final storage = SecureStorage();
         final deviceId = await storage.getInt(SecureStorage.vpnDeviceIdKey);
-        final protocolKey = vpnProtocolStorageValue(state.protocol);
         final profileConfigKey = SecureStorage.vpnProfileConfigKeyFor(
           protocolKey,
         );
@@ -165,13 +178,24 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
             deviceName: identity.name,
             deviceType: identity.type,
             profileConfigKey: profileConfigKey,
+            protocol: protocol,
+            serverId: requestedServerId,
           );
-          config = profile.configForProtocol(state.protocol);
+          if (profile.protocol.trim().toLowerCase() != protocolKey) {
+            throw VpnServiceException(
+              'protocol_unavailable',
+              'Backend returned a ${profile.protocol} profile for a $protocolKey request.',
+            );
+          }
+          config = profile.configForProtocol(protocol);
           if (config.trim().isEmpty) {
             throw VpnServiceException(
               'protocol_unavailable',
-              '${vpnProtocolLabel(state.protocol)} profile did not include a runnable Linux configuration.',
+              '${vpnProtocolLabel(protocol)} profile did not include a runnable Linux configuration.',
             );
+          }
+          if (profile.serverId.trim().isNotEmpty) {
+            connectedServerId = profile.serverId;
           }
           if (profile.deviceId > 0) {
             await storage.saveInt(
@@ -183,6 +207,8 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
               SecureStorage.vpnProfileExpiresAtKey,
               profile.expiresAt!.toIso8601String(),
             );
+          } else {
+            await storage.delete(SecureStorage.vpnProfileExpiresAtKey);
           }
           if (!profile.peerRegistered && profile.registrationStatus != null) {
             AppLogger.warning(
@@ -200,34 +226,36 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
           }
           // Fallback: try last known config from secure storage for resilience.
           final cached = await storage.getString(profileConfigKey);
+          final cachedExpiryRaw = await storage.getString(
+            SecureStorage.vpnProfileExpiresAtKey,
+          );
+          final cachedExpiry = cachedExpiryRaw == null
+              ? null
+              : DateTime.tryParse(cachedExpiryRaw);
+          if (!_canUseCachedProfileAfterFailure(error) ||
+              cachedExpiry == null ||
+              !cachedExpiry.isAfter(DateTime.now())) {
+            await storage.delete(profileConfigKey);
+            await storage.delete(SecureStorage.vpnProfileExpiresAtKey);
+            rethrow;
+          }
           if (cached != null && cached.trim().isNotEmpty) {
             AppLogger.warning(
-                'Using cached ${vpnProtocolLabel(state.protocol)} profile (profile fetch failed).');
+                'Using cached ${vpnProtocolLabel(protocol)} profile after a transport failure.');
             config = cached;
           } else {
             rethrow;
           }
         }
-      } else {
-        // Demo/mock path: notify the backend so it tracks the session,
-        // but do not block on failures since the mock tunnel is local-only.
-        try {
-          await api.notifyVpnConnected(
-            serverId: state.selectedServerId,
-            protocol: state.protocol,
-          );
-        } catch (_) {
-          AppLogger.info('Backend connect notification skipped (demo mode).');
-        }
       }
       final nextStatus =
-          await service.connect(protocol: state.protocol, config: config);
+          await service.connect(protocol: protocol, config: config);
       _setStatus(nextStatus);
       if (nextStatus == VpnStatus.connected) {
         try {
           await api.notifyVpnConnected(
-            serverId: state.selectedServerId,
-            protocol: state.protocol,
+            serverId: connectedServerId,
+            protocol: protocol,
           );
         } catch (_) {
           AppLogger.info('Backend connect notification skipped.');
@@ -352,14 +380,16 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
     required String deviceName,
     required String deviceType,
     required String profileConfigKey,
+    required VpnProtocol protocol,
+    required String? serverId,
   }) async {
     try {
       final profile = await api.fetchVpnProfile(
         deviceId: deviceId,
         deviceName: deviceName,
         deviceType: deviceType,
-        protocol: state.protocol,
-        serverId: state.selectedServerId,
+        protocol: protocol,
+        serverId: serverId,
       );
       state = state.copyWith(
         lastProfileFetchAt: DateTime.now(),
@@ -370,7 +400,7 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
       if (!_isProfileReferenceNotFound(error)) rethrow;
 
       final staleDevice = deviceId != null;
-      final staleServer = state.selectedServerId != null;
+      final staleServer = serverId != null;
       if (!staleDevice && !staleServer) rethrow;
 
       if (staleDevice) {
@@ -381,7 +411,7 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
         );
       }
       if (staleServer) {
-        selectServer(null);
+        _setSelectedServer(null);
         AppLogger.warning(
           'Stored VPN server was not accepted by the backend; retrying with auto-select.',
         );
@@ -390,8 +420,8 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
       final profile = await api.fetchVpnProfile(
         deviceName: deviceName,
         deviceType: deviceType,
-        protocol: state.protocol,
-        serverId: state.selectedServerId,
+        protocol: protocol,
+        serverId: staleServer ? null : serverId,
       );
       state = state.copyWith(
         lastProfileFetchAt: DateTime.now(),
@@ -408,6 +438,26 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
     }
     final message = error.toString().toLowerCase();
     return message.contains('404') && message.contains('not found');
+  }
+
+  bool _canUseCachedProfileAfterFailure(Object error) {
+    if (error is! DioException || error.response != null) return false;
+    return switch (error.type) {
+      DioExceptionType.connectionError ||
+      DioExceptionType.connectionTimeout ||
+      DioExceptionType.receiveTimeout ||
+      DioExceptionType.sendTimeout ||
+      DioExceptionType.unknown =>
+        true,
+      _ => false,
+    };
+  }
+
+  bool get _selectionLocked {
+    return state.isBusy ||
+        state.status == VpnStatus.connected ||
+        state.status == VpnStatus.connecting ||
+        state.status == VpnStatus.disconnecting;
   }
 
   void _setStatus(VpnStatus status) {

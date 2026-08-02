@@ -36,7 +36,6 @@ REQUIRED_FILES=(
   "fonts/Manrope-700.ttf"
   "fonts/Manrope-800.ttf"
   "index.html"
-  "home.html"
   "login.html"
   "register.html"
   "dashboard.html"

@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math';
 
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter/material.dart';
@@ -14,6 +15,7 @@ import 'core/models/vpn_protocol.dart';
 import 'core/models/vpn_status.dart';
 import 'core/services/auth_session.dart';
 import 'core/services/secure_storage.dart';
+import 'core/services/vpn_service.dart';
 import 'core/state/app_state.dart';
 import 'core/state/vpn_state.dart';
 import 'core/utils/api_error.dart';
@@ -114,6 +116,31 @@ class _AuthScreenState extends ConsumerState<_AuthScreen> {
   bool _busy = false;
   bool _hidePassword = true;
   String? _error;
+  bool _autoLoginStarted = false;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || _autoLoginStarted) return;
+      final config = ref.read(appConfigProvider);
+      if (!config.autoLoginForTesting) return;
+      _autoLoginStarted = true;
+      final random = Random.secure();
+      final suffix =
+          List.generate(8, (_) => random.nextInt(16).toRadixString(16)).join();
+      final email =
+          'securewave.qa.${DateTime.now().millisecondsSinceEpoch}.$suffix@gmail.com';
+      final password = 'SwTest${random.nextInt(900000) + 100000}!A1';
+      setState(() {
+        _register = true;
+        _email.text = email;
+        _password.text = password;
+        _confirm.text = password;
+      });
+      unawaited(_submit());
+    });
+  }
 
   @override
   void dispose() {
@@ -151,6 +178,17 @@ class _AuthScreenState extends ConsumerState<_AuthScreen> {
                         const SizedBox(height: 8),
                         Text(copy,
                             style: Theme.of(context).textTheme.bodyMedium),
+                        if (ref
+                            .watch(appConfigProvider)
+                            .autoLoginForTesting) ...[
+                          const SizedBox(height: 10),
+                          const _InlineMessage(
+                            icon: Icons.science_outlined,
+                            message:
+                                'Development test: generating a fresh account and signing in automatically.',
+                            tone: _Tone.info,
+                          ),
+                        ],
                         const SizedBox(height: 22),
                         TextFormField(
                           controller: _email,
@@ -480,12 +518,19 @@ class _ConnectScreen extends ConsumerWidget {
     final plan = ref.watch(userPlanProvider);
     final servers = ref.watch(serversProvider);
     final config = ref.watch(appConfigProvider);
+    final service = ref.watch(vpnServiceProvider);
 
     final serverList = servers.maybeWhen(
       data: (value) => value,
       orElse: () => const <ServerRegion>[],
     );
     final selectedServer = _serverLabel(vpn.selectedServerId, serverList);
+    final protocolAvailable = _protocolIsAvailable(
+      service: service,
+      servers: serverList,
+      selectedServerId: vpn.selectedServerId,
+      protocol: vpn.protocol,
+    );
     final status = _statusDescriptor(vpn);
     final connected = vpn.status == VpnStatus.connected;
     final busy = vpn.isBusy ||
@@ -506,7 +551,7 @@ class _ConnectScreen extends ConsumerWidget {
                 children: [
                   Expanded(
                     child: FilledButton.icon(
-                      onPressed: busy
+                      onPressed: busy || (!connected && !protocolAvailable)
                           ? null
                           : () {
                               final notifier =
@@ -529,6 +574,19 @@ class _ConnectScreen extends ConsumerWidget {
                   ),
                 ],
               ),
+              if (!connected && !protocolAvailable) ...[
+                const SizedBox(height: 12),
+                _InlineMessage(
+                  icon: Icons.info_outline_rounded,
+                  message: _protocolUnavailableReason(
+                    service: service,
+                    servers: serverList,
+                    selectedServerId: vpn.selectedServerId,
+                    protocol: vpn.protocol,
+                  ),
+                  tone: _Tone.warning,
+                ),
+              ],
               if (vpn.errorMessage != null) ...[
                 const SizedBox(height: 12),
                 _InlineMessage(
@@ -856,6 +914,33 @@ class _DiagnosticsView extends ConsumerWidget {
   }
 }
 
+bool _protocolIsAvailable({
+  required VpnService service,
+  required List<ServerRegion> servers,
+  required String? selectedServerId,
+  required VpnProtocol protocol,
+}) {
+  if (!service.canConnectProtocol(protocol)) return false;
+  final candidates = selectedServerId == null
+      ? servers
+      : servers.where((server) => server.id == selectedServerId);
+  return candidates.any(
+    (server) => server.supportsProtocol(vpnProtocolStorageValue(protocol)),
+  );
+}
+
+String _protocolUnavailableReason({
+  required VpnService service,
+  required List<ServerRegion> servers,
+  required String? selectedServerId,
+  required VpnProtocol protocol,
+}) {
+  final nativeReason = service.protocolUnavailableReason(protocol);
+  if (nativeReason != null) return nativeReason;
+  final scope = selectedServerId == null ? 'server catalog' : 'selected server';
+  return 'No verified ${vpnProtocolLabel(protocol)} evidence exists for the $scope.';
+}
+
 class _ProtocolPicker extends ConsumerWidget {
   const _ProtocolPicker({required this.selected});
 
@@ -864,31 +949,63 @@ class _ProtocolPicker extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final vpnService = ref.watch(vpnServiceProvider);
+    final vpn = ref.watch(vpnStateProvider);
+    final servers = ref.watch(serversProvider).maybeWhen(
+          data: (value) => value,
+          orElse: () => const <ServerRegion>[],
+        );
+
+    String detail(VpnProtocol protocol, String fallback) {
+      return _protocolIsAvailable(
+        service: vpnService,
+        servers: servers,
+        selectedServerId: vpn.selectedServerId,
+        protocol: protocol,
+      )
+          ? fallback
+          : _protocolUnavailableReason(
+              service: vpnService,
+              servers: servers,
+              selectedServerId: vpn.selectedServerId,
+              protocol: protocol,
+            );
+    }
+
+    bool enabled(VpnProtocol protocol) => _protocolIsAvailable(
+          service: vpnService,
+          servers: servers,
+          selectedServerId: vpn.selectedServerId,
+          protocol: protocol,
+        );
+
     return Column(
       children: [
         _ProtocolTile(
           protocol: VpnProtocol.wireGuard,
           selected: selected == VpnProtocol.wireGuard,
           title: 'WireGuard',
-          detail: 'Primary Linux runtime path.',
-          enabled: vpnService.canConnectProtocol(VpnProtocol.wireGuard),
+          detail: detail(VpnProtocol.wireGuard, 'Primary Linux runtime path.'),
+          enabled: enabled(VpnProtocol.wireGuard),
         ),
         const SizedBox(height: 8),
         _ProtocolTile(
           protocol: VpnProtocol.openVpn,
           selected: selected == VpnProtocol.openVpn,
           title: 'OpenVPN',
-          detail: 'Requires a backend-issued OpenVPN profile.',
-          enabled: vpnService.canConnectProtocol(VpnProtocol.openVpn),
+          detail: detail(VpnProtocol.openVpn,
+              'Requires a backend-issued OpenVPN profile.'),
+          enabled: enabled(VpnProtocol.openVpn),
         ),
         const SizedBox(height: 8),
         _ProtocolTile(
           protocol: VpnProtocol.ikev2,
           selected: selected == VpnProtocol.ikev2,
           title: 'IKEv2/IPSec',
-          detail: vpnService.protocolUnavailableReason(VpnProtocol.ikev2) ??
-              'Requires a backend-issued IKEv2 profile and strongSwan.',
-          enabled: vpnService.canConnectProtocol(VpnProtocol.ikev2),
+          detail: detail(
+            VpnProtocol.ikev2,
+            'Requires a backend-issued IKEv2 profile and strongSwan.',
+          ),
+          enabled: enabled(VpnProtocol.ikev2),
         ),
       ],
     );
@@ -1580,7 +1697,7 @@ String _serverSubtitle(ServerRegion server) {
 
 Future<void> _signOut(BuildContext context, WidgetRef ref) async {
   final vpn = ref.read(vpnStateProvider);
-  if (vpn.status == VpnStatus.connected || vpn.status == VpnStatus.connecting) {
+  if (!vpn.isBusy && vpn.status != VpnStatus.disconnected) {
     await ref.read(vpnStateProvider.notifier).disconnect();
   }
   await SecureStorage().clearVpnRuntimeState();

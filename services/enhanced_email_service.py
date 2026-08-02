@@ -13,22 +13,27 @@ from datetime import datetime
 from dotenv import load_dotenv
 from jinja2 import Template
 
+from services.email_config import configured_env, parse_smtp_port
+
 load_dotenv()
 load_dotenv(".env.production")
 
 logger = logging.getLogger(__name__)
 
 # Email configuration
-EMAIL_PROVIDER = os.getenv("EMAIL_PROVIDER", "smtp")  # smtp, sendgrid, aws_ses
-SMTP_HOST = os.getenv("SMTP_HOST", "smtp.gmail.com")
-SMTP_PORT = int(os.getenv("SMTP_PORT", "587"))
-SMTP_USER = os.getenv("SMTP_USER")
-SMTP_PASSWORD = os.getenv("SMTP_PASSWORD")
-SENDGRID_API_KEY = os.getenv("SENDGRID_API_KEY")
-AWS_SES_REGION = os.getenv("AWS_SES_REGION", "us-east-1")
-FROM_EMAIL = os.getenv("FROM_EMAIL") or os.getenv("SMTP_FROM_EMAIL") or SMTP_USER
-FROM_NAME = os.getenv("FROM_NAME") or os.getenv("SMTP_FROM_NAME") or "SecureWave VPN"
-APP_URL = os.getenv("APP_URL", "https://securewave.example.com")
+EMAIL_PROVIDER = (configured_env("EMAIL_PROVIDER", "smtp") or "smtp").lower()  # smtp, sendgrid, aws_ses
+SMTP_HOST = configured_env("SMTP_HOST", "smtp.gmail.com") or "smtp.gmail.com"
+_SMTP_PORT_RAW = configured_env("SMTP_PORT")
+SMTP_PORT, _SMTP_PORT_VALID = parse_smtp_port(_SMTP_PORT_RAW)
+if _SMTP_PORT_RAW is not None and not _SMTP_PORT_VALID:
+    logger.warning("SMTP_PORT is not a valid integer; enhanced email is disabled until it is configured")
+SMTP_USER = configured_env("SMTP_USER")
+SMTP_PASSWORD = configured_env("SMTP_PASSWORD")
+SENDGRID_API_KEY = configured_env("SENDGRID_API_KEY")
+AWS_SES_REGION = configured_env("AWS_SES_REGION", "us-east-1") or "us-east-1"
+FROM_EMAIL = configured_env("FROM_EMAIL") or configured_env("SMTP_FROM_EMAIL") or SMTP_USER
+FROM_NAME = configured_env("FROM_NAME") or configured_env("SMTP_FROM_NAME") or "SecureWave VPN"
+APP_URL = configured_env("APP_URL", "https://securewave.example.com") or "https://securewave.example.com"
 
 
 class EnhancedEmailService:
@@ -49,7 +54,7 @@ class EnhancedEmailService:
     def _check_provider_config(self) -> bool:
         """Check if provider is properly configured"""
         if self.provider == "smtp":
-            return SMTP_USER and SMTP_PASSWORD and FROM_EMAIL
+            return _SMTP_PORT_VALID and bool(SMTP_USER and SMTP_PASSWORD and FROM_EMAIL)
         elif self.provider == "sendgrid":
             return SENDGRID_API_KEY is not None and FROM_EMAIL
         elif self.provider == "aws_ses":

@@ -1,4 +1,5 @@
 import 'package:flutter/services.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:securewave_app/app.dart';
@@ -6,7 +7,11 @@ import 'package:securewave_app/core/config/app_config.dart';
 import 'package:securewave_app/core/models/server_region.dart';
 import 'package:securewave_app/core/models/user_account.dart';
 import 'package:securewave_app/core/models/user_plan.dart';
+import 'package:securewave_app/core/models/vpn_protocol.dart';
+import 'package:securewave_app/core/models/vpn_status.dart';
+import 'package:securewave_app/core/services/vpn_service.dart';
 import 'package:securewave_app/core/state/app_state.dart';
+import 'package:securewave_app/services/api_client.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -105,12 +110,34 @@ void main() {
     expect(find.text('Unlimited'), findsOneWidget);
     expect(find.textContaining('NaN'), findsNothing);
   });
+
+  testWidgets('sign out cleans up a VPN state that is already in error',
+      (tester) async {
+    final vpnService = _SignOutTrackingVpnService();
+    await _pumpApp(
+      tester,
+      vpnServiceOverride: vpnServiceProvider.overrideWithValue(vpnService),
+      apiClientOverride: apiClientProvider.overrideWithValue(_NoopApiClient()),
+    );
+
+    await tester.tap(find.text('Settings').last);
+    await tester.pumpAndSettle();
+    await tester.drag(find.byType(ListView).last, const Offset(0, -320));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Sign out'));
+    await tester.pumpAndSettle();
+
+    expect(vpnService.disconnectCalls, 1);
+    expect(find.text('Sign in'), findsOneWidget);
+  });
 }
 
 Future<void> _pumpApp(
   WidgetTester tester, {
   Override? serversOverride,
   Override? planOverride,
+  Override? vpnServiceOverride,
+  Override? apiClientOverride,
 }) async {
   tester.view.physicalSize = const Size(390, 844);
   tester.view.devicePixelRatio = 1;
@@ -120,6 +147,11 @@ Future<void> _pumpApp(
   await tester.pumpWidget(
     ProviderScope(
       overrides: [
+        vpnServiceOverride ??
+            vpnServiceProvider.overrideWithValue(MockVpnService()),
+        apiClientOverride ??
+            apiClientProvider
+                .overrideWithValue(ApiClient(AppConfig.defaults())),
         appConfigProvider.overrideWith(
           (ref) => AppConfig(
             apiBaseUrl: 'https://api.example.test',
@@ -164,4 +196,40 @@ Future<void> _pumpApp(
     ),
   );
   await tester.pumpAndSettle();
+}
+
+class _SignOutTrackingVpnService implements VpnService {
+  int disconnectCalls = 0;
+
+  @override
+  bool get isNativeAvailable => true;
+
+  @override
+  bool canConnectProtocol(VpnProtocol protocol) => true;
+
+  @override
+  String? protocolUnavailableReason(VpnProtocol protocol) => null;
+
+  @override
+  Future<VpnStatus> connect({
+    required VpnProtocol protocol,
+    String? config,
+  }) async =>
+      VpnStatus.connected;
+
+  @override
+  Future<VpnStatus> disconnect() async {
+    disconnectCalls += 1;
+    return VpnStatus.disconnected;
+  }
+
+  @override
+  VpnStatus getStatus() => VpnStatus.error;
+}
+
+class _NoopApiClient extends ApiClient {
+  _NoopApiClient() : super(AppConfig.defaults());
+
+  @override
+  Future<void> notifyVpnDisconnected() async {}
 }

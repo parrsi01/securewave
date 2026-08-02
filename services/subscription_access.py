@@ -145,6 +145,11 @@ async def _sync_user_usage(db: Session, user: User) -> None:
     db.commit()
 
 
+async def sync_user_usage(db: Session, user: User) -> None:
+    """Refresh persisted peer counters from the authoritative WG servers."""
+    await _sync_user_usage(db, user)
+
+
 def _user_bytes_used(peers: List[WireGuardPeer]) -> int:
     total = 0
     for peer in peers:

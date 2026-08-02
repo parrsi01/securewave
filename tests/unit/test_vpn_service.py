@@ -10,10 +10,25 @@ Covers:
 
 import pytest
 from fastapi import status
+from pathlib import Path
+import tempfile
 
 
 class TestKeyGeneration:
     """WireGuard key generation must produce valid keypairs."""
+
+    def test_development_default_data_dir_is_writable(self, monkeypatch):
+        """Development startup must not require permission to create /wg."""
+        from services.wireguard_service import WireGuardService
+
+        monkeypatch.delenv("WG_DATA_DIR", raising=False)
+        monkeypatch.setenv("ENVIRONMENT", "development")
+        monkeypatch.setenv("WG_MOCK_MODE", "true")
+
+        wg = WireGuardService()
+
+        assert wg.base_dir == Path(tempfile.gettempdir()) / "securewave" / "wg"
+        assert wg.base_dir.is_dir()
 
     def test_key_generation(self):
         """generate_keypair must return a (private_key, public_key) tuple."""

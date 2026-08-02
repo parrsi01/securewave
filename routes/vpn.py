@@ -10,11 +10,14 @@ This module provides endpoints for:
 
 import os
 import logging
+import re
 from datetime import datetime, timedelta
+from ipaddress import ip_address
 from typing import Optional, List
 
 from fastapi import APIRouter, Depends, HTTPException, status, Response, Request
 from pydantic import BaseModel, Field
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from database.session import get_db
@@ -24,7 +27,7 @@ from models.vpn_server import VPNServer
 from models.vpn_connection import VPNConnection
 from services.jwt_service import get_current_user
 from utils.env_validation import demo_mode_enabled, wg_mock_mode_enabled
-from services.subscription_access import require_active_subscription
+from services.subscription_access import require_active_subscription, sync_user_usage
 from services.vpn_peer_manager import get_peer_manager
 from services.wireguard_service import WireGuardService
 from services.vpn_server_service import VPNServerService
@@ -32,6 +35,10 @@ from services.wireguard_server_manager import (
     get_wireguard_server_manager,
     server_connection_from_db,
     ServerConnection,
+)
+from services.openvpn_credential_manager import (
+    OpenVpnCredentialError,
+    OpenVpnCredentialManager,
 )
 from slowapi import Limiter
 from slowapi.util import get_remote_address
@@ -53,6 +60,11 @@ def rate_limit(rule: str):
 DEMO_MODE = demo_mode_enabled() or IS_TESTING
 WG_MOCK_MODE = wg_mock_mode_enabled()
 AUTO_REGISTER_PEERS = os.getenv("WG_AUTO_REGISTER_PEERS", "true").lower() == "true"
+
+
+def _remote_peer_sync_enabled() -> bool:
+    """Return whether this route may perform a real server-side peer change."""
+    return not (demo_mode_enabled() or wg_mock_mode_enabled())
 
 
 # =============================================================================
@@ -198,6 +210,10 @@ class VpnProfileResponse(BaseModel):
     expires_at: str
     wireguard_config: str = ""
     openvpn_config: Optional[str] = None
+    # Deliberately separate from the profile config: Linux writes it to an
+    # ephemeral mode-0600 auth file and never logs or caches it with config.
+    openvpn_username: Optional[str] = None
+    openvpn_password: Optional[str] = None
     ikev2_config: Optional[str] = None
     dns: VpnProfileDns
     kill_switch: VpnProfileKillSwitch
@@ -368,22 +384,19 @@ def _normalize_profile_protocol(raw: Optional[str]) -> str:
 
 def _platform_supported_protocols(device_type: Optional[str]) -> set[str]:
     normalized = (device_type or "").lower().strip()
-    if normalized == "linux":
-        return {"wireguard", "openvpn"}
-    return {"wireguard", "openvpn"}
+    # OpenVPN and IKEv2 remain unavailable until their current-source
+    # runtime, credential, and data-plane evidence is independently certified.
+    if normalized in {"linux", "android", "ios", "windows"}:
+        return {"wireguard"}
+    return set()
 
 
 def _server_supported_protocols(server: VPNServer) -> list[str]:
     protocols: list[str] = []
     if server.supports_wireguard and server.endpoint and server.wg_public_key:
         protocols.append("wireguard")
-    if (
-        server.supports_openvpn
-        and (server.openvpn_endpoint or server.public_ip)
-        and server.openvpn_ca_cert_pem
-    ):
-        protocols.append("openvpn")
-    # IKEv2 remains internal/manual for Linux v1. Do not advertise it here.
+    # Never infer OpenVPN availability from legacy endpoint/CA metadata.
+    # IKEv2 remains internal/manual for Linux v1 as well.
     return protocols
 
 
@@ -414,14 +427,59 @@ def _build_openvpn_profile_config(server: VPNServer) -> str:
             detail="OpenVPN server metadata is incomplete.",
         )
 
-    host = server.openvpn_endpoint or server.public_ip
-    port = int(server.openvpn_port or 1194)
+    host = _endpoint_host(server.openvpn_endpoint or "", server.public_ip).strip()
+    try:
+        ip_address(host)
+    except ValueError:
+        if (
+            not host
+            or len(host) > 253
+            or host.endswith(".")
+            or any(
+                not label
+                or len(label) > 63
+                or label.startswith("-")
+                or label.endswith("-")
+                or not re.fullmatch(r"[A-Za-z0-9-]+", label)
+                for label in host.split(".")
+            )
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="OpenVPN endpoint metadata is invalid.",
+            )
+    try:
+        port = int(server.openvpn_port or 1194)
+    except (TypeError, ValueError):
+        port = 0
+    if not 1 <= port <= 65535:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="OpenVPN port metadata is invalid.",
+        )
     transport = (server.openvpn_transport or "udp").lower()
+    if transport not in {"udp", "tcp"}:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="OpenVPN transport metadata is invalid.",
+        )
+    ca_pem = server.openvpn_ca_cert_pem.strip()
+    if (
+        not ca_pem
+        or "</ca" in ca_pem.lower()
+        or "<" in ca_pem
+        or ">" in ca_pem
+        or any(not char.isprintable() and char not in "\n\r\t" for char in ca_pem)
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="OpenVPN CA metadata is invalid.",
+        )
     dns_lines = [f"dhcp-option DNS {dns}" for dns in _profile_dns_servers()]
     return "\n".join([
         "client",
         "dev tun",
-        f"proto {transport}",
+        f"proto {'tcp-client' if transport == 'tcp' else 'udp'}",
         f"remote {host} {port}",
         "resolv-retry infinite",
         "nobind",
@@ -430,11 +488,16 @@ def _build_openvpn_profile_config(server: VPNServer) -> str:
         "remote-cert-tls server",
         "auth-user-pass",
         "auth-nocache",
-        "redirect-gateway def1",
+        # The OpenVPN server assigns a unique IPv6 address. A client must
+        # never hard-code one here: doing so would duplicate it across peers.
+        # Public IPv6 is routed into the TUN device and blocked there. OpenVPN
+        # does not claim IPv6 exit capability until that is separately proven.
+        "redirect-gateway def1 ipv6",
+        "block-ipv6",
         *dns_lines,
         "verb 3",
         "<ca>",
-        server.openvpn_ca_cert_pem.strip(),
+        ca_pem,
         "</ca>",
         "",
     ])
@@ -534,7 +597,7 @@ async def list_servers(
             status=server.status,
             health_status=server.health_status,
             supports_wireguard=bool(server.supports_wireguard),
-            supports_openvpn=bool(server.supports_openvpn),
+            supports_openvpn=False,
             supports_ikev2=False,
             supported_protocols=[
                 protocol
@@ -575,7 +638,7 @@ async def list_protocols(
         enabled = platform_supported and server_enabled
         reason = None
         if not platform_supported:
-            reason = f"{protocol} is not release-ready for Linux."
+            reason = f"{protocol} is not release-ready for {device_type or 'this device'}."
         elif not server_enabled:
             reason = f"No usable {protocol} server metadata is configured."
         protocol_rows.append(
@@ -621,7 +684,7 @@ async def get_server(
         status=server.status,
         health_status=server.health_status,
         supports_wireguard=bool(server.supports_wireguard),
-        supports_openvpn=bool(server.supports_openvpn),
+        supports_openvpn=False,
         supports_ikev2=False,
         supported_protocols=_server_supported_protocols(server),
     )
@@ -681,7 +744,7 @@ async def allocate_config(
     device_name = payload.device_name or "Primary Device"
     peer = db.query(WireGuardPeer).filter(
         WireGuardPeer.user_id == current_user.id,
-        WireGuardPeer.device_name == device_name,
+        func.lower(WireGuardPeer.device_name) == device_name.lower(),
         WireGuardPeer.is_revoked == False
     ).first()
 
@@ -703,7 +766,7 @@ async def allocate_config(
         )
     elif peer.server_id != server.id:
         # Remove from old server to avoid stale peer entries.
-        if peer.server_id:
+        if peer.server_id and _remote_peer_sync_enabled():
             old_server = db.query(VPNServer).filter(VPNServer.id == peer.server_id).first()
             if old_server:
                 try:
@@ -818,6 +881,7 @@ async def allocate_config(
 @router.post("/profile", response_model=VpnProfileResponse)
 @rate_limit("30/minute")
 async def provision_profile(
+    request: Request,
     payload: VpnProfileRequest,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
@@ -834,12 +898,19 @@ async def provision_profile(
 
     protocol = _normalize_profile_protocol(payload.protocol)
     device_type = (payload.device_type or "").lower().strip() or None
+    if protocol == "openvpn" and device_type == "linux":
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=(
+                "OpenVPN is unavailable until authenticated current-source "
+                "runtime and credential evidence is recorded."
+            ),
+        )
     if protocol not in _platform_supported_protocols(device_type):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=(
-                f"{protocol} is not release-ready for Linux. "
-                "Use WireGuard or OpenVPN on the Linux release path."
+                f"{protocol} is not release-ready for {device_type or 'this device'}."
             ),
         )
 
@@ -848,6 +919,8 @@ async def provision_profile(
 
     # Resolve device/peer
     peer: Optional[WireGuardPeer] = None
+    created_peer = False
+    device_name = (payload.device_name or "This device").strip()[:64]
     if payload.device_id:
         peer = db.query(WireGuardPeer).filter(
             WireGuardPeer.id == payload.device_id,
@@ -863,34 +936,11 @@ async def provision_profile(
             )
 
     if peer is None:
-        device_name = (payload.device_name or "This device").strip()[:64]
         peer = db.query(WireGuardPeer).filter(
             WireGuardPeer.user_id == current_user.id,
-            WireGuardPeer.device_name == device_name,
+            func.lower(WireGuardPeer.device_name) == device_name.lower(),
             WireGuardPeer.is_revoked == False,
         ).first()
-
-        if not peer:
-            from services.subscription_access import get_effective_device_limit
-            limit = get_effective_device_limit(db, current_user)
-            active_count = db.query(WireGuardPeer).filter(
-                WireGuardPeer.user_id == current_user.id,
-                WireGuardPeer.is_revoked == False,
-                WireGuardPeer.is_active == True,
-            ).count()
-            if active_count >= limit:
-                raise HTTPException(
-                    status_code=status.HTTP_403_FORBIDDEN,
-                    detail=f"Device limit reached ({limit}). Upgrade your plan or revoke an existing device.",
-                )
-
-            device_type = (payload.device_type or "").lower().strip() or None
-            peer = peer_manager.create_peer(
-                user=current_user,
-                server=None,
-                device_name=device_name,
-                device_type=device_type,
-            )
 
     # Resolve server
     server: Optional[VPNServer] = None
@@ -904,7 +954,7 @@ async def provision_profile(
                 detail=f"This server requires a {server.tier_restriction} subscription",
             )
 
-    if server is None and peer.server_id:
+    if server is None and peer is not None and peer.server_id:
         server = db.query(VPNServer).filter(VPNServer.id == peer.server_id).first()
         if server and server.tier_restriction and user_tier == "free":
             server = None
@@ -951,11 +1001,35 @@ async def provision_profile(
             detail="OpenVPN server endpoint or certificate metadata is incomplete for the selected server.",
         )
 
+    # Create a new device only after the requested server and protocol have
+    # passed validation; rejected requests must not leave an orphaned peer.
+    if peer is None:
+        from services.subscription_access import get_effective_device_limit
+        limit = get_effective_device_limit(db, current_user)
+        active_count = db.query(WireGuardPeer).filter(
+            WireGuardPeer.user_id == current_user.id,
+            WireGuardPeer.is_revoked == False,
+            WireGuardPeer.is_active == True,
+        ).count()
+        if active_count >= limit:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"Device limit reached ({limit}). Upgrade your plan or revoke an existing device.",
+            )
+
+        peer = peer_manager.create_peer(
+            user=current_user,
+            server=None,
+            device_name=device_name,
+            device_type=device_type,
+        )
+        created_peer = True
+
     # Optional key rotation
     if payload.force_rotate_keys:
         old_public_key = peer.public_key
         peer = peer_manager.rotate_peer_keys(peer.id)
-        if peer.server_id:
+        if peer.server_id and _remote_peer_sync_enabled():
             old_server = db.query(VPNServer).filter(VPNServer.id == peer.server_id).first()
             if old_server:
                 try:
@@ -968,7 +1042,7 @@ async def provision_profile(
     # Ensure peer is associated with selected server.
     if peer.server_id != server.id:
         # Best-effort remove old peer from old server.
-        if peer.server_id:
+        if peer.server_id and _remote_peer_sync_enabled():
             old_server = db.query(VPNServer).filter(VPNServer.id == peer.server_id).first()
             if old_server:
                 try:
@@ -991,15 +1065,57 @@ async def provision_profile(
         success, message = await register_peer_on_server(server, peer.public_key, peer.ipv4_address)
         peer_registered = success
         registration_status = message
+        if not success and _remote_peer_sync_enabled():
+            if created_peer:
+                peer_manager.revoke_peer(peer.id)
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail=f"WireGuard peer registration failed: {message}",
+            )
 
     wireguard_config = ""
     openvpn_config: Optional[str] = None
+    openvpn_username: Optional[str] = None
+    openvpn_password: Optional[str] = None
     ikev2_config: Optional[str] = None
     if protocol == "wireguard":
         wireguard_config = _build_wireguard_profile_config(peer, server, device_type=payload.device_type)
     elif protocol == "openvpn":
-        openvpn_config = _build_openvpn_profile_config(server)
-        registration_status = "openvpn_profile_issued"
+        # Validate server metadata and build the config before minting any
+        # credential so a metadata failure never leaves a remote credential.
+        validated_openvpn_config = _build_openvpn_profile_config(server)
+        try:
+            credential = await OpenVpnCredentialManager(db).issue(
+                user_id=current_user.id,
+                peer=peer,
+                server=server,
+                force_rotate=payload.force_rotate_keys,
+            )
+        except OpenVpnCredentialError as exc:
+            if created_peer:
+                failed_peer = db.query(WireGuardPeer).filter(
+                    WireGuardPeer.id == peer.id,
+                    WireGuardPeer.server_id.is_(None),
+                ).first()
+                if failed_peer is not None:
+                    failed_peer.is_active = False
+                    db.add(failed_peer)
+                    db.commit()
+            logger.warning(
+                "OpenVPN profile issuance denied user_id=%s device_id=%s server_id=%s exception_type=%s",
+                current_user.id,
+                peer.id,
+                server.server_id,
+                type(exc).__name__,
+            )
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="OpenVPN credential issuance could not be confirmed.",
+            ) from exc
+        openvpn_config = validated_openvpn_config
+        openvpn_username = credential.username
+        openvpn_password = credential.password
+        registration_status = "openvpn_credential_issued"
     elif protocol == "ikev2":
         ikev2_config = _build_ikev2_profile_config(server, current_user)
         registration_status = "ikev2_profile_issued"
@@ -1035,6 +1151,8 @@ async def provision_profile(
         expires_at=expires_at.isoformat(),
         wireguard_config=wireguard_config,
         openvpn_config=openvpn_config,
+        openvpn_username=openvpn_username,
+        openvpn_password=openvpn_password,
         ikev2_config=ikev2_config,
         dns=VpnProfileDns(servers=dns_servers, enforcement="config"),
         kill_switch=kill_switch,
@@ -1443,6 +1561,16 @@ async def create_device(
             detail=f"Device limit reached ({device_limit}). Upgrade your plan or revoke an existing device."
         )
 
+    if any(
+        peer.device_name
+        and peer.device_name.lower() == payload.name.lower()
+        for peer in existing_peers
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Device name already exists",
+        )
+
     server = None
     if payload.server_id:
         server = VPNServerService.get_server_by_id(db, payload.server_id)
@@ -1456,7 +1584,7 @@ async def create_device(
         device_type=payload.device_type,
     )
 
-    if server:
+    if server and _remote_peer_sync_enabled():
         try:
             manager = get_wireguard_server_manager()
             conn = server_connection_from_db(server)
@@ -1490,15 +1618,28 @@ async def revoke_device(
     if peer.is_revoked:
         return {"device_id": peer.id, "status": "already_revoked"}
 
-    if peer.server_id:
+    if peer.server_id and _remote_peer_sync_enabled():
         server = db.query(VPNServer).filter(VPNServer.id == peer.server_id).first()
         if server:
+            removal_error = None
             try:
                 manager = get_wireguard_server_manager()
                 conn = server_connection_from_db(server)
-                await manager.remove_peer(conn, peer.public_key)
+                removed, message = await manager.remove_peer(conn, peer.public_key)
+                if not removed:
+                    removal_error = message or "WireGuard server rejected peer removal"
             except Exception as e:
-                logger.warning(f"Failed to remove peer {peer.id} from server {server.server_id}: {e}")
+                removal_error = str(e)
+            if removal_error:
+                logger.error(
+                    "Refusing to revoke device %s while remote peer removal is unconfirmed: %s",
+                    peer.id,
+                    removal_error,
+                )
+                raise HTTPException(
+                    status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                    detail="Unable to remove the WireGuard peer from the server. Retry the revocation.",
+                )
 
     peer_manager = get_peer_manager(db)
     peer_manager.revoke_peer(peer.id)
@@ -1557,6 +1698,8 @@ async def get_usage(
     """Return usage stats for a device or aggregated across all devices."""
     await require_active_subscription(db, current_user)
     user_tier = get_user_tier(current_user, db)
+    if user_tier != "free":
+        await sync_user_usage(db, current_user)
 
     query = db.query(WireGuardPeer).filter(
         WireGuardPeer.user_id == current_user.id,

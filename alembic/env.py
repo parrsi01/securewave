@@ -13,14 +13,26 @@ load_dotenv()
 load_dotenv(".env.production")
 
 from database.base import Base  # noqa: E402
+# Alembic owns schema creation and migration. Prevent the development-only
+# database import hook from creating model tables before revision 0001 runs.
+os.environ["AUTO_CREATE_TABLES"] = "false"
 from database.session import DATABASE_URL  # noqa: E402
 
-# Import all models to ensure they're registered with Base.metadata
-from models.user import User  # noqa: E402
-from models.subscription import Subscription  # noqa: E402
-from models.audit_log import AuditLog  # noqa: E402
-from models.vpn_server import VPNServer  # noqa: E402
-from models.vpn_connection import VPNConnection  # noqa: E402
+# Import every model module so all tables are registered with Base.metadata.
+from models import (  # noqa: E402,F401
+    audit_log,
+    email_log,
+    gdpr,
+    invoice,
+    subscription,
+    support_ticket,
+    usage_analytics,
+    user,
+    vpn_connection,
+    vpn_demo_session,
+    vpn_server,
+    wireguard_peer,
+)
 
 config = context.config
 fileConfig(config.config_file_name)

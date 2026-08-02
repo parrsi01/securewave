@@ -5,6 +5,7 @@ import secrets
 import shutil
 import stat
 import subprocess  # nosec B404 - controlled subprocess usage
+import tempfile
 from io import BytesIO
 from pathlib import Path
 from typing import Tuple
@@ -32,7 +33,14 @@ logger = logging.getLogger(__name__)
 
 class WireGuardService:
     def __init__(self):
-        self.base_dir = Path(os.getenv("WG_DATA_DIR", "/wg")).expanduser()
+        configured_data_dir = os.getenv("WG_DATA_DIR")
+        if configured_data_dir:
+            data_dir = configured_data_dir
+        elif is_production():
+            data_dir = "/wg"
+        else:
+            data_dir = Path(tempfile.gettempdir()) / "securewave" / "wg"
+        self.base_dir = Path(data_dir).expanduser()
         self.base_dir.mkdir(parents=True, exist_ok=True)
         try:
             self.base_dir.chmod(stat.S_IRUSR | stat.S_IWUSR | stat.S_IXUSR)

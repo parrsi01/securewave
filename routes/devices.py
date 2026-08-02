@@ -22,13 +22,17 @@ from sqlalchemy.orm import Session
 
 from database.session import get_db
 from models.user import User
-from models.subscription import Subscription
 from models.vpn_server import VPNServer
 from models.wireguard_peer import WireGuardPeer
 from services.jwt_service import get_current_user
 from services.vpn_peer_manager import get_peer_manager
 from services.vpn_server_service import VPNServerService
-from services.subscription_access import require_active_subscription
+from services.subscription_access import (
+    get_effective_device_limit,
+    require_active_subscription,
+    sync_user_usage,
+)
+from utils.env_validation import demo_mode_enabled, wg_mock_mode_enabled
 from services.wireguard_server_manager import (
     get_wireguard_server_manager,
     server_connection_from_db,
@@ -38,33 +42,18 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/vpn/devices", tags=["devices"])
 
 
+def _remote_peer_sync_enabled() -> bool:
+    """Return whether this route may perform a real server-side peer change."""
+    return not (demo_mode_enabled() or wg_mock_mode_enabled())
+
+
 # =============================================================================
 # Device Limits by Subscription Tier
 # =============================================================================
 
-DEVICE_LIMITS = {
-    "free": 1,
-    "premium": 5,
-}
-
-DEFAULT_DEVICE_LIMIT = 1
-
-
 def get_device_limit(user: User, db: Session) -> int:
-    """Get device limit for user based on subscription"""
-    # Check for active subscription
-    subscription = db.query(Subscription).filter(
-        Subscription.user_id == user.id,
-        Subscription.status.in_(["active", "trialing"])
-    ).first()
-
-    if not subscription:
-        return DEVICE_LIMITS.get("free", DEFAULT_DEVICE_LIMIT)
-
-    plan_name = (subscription.plan_name or "premium").lower()
-    if "premium" in plan_name or "pro" in plan_name:
-        return DEVICE_LIMITS["premium"]
-    return DEFAULT_DEVICE_LIMIT
+    """Return the canonical device limit for the user's effective plan."""
+    return get_effective_device_limit(db, user)
 
 
 # =============================================================================
@@ -184,6 +173,7 @@ async def list_devices(
 
     Returns active and revoked devices with usage statistics.
     """
+    await sync_user_usage(db, current_user)
     peer_manager = get_peer_manager(db)
     peers = peer_manager.list_user_peers(current_user.id, include_revoked=False)
 
@@ -262,7 +252,7 @@ async def add_device(
             device_type=device_type
         )
 
-        if server:
+        if server and _remote_peer_sync_enabled():
             try:
                 manager = get_wireguard_server_manager()
                 conn = server_connection_from_db(server)
@@ -381,7 +371,11 @@ async def set_device_server_preference(
             )
 
     # Best-effort cleanup on old server to avoid stale peers.
-    if peer.server_id and (server is None or peer.server_id != server.id):
+    if (
+        peer.server_id
+        and (server is None or peer.server_id != server.id)
+        and _remote_peer_sync_enabled()
+    ):
         old_server = db.query(VPNServer).filter(VPNServer.id == peer.server_id).first()
         if old_server:
             try:
@@ -429,15 +423,28 @@ async def revoke_device(
         )
 
     peer_manager = get_peer_manager(db)
-    if peer.server_id:
+    if peer.server_id and _remote_peer_sync_enabled():
         server = db.query(VPNServer).filter(VPNServer.id == peer.server_id).first()
         if server:
+            removal_error = None
             try:
                 manager = get_wireguard_server_manager()
                 conn = server_connection_from_db(server)
-                await manager.remove_peer(conn, peer.public_key)
+                removed, message = await manager.remove_peer(conn, peer.public_key)
+                if not removed:
+                    removal_error = message or "WireGuard server rejected peer removal"
             except Exception as e:
-                logger.warning(f"Failed to remove peer {peer.id} from server {server.server_id}: {e}")
+                removal_error = str(e)
+            if removal_error:
+                logger.error(
+                    "Refusing to revoke device %s while remote peer removal is unconfirmed: %s",
+                    peer.id,
+                    removal_error,
+                )
+                raise HTTPException(
+                    status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                    detail="Unable to remove the WireGuard peer from the server. Retry the revocation.",
+                )
     success = peer_manager.revoke_peer(device_id)
 
     if not success:
@@ -504,7 +511,7 @@ async def get_device_config(
 
     try:
         if peer.server_id != server.id:
-            if peer.server_id:
+            if peer.server_id and _remote_peer_sync_enabled():
                 old_server = db.query(VPNServer).filter(VPNServer.id == peer.server_id).first()
                 if old_server:
                     try:
@@ -520,12 +527,15 @@ async def get_device_config(
             db.add(peer)
             db.commit()
 
-        try:
-            manager = get_wireguard_server_manager()
-            conn = server_connection_from_db(server)
-            await manager.add_peer(conn, peer.public_key, peer.ipv4_address)
-        except Exception as e:
-            logger.warning(f"Peer registration deferred for device {peer.id}: {e}")
+        if _remote_peer_sync_enabled():
+            try:
+                manager = get_wireguard_server_manager()
+                conn = server_connection_from_db(server)
+                await manager.add_peer(conn, peer.public_key, peer.ipv4_address)
+            except Exception as e:
+                logger.warning(f"Peer registration deferred for device {peer.id}: {e}")
+        else:
+            logger.info("Skipping peer registration in demo/mock mode for device %s", peer.id)
 
         config = peer_manager.generate_config(peer, server)
         qr_bytes = peer_manager.generate_config_qr_code(peer, server)
@@ -591,7 +601,7 @@ async def download_device_config(
 
     peer_manager = get_peer_manager(db)
     if peer.server_id != server.id:
-        if peer.server_id:
+        if peer.server_id and _remote_peer_sync_enabled():
             old_server = db.query(VPNServer).filter(VPNServer.id == peer.server_id).first()
             if old_server:
                 try:
@@ -624,6 +634,7 @@ async def get_device_usage(
     db: Session = Depends(get_db)
 ):
     """Get usage statistics for a device."""
+    await sync_user_usage(db, current_user)
     peer = db.query(WireGuardPeer).filter(
         WireGuardPeer.id == device_id,
         WireGuardPeer.user_id == current_user.id
@@ -687,13 +698,16 @@ async def rotate_device_keys(
         if updated_peer.server_id:
             server = db.query(VPNServer).filter(VPNServer.id == updated_peer.server_id).first()
             if server:
-                try:
-                    manager = get_wireguard_server_manager()
-                    conn = server_connection_from_db(server)
-                    await manager.remove_peer(conn, old_public_key)
-                    await manager.add_peer(conn, updated_peer.public_key, updated_peer.ipv4_address)
-                except Exception as e:
-                    logger.warning(f"Peer rotation sync deferred for device {device_id}: {e}")
+                if _remote_peer_sync_enabled():
+                    try:
+                        manager = get_wireguard_server_manager()
+                        conn = server_connection_from_db(server)
+                        await manager.remove_peer(conn, old_public_key)
+                        await manager.add_peer(conn, updated_peer.public_key, updated_peer.ipv4_address)
+                    except Exception as e:
+                        logger.warning(f"Peer rotation sync deferred for device {device_id}: {e}")
+                else:
+                    logger.info("Skipping peer rotation sync in demo/mock mode for device %s", device_id)
 
         return _device_response(updated_peer)
 

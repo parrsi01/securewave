@@ -747,16 +747,6 @@ static bool OpenVpnRuntimeEvidence(const std::string& pid_path, const std::strin
          OpenVpnRouteExists();
 }
 
-static bool WaitOpenVpnStarted(const std::string& pid_path, const std::string& log_path) {
-  for (guint i = 0; i < 40; i++) {
-    if (OpenVpnRuntimeEvidence(pid_path, log_path)) {
-      return true;
-    }
-    g_usleep(500000);
-  }
-  return false;
-}
-
 static bool WaitOpenVpnStopped(const std::string& pid_path) {
   for (guint i = 0; i < 20; i++) {
     pid_t pid = 0;
@@ -771,27 +761,6 @@ static bool WaitOpenVpnStopped(const std::string& pid_path) {
   const bool openvpn_running =
       ReadPid(pid_path, &pid) && ProcessRunning(pid) && ProcessLooksLikeOpenVpn(pid);
   return !openvpn_running && !OpenVpnRouteExists();
-}
-
-static std::string OpenVpnLogTail(const std::string& path) {
-  std::ifstream input(path);
-  std::vector<std::string> lines;
-  std::string line;
-  while (std::getline(input, line)) {
-    line = Trim(line);
-    if (!line.empty()) {
-      lines.push_back(line);
-    }
-  }
-  const size_t start = lines.size() > 8 ? lines.size() - 8 : 0;
-  std::string tail;
-  for (size_t i = start; i < lines.size(); i++) {
-    if (!tail.empty()) {
-      tail += " | ";
-    }
-    tail += lines[i];
-  }
-  return CleanMessage(tail);
 }
 
 static bool NmcliActiveIkev2() {
@@ -1178,11 +1147,18 @@ static Fields HandleOpenVpn(const std::string& op, const Fields& request, uid_t 
   if (!ContractOk(&contract_error)) {
     return contract_error;
   }
+  if (op == "openvpn.start") {
+    // The current source has no authenticated backend evidence or credential
+    // issuance contract.  Keep status/stop/cleanup available for residue
+    // handling, but never allow direct IPC to bypass the API/client gate.
+    return Error(
+        "protocol_unavailable",
+        "OpenVPN is unavailable until authenticated current-source runtime and credential evidence is recorded.");
+  }
   if (op == "openvpn.status") {
     return OpenVpnStatus(request, peer_uid);
   }
 
-  const std::string config_path = Field(request, "config_path");
   const std::string pid_path = Field(request, "pid_path");
   const std::string log_path = Field(request, "log_path");
   const std::string auth_path = Field(request, "auth_path");
@@ -1197,36 +1173,8 @@ static Fields HandleOpenVpn(const std::string& op, const Fields& request, uid_t 
       !ValidateRuntimeFilePath(auth_path, kOpenVpnAuthName, peer_uid)) {
     return Error("invalid_path", "OpenVPN auth path is not approved.");
   }
-
-  if (op == "openvpn.start") {
-    if (!ValidateConfigPath(config_path, "securewave.ovpn", peer_uid) ||
-        !ValidateRuntimeFilePath(log_path, kOpenVpnLogName, peer_uid)) {
-      return Error("invalid_path", "OpenVPN config or log path is not approved.");
-    }
-    std::vector<std::string> args = {"openvpn-start", config_path, pid_path, log_path};
-    if (!auth_path.empty()) {
-      args.push_back(auth_path);
-    }
-    CommandResult result = RunHelper(args);
-    if (!result.ok) {
-      return Error("vpn_connect_failed", result.message.empty() ? "OpenVPN start failed." : result.message);
-    }
-    if (!WaitOpenVpnStarted(pid_path, log_path)) {
-      pid_t pid = 0;
-      if (ReadPid(pid_path, &pid) && ProcessLooksLikeOpenVpn(pid)) {
-        RunHelper({"openvpn-stop", std::to_string(static_cast<long>(pid))});
-      }
-      const std::string tail = OpenVpnLogTail(log_path);
-      WaitOpenVpnStopped(pid_path);
-      unlink(pid_path.c_str());
-      unlink(log_path.c_str());
-      return Error(
-          "vpn_connect_failed",
-          tail.empty()
-              ? "OpenVPN started but tunnel route evidence was not detected."
-              : "OpenVPN started but tunnel route evidence was not detected. Last log lines: " + tail);
-    }
-    return OpenVpnStatus(request, peer_uid);
+  if (op == "openvpn.cleanup" && auth_path.empty()) {
+    return Error("invalid_path", "OpenVPN cleanup requires the auth path.");
   }
 
   if (op == "openvpn.stop" || op == "openvpn.cleanup") {

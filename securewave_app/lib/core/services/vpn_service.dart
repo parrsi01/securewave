@@ -6,6 +6,9 @@ import '../models/vpn_protocol.dart';
 import '../models/vpn_status.dart';
 import '../logging/app_logger.dart';
 
+const _openVpnUnavailableReason =
+    'OpenVPN is unavailable until authenticated current-source runtime and credential evidence is recorded.';
+
 abstract class VpnService {
   Future<VpnStatus> connect({required VpnProtocol protocol, String? config});
   Future<VpnStatus> disconnect();
@@ -47,22 +50,27 @@ class ChannelVpnService implements VpnService {
 
   @override
   bool canConnectProtocol(VpnProtocol protocol) {
-    if (_allowFallback) return true;
-    final os = platform.operatingSystem.name.toLowerCase();
-    if (os == 'linux' && protocol == VpnProtocol.ikev2) {
-      return false;
+    if (_allowFallback) return protocol == VpnProtocol.wireGuard;
+    switch (platform.operatingSystem.name.toLowerCase()) {
+      case 'linux':
+        return protocol == VpnProtocol.wireGuard;
+      case 'android':
+      case 'ios':
+      case 'windows':
+        return protocol == VpnProtocol.wireGuard;
+      case 'macos':
+        return false;
+      default:
+        return false;
     }
-    return true;
   }
 
   @override
   String? protocolUnavailableReason(VpnProtocol protocol) {
-    if (canConnectProtocol(protocol)) return null;
-    final os = platform.operatingSystem.name.toLowerCase();
-    if (os == 'linux' && protocol == VpnProtocol.ikev2) {
-      return 'IKEv2 is blocked on Linux until the strongSwan profile import/start path is implemented.';
-    }
-    return '${vpnProtocolLabel(protocol)} is not available on this runtime.';
+    if (protocol == VpnProtocol.openVpn) return _openVpnUnavailableReason;
+    return canConnectProtocol(protocol)
+        ? null
+        : '${vpnProtocolLabel(protocol)} is not available on this runtime.';
   }
 
   @override
@@ -304,10 +312,16 @@ class MockVpnService implements VpnService {
   bool get isNativeAvailable => false;
 
   @override
-  bool canConnectProtocol(VpnProtocol protocol) => true;
+  bool canConnectProtocol(VpnProtocol protocol) =>
+      protocol == VpnProtocol.wireGuard;
 
   @override
-  String? protocolUnavailableReason(VpnProtocol protocol) => null;
+  String? protocolUnavailableReason(VpnProtocol protocol) {
+    if (canConnectProtocol(protocol)) return null;
+    return protocol == VpnProtocol.openVpn
+        ? _openVpnUnavailableReason
+        : '${vpnProtocolLabel(protocol)} is not available on this runtime.';
+  }
 
   @override
   Future<VpnStatus> connect(
@@ -316,6 +330,13 @@ class MockVpnService implements VpnService {
         _status == VpnStatus.connecting ||
         _status == VpnStatus.disconnecting) {
       return _status;
+    }
+    if (!canConnectProtocol(protocol)) {
+      throw VpnServiceException(
+        'protocol_unavailable',
+        protocolUnavailableReason(protocol) ??
+            '${vpnProtocolLabel(protocol)} is not available on this runtime.',
+      );
     }
     _logMockUse();
     _status = VpnStatus.connecting;

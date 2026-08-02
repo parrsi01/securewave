@@ -97,6 +97,12 @@ def main() -> int:
         f"{api_base}/auth/login",
         payload={"email": args.email, "password": args.password},
     )
+    if status == 403 and "verify" in str(body).lower():
+        raise RuntimeError(
+            "login blocked: this deployment requires email verification before "
+            "login, so a freshly registered smoke account cannot proceed. "
+            "Re-run with --email/--password for an existing verified QA account."
+        )
     _require(status, {200}, "login", body)
     token = body.get("access_token")
     if not token:
@@ -130,13 +136,17 @@ def main() -> int:
                 },
             )
             profile_results[protocol].append(status)
-            if protocol in {"wireguard", "openvpn"}:
+            if protocol == "wireguard":
                 _require(status, {200}, f"{protocol} profile", body)
+            elif protocol == "openvpn":
+                # This checkout has no authenticated current-source OpenVPN
+                # runtime/credential evidence.  A 200 here would be a false
+                # green result from legacy metadata and must fail the smoke.
+                _require(status, {400, 503}, f"{protocol} unavailable", body)
 
     summary = {
         "api_base": api_base,
         "email": args.email,
-        "password": args.password,
         "account_email": account.get("email"),
         "plan": plan.get("plan_name") or plan.get("plan"),
         "usage": {

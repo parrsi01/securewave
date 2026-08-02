@@ -30,29 +30,53 @@ def upgrade():
     # ===========================
     # ENHANCE EXISTING AUDIT_LOGS TABLE
     # ===========================
+    # Older migration history never created audit_logs. Keep this revision
+    # runnable for clean databases and for installations that reached 0004
+    # without the table.
+    bind = op.get_bind()
+    inspector = sa.inspect(bind)
+    if "audit_logs" not in inspector.get_table_names():
+        op.create_table(
+            "audit_logs",
+            sa.Column("id", sa.Integer(), primary_key=True),
+            sa.Column("user_id", sa.Integer(), sa.ForeignKey("users.id"), nullable=True),
+        )
+
+    audit_columns = {column["name"] for column in sa.inspect(bind).get_columns("audit_logs")}
+
+    def add_audit_column(column):
+        if column.name not in audit_columns:
+            op.add_column("audit_logs", column)
+            audit_columns.add(column.name)
+
     # Add new columns to existing audit_logs table
-    op.add_column('audit_logs', sa.Column('event_type', sa.String(), nullable=True, index=True))
-    op.add_column('audit_logs', sa.Column('event_category', sa.String(), nullable=True, index=True))
-    op.add_column('audit_logs', sa.Column('actor_type', sa.String(), nullable=True))
-    op.add_column('audit_logs', sa.Column('actor_email', sa.String(), nullable=True, index=True))
-    op.add_column('audit_logs', sa.Column('resource_type', sa.String(), nullable=True, index=True))
-    op.add_column('audit_logs', sa.Column('resource_id', sa.String(), nullable=True, index=True))
-    op.add_column('audit_logs', sa.Column('resource_name', sa.String(), nullable=True))
-    op.add_column('audit_logs', sa.Column('description', sa.Text(), nullable=True))
-    op.add_column('audit_logs', sa.Column('request_id', sa.String(), nullable=True, index=True))
-    op.add_column('audit_logs', sa.Column('severity', sa.String(), nullable=True, index=True))
-    op.add_column('audit_logs', sa.Column('is_suspicious', sa.Boolean(), nullable=False, server_default='false', index=True))
-    op.add_column('audit_logs', sa.Column('is_compliance_relevant', sa.Boolean(), nullable=False, server_default='true'))
-    op.add_column('audit_logs', sa.Column('success', sa.Boolean(), nullable=True))
-    op.add_column('audit_logs', sa.Column('error_message', sa.Text(), nullable=True))
-    op.add_column('audit_logs', sa.Column('created_at', sa.DateTime(), nullable=True, index=True))
+    add_audit_column(sa.Column('event_type', sa.String(), nullable=True, index=True))
+    add_audit_column(sa.Column('event_category', sa.String(), nullable=True, index=True))
+    add_audit_column(sa.Column('actor_type', sa.String(), nullable=True))
+    add_audit_column(sa.Column('actor_email', sa.String(), nullable=True, index=True))
+    add_audit_column(sa.Column('resource_type', sa.String(), nullable=True, index=True))
+    add_audit_column(sa.Column('resource_id', sa.String(), nullable=True, index=True))
+    add_audit_column(sa.Column('resource_name', sa.String(), nullable=True))
+    add_audit_column(sa.Column('description', sa.Text(), nullable=True))
+    add_audit_column(sa.Column('request_id', sa.String(), nullable=True, index=True))
+    add_audit_column(sa.Column('severity', sa.String(), nullable=True, index=True))
+    add_audit_column(sa.Column('is_suspicious', sa.Boolean(), nullable=False, server_default='false', index=True))
+    add_audit_column(sa.Column('is_compliance_relevant', sa.Boolean(), nullable=False, server_default='true'))
+    add_audit_column(sa.Column('success', sa.Boolean(), nullable=True))
+    add_audit_column(sa.Column('error_message', sa.Text(), nullable=True))
+    add_audit_column(sa.Column('created_at', sa.DateTime(), nullable=True, index=True))
 
     # Create composite indexes
-    op.create_index('ix_audit_user_event', 'audit_logs', ['user_id', 'event_type'])
-    op.create_index('ix_audit_category_severity', 'audit_logs', ['event_category', 'severity'])
-    op.create_index('ix_audit_resource', 'audit_logs', ['resource_type', 'resource_id'])
-    op.create_index('ix_audit_created_category', 'audit_logs', ['created_at', 'event_category'])
-    op.create_index('ix_audit_suspicious', 'audit_logs', ['is_suspicious', 'created_at'])
+    audit_indexes = {index["name"] for index in sa.inspect(bind).get_indexes("audit_logs")}
+    for name, columns in (
+        ('ix_audit_user_event', ['user_id', 'event_type']),
+        ('ix_audit_category_severity', ['event_category', 'severity']),
+        ('ix_audit_resource', ['resource_type', 'resource_id']),
+        ('ix_audit_created_category', ['created_at', 'event_category']),
+        ('ix_audit_suspicious', ['is_suspicious', 'created_at']),
+    ):
+        if name not in audit_indexes:
+            op.create_index(name, 'audit_logs', columns)
 
     # ===========================
     # PERFORMANCE METRICS TABLE

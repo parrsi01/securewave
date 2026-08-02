@@ -143,7 +143,8 @@ app.add_middleware(GZipMiddleware, minimum_size=500)
 limiter = Limiter(
     key_func=get_remote_address,
     storage_uri=os.getenv("REDIS_URL", "memory://"),
-    default_limits=["200 per minute"]
+    default_limits=["200 per minute"],
+    in_memory_fallback_enabled=True,
 )
 app.state.limiter = limiter
 if not is_testing:
@@ -398,8 +399,14 @@ async def initialize_app_background():
                 if demo_mode or wg_mock:
                     logger.info("Seeding demo VPN servers for demo mode...")
                     try:
+                        # The optimizer query may leave a read transaction
+                        # open on SQLite. Close it before the seed helper
+                        # opens its own write session, otherwise startup can
+                        # silently finish with an empty server inventory.
+                        db.close()
                         from infrastructure.init_demo_servers import init_demo_servers
                         init_demo_servers()
+                        db = SessionLocal()
                         server_count = load_servers_from_database(optimizer, db)
                         logger.info(f"Demo servers initialized: {server_count}")
                     except Exception as seed_err:
@@ -473,12 +480,12 @@ def api_error(code: str, message: str, details=None, status_code: int = 400):
 
 @app.get("/health")
 def healthcheck():
-    return {"status": "ok", "service": "securewave-vpn-demo"}
+    return {"status": "ok", "service": "securewave-vpn"}
 
 
 @app.get("/api/health")
 def api_healthcheck():
-    return {"status": "ok", "service": "securewave-vpn-demo"}
+    return {"status": "ok", "service": "securewave-vpn"}
 
 
 @app.get("/api/health/email")
@@ -498,7 +505,11 @@ def readiness():
         db.close()
         return {"status": "ready", "database": "connected"}
     except Exception as e:
-        return {"status": "not_ready", "error": str(e)}
+        _logger.error("Readiness database check failed: %s", e)
+        return JSONResponse(
+            status_code=503,
+            content={"status": "not_ready", "error": "database unavailable"},
+        )
 
 
 @app.get("/version")
@@ -512,8 +523,19 @@ def version():
 
 static_directory = Path(__file__).resolve().parent / "static"
 
+
+class PublicStaticFiles(StaticFiles):
+    """Serve public assets without exposing hidden files or directories."""
+
+    def lookup_path(self, path: str):
+        if any(part.startswith(".") for part in Path(path).parts):
+            return "", None
+        return super().lookup_path(path)
+
 page_routes = {
-    "/home": "home.html",
+    "/home": "index.html",
+    # Legacy alias: old links and cached pages pointed at /home.html.
+    "/home.html": "index.html",
     "/login": "login.html",
     "/register": "register.html",
     "/dashboard": "dashboard.html",
@@ -534,7 +556,7 @@ page_routes = {
 }
 
 html_pages = [
-    "index.html", "home.html", "login.html", "register.html",
+    "index.html", "login.html", "register.html",
     "dashboard.html", "vpn.html", "services.html", "subscription.html", "download.html", "leak_test.html",
     "about.html", "contact.html", "privacy.html", "terms.html",
     "settings.html", "diagnostics.html"
@@ -565,19 +587,19 @@ if static_directory.exists():
     _logger.info(f"Static directory contents: {list(static_directory.iterdir()) if static_directory.exists() else 'N/A'}")
 
 try:
-    app.mount("/static", StaticFiles(directory=str(static_directory)), name="static")
+    app.mount("/static", PublicStaticFiles(directory=str(static_directory)), name="static")
     css_dir = static_directory / "css"
     js_dir = static_directory / "js"
     img_dir = static_directory / "img"
     downloads_dir = static_directory / "downloads"
     if css_dir.exists():
-        app.mount("/css", StaticFiles(directory=str(css_dir)), name="css")
+        app.mount("/css", PublicStaticFiles(directory=str(css_dir)), name="css")
     if js_dir.exists():
-        app.mount("/js", StaticFiles(directory=str(js_dir)), name="js")
+        app.mount("/js", PublicStaticFiles(directory=str(js_dir)), name="js")
     if img_dir.exists():
-        app.mount("/img", StaticFiles(directory=str(img_dir)), name="img")
+        app.mount("/img", PublicStaticFiles(directory=str(img_dir)), name="img")
     if downloads_dir.exists():
-        app.mount("/downloads", StaticFiles(directory=str(downloads_dir)), name="downloads")
+        app.mount("/downloads", PublicStaticFiles(directory=str(downloads_dir)), name="downloads")
     _logger.info("Static files mounted successfully")
 except Exception as e:
     _logger.warning(f"Failed to mount static files: {e}")

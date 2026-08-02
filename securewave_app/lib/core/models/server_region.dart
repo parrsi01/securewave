@@ -26,7 +26,6 @@ class ServerRegion {
   final bool premiumOnly;
 
   bool supportsProtocol(String protocol) {
-    if (supportedProtocols.isEmpty) return true;
     return supportedProtocols
         .map((item) => item.toLowerCase().trim())
         .contains(protocol.toLowerCase().trim());
@@ -42,10 +41,6 @@ class ServerRegion {
             .map((item) => item.toString().trim().toLowerCase())
             .where((item) => item.isNotEmpty),
       );
-    } else {
-      if (json['supports_wireguard'] == true) protocols.add('wireguard');
-      if (json['supports_openvpn'] == true) protocols.add('openvpn');
-      if (json['supports_ikev2'] == true) protocols.add('ikev2');
     }
     final latencyRaw = json['latency_ms'];
     final loadRaw = json['load_percent'];

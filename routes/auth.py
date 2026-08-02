@@ -28,6 +28,7 @@ from services.jwt_service import (
     create_access_token,
     create_refresh_token,
     verify_refresh_token,
+    token_version_matches,
     get_current_user,
 )
 from services.auth_service import AuthService
@@ -115,9 +116,17 @@ def optional_current_user(request: Request, db: Session) -> Optional[User]:
         user_id = payload.get("sub")
         if user_id is None:
             return None
-        return db.query(User).filter(User.id == int(user_id)).first()
+        user = db.query(User).filter(User.id == int(user_id)).first()
+        if user is None or not token_version_matches(payload, user):
+            return None
+        return user
     except Exception:
         return None
+
+
+def _invalidate_auth_tokens(user: User) -> None:
+    """Revoke every token issued before the next authentication epoch."""
+    user.auth_token_version = int(getattr(user, "auth_token_version", 0) or 0) + 1
 
 
 # ===========================
@@ -405,7 +414,11 @@ async def refresh(
         token_data = verify_refresh_token(refresh_token_value)
         user = db.query(User).filter(User.id == int(token_data.get("sub"))).first()
 
-        if not user or not user.is_active:
+        if (
+            not user
+            or not user.is_active
+            or not token_version_matches(token_data, user)
+        ):
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Invalid refresh token"
@@ -433,7 +446,15 @@ async def refresh(
 
 
 @router.post("/logout")
-async def logout(response: Response):
+async def logout(
+    request: Request,
+    response: Response,
+    db: Session = Depends(get_db),
+):
+    current_user = optional_current_user(request, db)
+    if current_user is not None:
+        _invalidate_auth_tokens(current_user)
+        db.commit()
     response.delete_cookie("access_token", path="/")
     response.delete_cookie("refresh_token", path="/")
     response.delete_cookie("csrf_token", path="/")

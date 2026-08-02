@@ -55,6 +55,7 @@ def test_helper_daemon_uses_securewave_group_socket_and_allowed_uid_file():
 
 def test_privileged_helper_script_restricts_inputs_and_protocol_actions():
     helper = _read(HELPER)
+    helperd = _read(HELPERD)
 
     assert "require_safe_config_path" in helper
     assert "require_safe_runtime_file" in helper
@@ -62,7 +63,9 @@ def test_privileged_helper_script_restricts_inputs_and_protocol_actions():
     assert 'if [[ "$iface" != "sw-wg" ]]' in helper
     assert "wireguard-transfer" in helper
     assert "xfrm-state" in helper
-    assert "openvpn-start <config-path> <pid-path> <log-path> [auth-path]" in helper
+    assert "openvpn-start" not in helper
+    assert 'op == "openvpn.start"' in helperd
+    assert "protocol_unavailable" in helperd
     assert "ikev2-add-eap <server> <username> <password> [remote-id] [ca-cert-path]" in helper
     assert "cert-source=file" in helper
 

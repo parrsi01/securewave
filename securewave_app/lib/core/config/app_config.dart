@@ -13,6 +13,7 @@ class AppConfig {
     required this.upgradeUrl,
     required this.useMockApi,
     required this.resetSessionOnBoot,
+    this.autoLoginForTesting = false,
   });
 
   final String apiBaseUrl;
@@ -20,6 +21,7 @@ class AppConfig {
   final String upgradeUrl;
   final bool useMockApi;
   final bool resetSessionOnBoot;
+  final bool autoLoginForTesting;
   static AppConfig? _cached;
 
   factory AppConfig.defaults() {
@@ -45,6 +47,10 @@ class AppConfig {
         ),
       ),
       resetSessionOnBoot: false,
+      autoLoginForTesting: _parseBool(const String.fromEnvironment(
+        'SECUREWAVE_AUTO_LOGIN',
+        defaultValue: 'false',
+      )),
     );
   }
 
@@ -52,7 +58,7 @@ class AppConfig {
     if (_cached != null) return _cached!;
     try {
       if (!dotenv.isInitialized) {
-        await dotenv.load(fileName: '.env');
+        await dotenv.load(fileName: '.env', isOptional: true);
       }
     } catch (error, stackTrace) {
       AppLogger.warning('Config: .env load failed, using defaults');
@@ -103,6 +109,11 @@ class AppConfig {
             defaultValue: 'false',
           ),
     );
+    final autoLoginForTesting = _parseBool(
+      env['SECUREWAVE_AUTO_LOGIN'] ??
+          const String.fromEnvironment('SECUREWAVE_AUTO_LOGIN',
+              defaultValue: 'false'),
+    );
 
     _cached = AppConfig(
       apiBaseUrl: baseUrl,
@@ -110,6 +121,7 @@ class AppConfig {
       upgradeUrl: upgradeUrl,
       useMockApi: useMock,
       resetSessionOnBoot: resetSessionOnBoot,
+      autoLoginForTesting: autoLoginForTesting,
     );
     return _cached!;
   }

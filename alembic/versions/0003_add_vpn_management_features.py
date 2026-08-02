@@ -33,7 +33,10 @@ def upgrade():
         'wireguard_peers',
         sa.Column('id', sa.Integer(), primary_key=True, index=True),
         sa.Column('user_id', sa.Integer(), sa.ForeignKey('users.id'), nullable=False, index=True),
-        sa.Column('server_id', sa.Integer(), sa.ForeignKey('vpn_servers.id'), nullable=True, index=True),
+        # vpn_servers is introduced by the runtime-schema repair migration.
+        # Keeping this column unconstrained here lets the historical lineage
+        # reach that migration on a clean database.
+        sa.Column('server_id', sa.Integer(), nullable=True, index=True),
         sa.Column('public_key', sa.String(), nullable=False, unique=True, index=True),
         sa.Column('private_key_encrypted', sa.String(), nullable=False),
         sa.Column('ipv4_address', sa.String(), nullable=False),

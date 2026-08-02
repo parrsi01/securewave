@@ -47,6 +47,8 @@ class User(Base):
     last_login_ip = Column(String, nullable=True)
     failed_login_attempts = Column(Integer, default=0)
     account_locked_until = Column(DateTime, nullable=True)
+    # Incremented to revoke all previously issued access and refresh tokens.
+    auth_token_version = Column(Integer, nullable=False, default=0, server_default="0")
 
     # Relationships
     subscriptions = relationship("Subscription", back_populates="user")

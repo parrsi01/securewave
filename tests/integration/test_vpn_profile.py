@@ -1,5 +1,6 @@
 import pytest
 from fastapi import status
+from models.wireguard_peer import WireGuardPeer
 
 
 def _create_free_server(db, *, server_id="profile-free-us-1", **overrides):
@@ -31,6 +32,28 @@ def _create_free_server(db, *, server_id="profile-free-us-1", **overrides):
     db.commit()
     db.refresh(server)
     return server
+
+
+def test_invalid_explicit_server_does_not_create_device_peer(
+    client, auth_headers, test_user, db
+):
+    _create_free_server(db)
+
+    response = client.post(
+        "/api/vpn/profile",
+        json={
+            "device_name": "Rejected server device",
+            "device_type": "linux",
+            "server_id": "does-not-exist",
+        },
+        headers=auth_headers,
+    )
+
+    assert response.status_code == 404, response.text
+    assert not db.query(WireGuardPeer).filter(
+        WireGuardPeer.device_name == "Rejected server device",
+        WireGuardPeer.user_id == test_user.id,
+    ).first()
 
 
 class TestVpnProfileProvisioning:
@@ -96,6 +119,37 @@ class TestVpnProfileProvisioning:
         assert protocols["ikev2"]["enabled"] is False
         assert protocols["ikev2"]["platform_supported"] is False
 
+    def test_android_protocol_contract_exposes_wireguard_only(self, client, auth_headers, db):
+        _create_free_server(
+            db,
+            supports_openvpn=True,
+            openvpn_endpoint="10.0.0.9",
+            openvpn_ca_cert_pem="-----BEGIN CERTIFICATE-----\nMIIB\n-----END CERTIFICATE-----",
+        )
+
+        protocols_resp = client.get(
+            "/api/vpn/protocols?device_type=android",
+            headers=auth_headers,
+        )
+        assert protocols_resp.status_code == 200, protocols_resp.text
+        protocols = {item["protocol"]: item for item in protocols_resp.json()["protocols"]}
+        assert protocols["wireguard"]["platform_supported"] is True
+        assert protocols["openvpn"]["server_enabled"] is False
+        assert protocols["openvpn"]["platform_supported"] is False
+        assert protocols["openvpn"]["enabled"] is False
+
+        profile_resp = client.post(
+            "/api/vpn/profile",
+            json={
+                "device_name": "Android Phone",
+                "device_type": "android",
+                "protocol": "openvpn",
+            },
+            headers=auth_headers,
+        )
+        assert profile_resp.status_code == 400, profile_resp.text
+        assert "not release-ready" in profile_resp.text
+
     def test_servers_endpoint_returns_supported_protocols(self, client, auth_headers, db):
         _create_free_server(
             db,
@@ -111,7 +165,8 @@ class TestVpnProfileProvisioning:
         )
         assert resp.status_code == 200, resp.text
         server = resp.json()["servers"][0]
-        assert server["supported_protocols"] == ["wireguard", "openvpn"]
+        assert server["supported_protocols"] == ["wireguard"]
+        assert server["supports_openvpn"] is False
         assert server["supports_ikev2"] is False
 
     def test_linux_profile_includes_wg_quick_kill_switch_hooks(self, client, auth_headers, db):
@@ -152,9 +207,9 @@ class TestVpnProfileProvisioning:
             headers=auth_headers,
         )
         assert resp.status_code == 503, resp.text
-        assert "No usable openvpn VPN servers available" in resp.text
+        assert "authenticated current-source" in resp.text
 
-    def test_openvpn_profile_returns_protocol_config_when_server_supports_it(self, client, auth_headers, db):
+    def test_openvpn_profile_rejects_legacy_metadata_without_current_evidence(self, client, auth_headers, db):
         _create_free_server(
             db,
             server_id="profile-openvpn-us-1",
@@ -178,12 +233,9 @@ class TestVpnProfileProvisioning:
             },
             headers=auth_headers,
         )
-        assert resp.status_code == 200, resp.text
-        data = resp.json()
-        assert data.get("protocol") == "openvpn"
-        assert not data.get("wireguard_config")
-        assert "client" in data.get("openvpn_config", "")
-        assert "<ca>" in data.get("openvpn_config", "")
+        assert resp.status_code == 503, resp.text
+        assert "authenticated current-source" in resp.text
+        assert db.query(WireGuardPeer).count() == 0
 
     def test_ikev2_profile_is_blocked_on_linux_even_when_server_supports_it(self, client, auth_headers, db):
         _create_free_server(

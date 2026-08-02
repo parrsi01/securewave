@@ -5,6 +5,7 @@ ROOT = Path(__file__).resolve().parents[2]
 BUILD_DEB = ROOT / "securewave_app" / "scripts" / "build_deb.sh"
 CMAKE = ROOT / "securewave_app" / "linux" / "CMakeLists.txt"
 PACKAGING = ROOT / "securewave_app" / "packaging" / "linux"
+RUNNER = ROOT / "securewave_app" / "linux" / "runner" / "my_application.cc"
 
 REQUIRED_DEPENDS = {
     "wireguard-tools",
@@ -25,6 +26,33 @@ REQUIRED_DEPENDS = {
 
 def _read(path: Path) -> str:
     return path.read_text(encoding="utf-8")
+
+
+def test_linux_disconnect_can_clean_wireguard_residue_without_config_file():
+    """A lost config must not make an existing sw-wg interface uncleanable."""
+    runner = _read(RUNNER)
+
+    assert '{"version", "1"}, {"op", "wireguard.cleanup"}' in runner
+
+
+def test_historical_runner_does_not_start_openvpn_without_authenticated_credentials():
+    runner = _read(RUNNER)
+
+    assert "OpenVPN is unavailable until authenticated current-source runtime and credential evidence is recorded." in runner
+    openvpn_start = runner.index('if (g_strcmp0(protocol, "openvpn") == 0)')
+    openvpn_end = runner.index('if (g_strcmp0(protocol, "ikev2") == 0)', openvpn_start)
+    assert "openvpn.start" not in runner[openvpn_start:openvpn_end]
+
+
+def test_openvpn_cleanup_contract_carries_auth_file_and_helper_requires_it():
+    runner = _read(RUNNER)
+    helperd = _read(ROOT / "securewave_app" / "linux" / "helperd" / "securewave_helperd.cc")
+
+    assert '"op", "openvpn.cleanup"' in runner
+    assert '"auth_path"' in runner[runner.index('"op", "openvpn.cleanup"'):runner.index('"op", "openvpn.cleanup"') + 260]
+    assert 'op == "openvpn.cleanup" && auth_path.empty()' in helperd
+    assert 'op == "openvpn.start"' in helperd
+    assert "OpenVPN is unavailable until authenticated current-source runtime and credential evidence is recorded." in helperd
 
 
 def test_linux_build_wires_helper_daemon_into_flutter_bundle():

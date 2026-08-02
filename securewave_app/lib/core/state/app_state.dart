@@ -24,7 +24,7 @@ final deviceInfoProvider = Provider<String>((ref) {
 
 final serversProvider = FutureProvider<List<ServerRegion>>((ref) async {
   final api = ref.watch(apiClientProvider);
-  return api.fetchServers();
+  return api.fetchServers(deviceType: 'linux');
 });
 
 final userPlanProvider = FutureProvider<UserPlan>((ref) async {

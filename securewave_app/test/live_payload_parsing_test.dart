@@ -24,7 +24,7 @@ void main() {
     expect(region.premiumOnly, isFalse);
   });
 
-  test('ServerRegion falls back to backend protocol booleans', () {
+  test('ServerRegion fails closed without supported protocol evidence', () {
     final region = ServerRegion.fromJson({
       'server_id': 'de-nue-1',
       'location': 'Nuremberg',
@@ -33,8 +33,8 @@ void main() {
       'supports_ikev2': false,
     });
 
-    expect(region.supportsProtocol('wireguard'), isTrue);
-    expect(region.supportsProtocol('openvpn'), isTrue);
+    expect(region.supportsProtocol('wireguard'), isFalse);
+    expect(region.supportsProtocol('openvpn'), isFalse);
     expect(region.supportsProtocol('ikev2'), isFalse);
   });
 

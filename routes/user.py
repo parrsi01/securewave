@@ -14,6 +14,7 @@ from models.subscription import Subscription
 from models.wireguard_peer import WireGuardPeer
 from models.user import User
 from services.jwt_service import get_current_user
+from services.subscription_access import sync_user_usage
 
 router = APIRouter(prefix="/api/user", tags=["user"])
 
@@ -55,6 +56,7 @@ async def get_user_plan(
 
     Response shape matches the Flutter app's `UserPlan.fromJson`.
     """
+    await sync_user_usage(db, current_user)
     sub = _active_subscription(db, current_user.id)
     used_gb = _bytes_used(db, current_user.id) / 1024 / 1024 / 1024
 
@@ -81,4 +83,3 @@ async def get_user_plan(
         "used_gb": round(used_gb, 3),
         "renewal_date": renewal,
     }
-

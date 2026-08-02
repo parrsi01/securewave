@@ -11,24 +11,30 @@ from email.mime.multipart import MIMEMultipart
 from typing import Optional, Dict
 from dotenv import load_dotenv
 
+from services.email_config import configured_env, parse_smtp_port
+
 load_dotenv()
 load_dotenv(".env.production")
 
 logger = logging.getLogger(__name__)
 
 # Email configuration from environment
-SMTP_HOST = os.getenv("SMTP_HOST", "smtp.gmail.com")
-SMTP_PORT = int(os.getenv("SMTP_PORT", "587"))
-SMTP_USER = os.getenv("SMTP_USER")
-SMTP_PASSWORD = os.getenv("SMTP_PASSWORD")
-SMTP_FROM_EMAIL = os.getenv("SMTP_FROM_EMAIL")
-SMTP_FROM_NAME = os.getenv("SMTP_FROM_NAME")
-FROM_EMAIL = os.getenv("FROM_EMAIL") or SMTP_FROM_EMAIL or SMTP_USER
-FROM_NAME = os.getenv("FROM_NAME") or SMTP_FROM_NAME or "SecureWave VPN"
-EMAIL_PROVIDER = os.getenv("EMAIL_PROVIDER", "smtp").strip().lower()
-SENDGRID_API_KEY = os.getenv("SENDGRID_API_KEY")
-AWS_SES_REGION = os.getenv("AWS_SES_REGION", "us-east-1")
-APP_URL = os.getenv("APP_URL", "https://securewave.example.com")
+_SMTP_HOST_CONFIGURED = configured_env("SMTP_HOST")
+SMTP_HOST = _SMTP_HOST_CONFIGURED or "smtp.gmail.com"
+_SMTP_PORT_RAW = configured_env("SMTP_PORT")
+SMTP_PORT, _SMTP_PORT_VALID = parse_smtp_port(_SMTP_PORT_RAW)
+if _SMTP_PORT_RAW is not None and not _SMTP_PORT_VALID:
+    logger.warning("SMTP_PORT is not a valid integer; email is disabled until it is configured")
+SMTP_USER = configured_env("SMTP_USER")
+SMTP_PASSWORD = configured_env("SMTP_PASSWORD")
+SMTP_FROM_EMAIL = configured_env("SMTP_FROM_EMAIL")
+SMTP_FROM_NAME = configured_env("SMTP_FROM_NAME")
+FROM_EMAIL = configured_env("FROM_EMAIL") or SMTP_FROM_EMAIL or SMTP_USER
+FROM_NAME = configured_env("FROM_NAME") or SMTP_FROM_NAME or "SecureWave VPN"
+EMAIL_PROVIDER = (configured_env("EMAIL_PROVIDER", "smtp") or "smtp").lower()
+SENDGRID_API_KEY = configured_env("SENDGRID_API_KEY")
+AWS_SES_REGION = configured_env("AWS_SES_REGION", "us-east-1") or "us-east-1"
+APP_URL = configured_env("APP_URL", "https://securewave.example.com") or "https://securewave.example.com"
 
 
 class EmailService:
@@ -54,8 +60,8 @@ class EmailService:
                 missing.append(name)
 
         if provider == "smtp":
-            require("SMTP_HOST", os.getenv("SMTP_HOST"))
-            require("SMTP_PORT", os.getenv("SMTP_PORT"))
+            require("SMTP_HOST", _SMTP_HOST_CONFIGURED)
+            require("SMTP_PORT", _SMTP_PORT_RAW if _SMTP_PORT_VALID else None)
             require("SMTP_USER", SMTP_USER)
             require("SMTP_PASSWORD", SMTP_PASSWORD)
             require("FROM_EMAIL", FROM_EMAIL)
@@ -124,7 +130,7 @@ class EmailService:
 
     def _provider_ready(self) -> bool:
         if self.provider == "smtp":
-            return bool(SMTP_USER and SMTP_PASSWORD and FROM_EMAIL)
+            return bool(_SMTP_PORT_VALID and SMTP_USER and SMTP_PASSWORD and FROM_EMAIL)
         if self.provider == "sendgrid":
             return bool(SENDGRID_API_KEY and FROM_EMAIL)
         if self.provider in ("ses", "aws_ses"):

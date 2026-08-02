@@ -6,29 +6,26 @@
 #endif
 #include <gio/gio.h>
 #include <glib/gstdio.h>
-#include <signal.h>
+#include <sys/socket.h>
+#include <sys/un.h>
 #include <unistd.h>
+
+#include <cerrno>
+#include <map>
+#include <sstream>
+#include <string>
+#include <utility>
 
 #include "flutter/generated_plugin_registrant.h"
 
-// g_spawn_check_exit_status was renamed to g_spawn_check_wait_status in
-// glib 2.70.  Provide a compatibility shim so the build succeeds on both
-// older and newer versions of glib.
-#if !GLIB_CHECK_VERSION(2, 70, 0)
-static inline gboolean g_spawn_check_wait_status(gint wait_status,
-                                                  GError** error) {
-  return g_spawn_check_exit_status(wait_status, error);
-}
-#endif
-
 namespace {
 const char* kChannelName = "securewave/vpn";
-const char* kWireGuardConfigFileName = "securewave.conf";
-const char* kOpenVpnConfigFileName = "securewave.ovpn";
+const char* kHelperSocketPath = "/run/securewave/helper.sock";
+const char* kWireGuardConfigFileName = "sw-wg.conf";
 const char* kOpenVpnPidFileName = "securewave-openvpn.pid";
 const char* kOpenVpnLogFileName = "securewave-openvpn.log";
-const guint kWgQuickTimeoutMs = 30000;
-const guint kOpenVpnTimeoutMs = 10000;
+const char* kOpenVpnAuthFileName = "securewave-openvpn.auth";
+const char* kIkev2ConfigFileName = "securewave-ikev2.conf";
 
 typedef struct {
   FlMethodChannel* channel;
@@ -61,30 +58,6 @@ static const gchar* get_string_arg(FlValue* args, const gchar* key) {
   return fl_value_get_string(value);
 }
 
-static gboolean wg_quick_available() {
-  g_autofree gchar* wg_quick = g_find_program_in_path("wg-quick");
-  return wg_quick != nullptr;
-}
-
-static gboolean openvpn_available() {
-  g_autofree gchar* openvpn = g_find_program_in_path("openvpn");
-  return openvpn != nullptr;
-}
-
-static gboolean ikev2_available() {
-  g_autofree gchar* swanctl = g_find_program_in_path("swanctl");
-  g_autofree gchar* ipsec = g_find_program_in_path("ipsec");
-  return swanctl != nullptr && ipsec != nullptr;
-}
-
-static gboolean elevated_runner_available() {
-  if (geteuid() == 0) {
-    return TRUE;
-  }
-  g_autofree gchar* pkexec = g_find_program_in_path("pkexec");
-  return pkexec != nullptr;
-}
-
 static gchar* build_state_path(const gchar* filename) {
   g_autofree gchar* config_dir = g_build_filename(g_get_user_config_dir(), "securewave", nullptr);
   if (g_mkdir_with_parents(config_dir, 0700) != 0) {
@@ -103,283 +76,156 @@ static void respond_error(
   fl_method_call_respond(method_call, response, nullptr);
 }
 
-typedef struct {
-  gint ref_count;
-  FlMethodCall* method_call;
-  gchar* error_code;
-  gchar* action;
-  GPid pid;
-  guint timeout_id;
-  guint timeout_ms;
-  gboolean responded;
-  gboolean verify_wireguard_interface;
-} WgQuickSpawnContext;
+using HelperFields = std::map<std::string, std::string>;
 
-static WgQuickSpawnContext* wg_quick_spawn_context_ref(WgQuickSpawnContext* ctx) {
-  g_atomic_int_inc(&ctx->ref_count);
-  return ctx;
+static std::string helper_escape(const std::string& value) {
+  std::string escaped;
+  for (const char c : value) {
+    if (c == '\\') escaped += "\\\\";
+    else if (c == '\n') escaped += "\\n";
+    else if (c == '\r') escaped += "\\r";
+    else escaped += c;
+  }
+  return escaped;
 }
 
-static void wg_quick_spawn_context_unref(WgQuickSpawnContext* ctx) {
-  if (!ctx) {
-    return;
+static std::string helper_unescape(const std::string& value) {
+  std::string unescaped;
+  for (size_t i = 0; i < value.size(); ++i) {
+    if (value[i] == '\\' && i + 1 < value.size()) {
+      const char next = value[++i];
+      unescaped += next == 'n' ? '\n' : (next == 'r' ? '\r' : next);
+    } else {
+      unescaped += value[i];
+    }
   }
-  if (!g_atomic_int_dec_and_test(&ctx->ref_count)) {
-    return;
-  }
-  g_clear_object(&ctx->method_call);
-  g_clear_pointer(&ctx->error_code, g_free);
-  g_clear_pointer(&ctx->action, g_free);
-  g_free(ctx);
+  return unescaped;
 }
 
-static void wg_quick_respond_ok_once(WgQuickSpawnContext* ctx) {
-  if (ctx->responded) {
-    return;
+static std::string helper_serialize(const HelperFields& fields) {
+  std::string body;
+  for (const auto& item : fields) {
+    body += item.first + "=" + helper_escape(item.second) + "\n";
   }
-  ctx->responded = TRUE;
-  g_autoptr(FlMethodResponse) response = FL_METHOD_RESPONSE(
-      fl_method_success_response_new(nullptr));
-  fl_method_call_respond(ctx->method_call, response, nullptr);
+  return body;
 }
 
-static void wg_quick_respond_error_once(WgQuickSpawnContext* ctx, const gchar* message) {
-  if (ctx->responded) {
-    return;
+static HelperFields helper_parse(const std::string& body) {
+  HelperFields fields;
+  std::istringstream stream(body);
+  std::string line;
+  while (std::getline(stream, line)) {
+    const auto separator = line.find('=');
+    if (separator == std::string::npos) continue;
+    fields[line.substr(0, separator)] = helper_unescape(line.substr(separator + 1));
   }
-  ctx->responded = TRUE;
-  respond_error(ctx->method_call, ctx->error_code, message, nullptr);
+  return fields;
 }
 
-static gboolean wireguard_interface_exists() {
-  gint wait_status = 0;
-  g_autoptr(GError) error = nullptr;
-  const gchar* argv[] = {"ip", "link", "show", "securewave", nullptr};
-  if (!g_spawn_sync(nullptr,
-                    const_cast<gchar**>(argv),
-                    nullptr,
-                    G_SPAWN_SEARCH_PATH,
-                    nullptr,
-                    nullptr,
-                    nullptr,
-                    nullptr,
-                    &wait_status,
-                    &error)) {
+static gboolean helper_write_all(int fd, const std::string& body) {
+  size_t offset = 0;
+  while (offset < body.size()) {
+    const ssize_t written = write(fd, body.data() + offset, body.size() - offset);
+    if (written < 0 && errno == EINTR) continue;
+    if (written <= 0) return FALSE;
+    offset += static_cast<size_t>(written);
+  }
+  return TRUE;
+}
+
+static gboolean helper_request(const HelperFields& request,
+                               HelperFields* response,
+                               std::string* error_message) {
+  const int fd = socket(AF_UNIX, SOCK_STREAM, 0);
+  if (fd < 0) {
+    *error_message = "Unable to open SecureWave VPN helper socket.";
     return FALSE;
   }
-  return g_spawn_check_wait_status(wait_status, nullptr);
+  struct sockaddr_un address {};
+  address.sun_family = AF_UNIX;
+  g_strlcpy(address.sun_path, kHelperSocketPath, sizeof(address.sun_path));
+  if (connect(fd, reinterpret_cast<struct sockaddr*>(&address), sizeof(address)) != 0) {
+    *error_message = "SecureWave VPN helper is not running. Start securewave-helper.service and retry.";
+    close(fd);
+    return FALSE;
+  }
+  const std::string body = helper_serialize(request);
+  if (!helper_write_all(fd, body)) {
+    *error_message = "Unable to send the VPN request to the SecureWave helper.";
+    close(fd);
+    return FALSE;
+  }
+  shutdown(fd, SHUT_WR);
+  std::string raw;
+  char buffer[4096];
+  while (true) {
+    const ssize_t count = read(fd, buffer, sizeof(buffer));
+    if (count < 0 && errno == EINTR) continue;
+    if (count <= 0) break;
+    raw.append(buffer, static_cast<size_t>(count));
+  }
+  close(fd);
+  if (raw.empty()) {
+    *error_message = "SecureWave VPN helper returned no response.";
+    return FALSE;
+  }
+  *response = helper_parse(raw);
+  return TRUE;
 }
 
-static void wg_quick_child_watch_cb(GPid pid, gint wait_status, gpointer user_data) {
-  WgQuickSpawnContext* ctx = static_cast<WgQuickSpawnContext*>(user_data);
-  if (ctx->timeout_id != 0) {
-    g_source_remove(ctx->timeout_id);
-    ctx->timeout_id = 0;
+static void respond_helper_result(FlMethodCall* method_call,
+                                  const HelperFields& response,
+                                  const std::string& transport_error) {
+  if (!transport_error.empty()) {
+    respond_error(method_call, "vpn_unavailable", transport_error.c_str(), nullptr);
+    return;
   }
-  g_autoptr(GError) error = nullptr;
-  if (!g_spawn_check_wait_status(wait_status, &error)) {
-    wg_quick_respond_error_once(ctx, error ? error->message : "wg-quick failed.");
-  } else {
-    if (ctx->verify_wireguard_interface) {
-      const gboolean exists = wireguard_interface_exists();
-      if (g_strcmp0(ctx->action, "up") == 0 && !exists) {
-        wg_quick_respond_error_once(
-            ctx,
-            "WireGuard command completed but interface securewave was not found.");
-        g_spawn_close_pid(pid);
-        return;
-      }
-      if (g_strcmp0(ctx->action, "down") == 0 && exists) {
-        wg_quick_respond_error_once(
-            ctx,
-            "WireGuard command completed but interface securewave is still present.");
-        g_spawn_close_pid(pid);
-        return;
-      }
-    }
-    wg_quick_respond_ok_once(ctx);
+  const auto ok = response.find("ok");
+  if (ok != response.end() && ok->second == "true") {
+    g_autoptr(FlMethodResponse) success = FL_METHOD_RESPONSE(
+        fl_method_success_response_new(nullptr));
+    fl_method_call_respond(method_call, success, nullptr);
+    return;
   }
-  g_spawn_close_pid(pid);
+  const auto code = response.find("code");
+  const auto message = response.find("message");
+  respond_error(method_call,
+                code == response.end() ? "vpn_connect_failed" : code->second.c_str(),
+                message == response.end() ? "VPN helper operation failed." : message->second.c_str(),
+                nullptr);
 }
 
-static gboolean wg_quick_timeout_cb(gpointer user_data) {
-  WgQuickSpawnContext* ctx = static_cast<WgQuickSpawnContext*>(user_data);
-  ctx->timeout_id = 0;
-  wg_quick_respond_error_once(
-      ctx,
-      "VPN operation timed out. Ensure you have the required permissions and retry.");
-  if (ctx->pid != 0) {
-    kill(ctx->pid, SIGKILL);
-  }
+struct HelperCallContext {
+  FlMethodCall* method_call;
+  HelperFields request;
+  HelperFields response;
+  std::string transport_error;
+};
+
+static gboolean finish_helper_request(gpointer user_data) {
+  auto* context = static_cast<HelperCallContext*>(user_data);
+  respond_helper_result(context->method_call, context->response,
+                        context->transport_error);
+  g_object_unref(context->method_call);
+  delete context;
   return G_SOURCE_REMOVE;
 }
 
-static void spawn_wg_quick_async(
-    FlMethodCall* method_call,
-    const gchar* error_code,
-    const gchar* action,
-    const gchar* config_path,
-    gboolean verify_interface) {
-  g_autoptr(GError) error = nullptr;
-  g_autofree gchar* wg_quick = g_find_program_in_path("wg-quick");
-  if (wg_quick == nullptr) {
-    respond_error(
-        method_call,
-        "vpn_unavailable",
-        "wg-quick not found. Install wireguard-tools and retry.",
-        nullptr);
-    return;
-  }
-
-  g_autofree gchar* pkexec = nullptr;
-  GPtrArray* argv_array = g_ptr_array_new();
-  if (geteuid() != 0) {
-    pkexec = g_find_program_in_path("pkexec");
-    if (pkexec == nullptr) {
-      g_ptr_array_free(argv_array, TRUE);
-      respond_error(
-          method_call,
-          "vpn_permission_required",
-          "Starting WireGuard requires administrator privileges. Install PolicyKit/pkexec or run SecureWave with the required permissions.",
-          nullptr);
-      return;
-    }
-    g_ptr_array_add(argv_array, pkexec);
-  }
-  g_ptr_array_add(argv_array, wg_quick);
-  g_ptr_array_add(argv_array, const_cast<gchar*>(action));
-  g_ptr_array_add(argv_array, const_cast<gchar*>(config_path));
-  g_ptr_array_add(argv_array, nullptr);
-  gchar** argv = reinterpret_cast<gchar**>(argv_array->pdata);
-
-  GPid pid = 0;
-  if (!g_spawn_async(nullptr, argv, nullptr,
-                     static_cast<GSpawnFlags>(G_SPAWN_SEARCH_PATH | G_SPAWN_DO_NOT_REAP_CHILD),
-                     nullptr, nullptr, &pid, &error)) {
-    g_ptr_array_free(argv_array, TRUE);
-    respond_error(method_call, error_code, error ? error->message : "Failed to spawn wg-quick.", nullptr);
-    return;
-  }
-  g_ptr_array_free(argv_array, TRUE);
-
-  WgQuickSpawnContext* ctx = g_new0(WgQuickSpawnContext, 1);
-  ctx->ref_count = 1;
-  ctx->method_call = FL_METHOD_CALL(g_object_ref(method_call));
-  ctx->error_code = g_strdup(error_code);
-  ctx->action = g_strdup(action);
-  ctx->pid = pid;
-  ctx->timeout_ms = kWgQuickTimeoutMs;
-  ctx->responded = FALSE;
-  ctx->verify_wireguard_interface = verify_interface;
-  g_child_watch_add_full(
-      G_PRIORITY_DEFAULT,
-      pid,
-      wg_quick_child_watch_cb,
-      wg_quick_spawn_context_ref(ctx),
-      reinterpret_cast<GDestroyNotify>(wg_quick_spawn_context_unref));
-  ctx->timeout_id = g_timeout_add_full(
-      G_PRIORITY_DEFAULT,
-      ctx->timeout_ms,
-      wg_quick_timeout_cb,
-      wg_quick_spawn_context_ref(ctx),
-      reinterpret_cast<GDestroyNotify>(wg_quick_spawn_context_unref));
-  wg_quick_spawn_context_unref(ctx);
+static gpointer run_helper_request(gpointer user_data) {
+  auto* context = static_cast<HelperCallContext*>(user_data);
+  helper_request(context->request, &context->response,
+                 &context->transport_error);
+  g_main_context_invoke(nullptr, finish_helper_request, context);
+  return nullptr;
 }
 
-static void spawn_shell_async(
-    FlMethodCall* method_call,
-    const gchar* error_code,
-    const gchar* script,
-    guint timeout_ms) {
-  g_autoptr(GError) error = nullptr;
-  g_autofree gchar* pkexec = nullptr;
-  GPtrArray* argv_array = g_ptr_array_new();
-  if (geteuid() != 0) {
-    pkexec = g_find_program_in_path("pkexec");
-    if (pkexec == nullptr) {
-      g_ptr_array_free(argv_array, TRUE);
-      respond_error(
-          method_call,
-          "vpn_permission_required",
-          "Starting VPN tunnels requires administrator privileges. Install PolicyKit/pkexec or run SecureWave with the required permissions.",
-          nullptr);
-      return;
-    }
-    g_ptr_array_add(argv_array, pkexec);
-  }
-  g_ptr_array_add(argv_array, const_cast<gchar*>("/bin/sh"));
-  g_ptr_array_add(argv_array, const_cast<gchar*>("-c"));
-  g_ptr_array_add(argv_array, const_cast<gchar*>(script));
-  g_ptr_array_add(argv_array, nullptr);
-  gchar** argv = reinterpret_cast<gchar**>(argv_array->pdata);
-
-  GPid pid = 0;
-  if (!g_spawn_async(nullptr, argv, nullptr,
-                     static_cast<GSpawnFlags>(G_SPAWN_SEARCH_PATH | G_SPAWN_DO_NOT_REAP_CHILD),
-                     nullptr, nullptr, &pid, &error)) {
-    g_ptr_array_free(argv_array, TRUE);
-    respond_error(method_call, error_code, error ? error->message : "Failed to spawn VPN command.", nullptr);
-    return;
-  }
-  g_ptr_array_free(argv_array, TRUE);
-
-  WgQuickSpawnContext* ctx = g_new0(WgQuickSpawnContext, 1);
-  ctx->ref_count = 1;
-  ctx->method_call = FL_METHOD_CALL(g_object_ref(method_call));
-  ctx->error_code = g_strdup(error_code);
-  ctx->pid = pid;
-  ctx->timeout_ms = timeout_ms;
-  ctx->responded = FALSE;
-  g_child_watch_add_full(
-      G_PRIORITY_DEFAULT,
-      pid,
-      wg_quick_child_watch_cb,
-      wg_quick_spawn_context_ref(ctx),
-      reinterpret_cast<GDestroyNotify>(wg_quick_spawn_context_unref));
-  ctx->timeout_id = g_timeout_add_full(
-      G_PRIORITY_DEFAULT,
-      ctx->timeout_ms,
-      wg_quick_timeout_cb,
-      wg_quick_spawn_context_ref(ctx),
-      reinterpret_cast<GDestroyNotify>(wg_quick_spawn_context_unref));
-  wg_quick_spawn_context_unref(ctx);
-}
-
-static void spawn_openvpn_up_async(
-    FlMethodCall* method_call,
-    const gchar* config_path,
-    const gchar* pid_path,
-    const gchar* log_path) {
-  g_autofree gchar* openvpn = g_find_program_in_path("openvpn");
-  if (openvpn == nullptr) {
-    respond_error(method_call, "vpn_unavailable", "openvpn not found. Install OpenVPN and retry.", nullptr);
-    return;
-  }
-  g_autofree gchar* q_openvpn = g_shell_quote(openvpn);
-  g_autofree gchar* q_config = g_shell_quote(config_path);
-  g_autofree gchar* q_pid = g_shell_quote(pid_path);
-  g_autofree gchar* q_log = g_shell_quote(log_path);
-  g_autofree gchar* script = g_strdup_printf(
-      "%s --config %s --daemon securewave-openvpn --writepid %s --log %s; "
-      "sleep 2; test -s %s && kill -0 $(cat %s)",
-      q_openvpn, q_config, q_pid, q_log, q_pid, q_pid);
-  spawn_shell_async(method_call, "vpn_connect_failed", script, kOpenVpnTimeoutMs);
-}
-
-static void spawn_openvpn_down_async(
-    FlMethodCall* method_call,
-    const gchar* pid_path) {
-  g_autofree gchar* q_pid = g_shell_quote(pid_path);
-  g_autofree gchar* script = g_strdup_printf(
-      "if test -s %s; then "
-      "pid=$(cat %s); "
-      "kill \"$pid\" 2>/dev/null || true; "
-      "for i in 1 2 3 4 5; do kill -0 \"$pid\" 2>/dev/null || break; sleep 1; done; "
-      "kill -9 \"$pid\" 2>/dev/null || true; "
-      "rm -f %s; "
-      "fi",
-      q_pid, q_pid, q_pid);
-  spawn_shell_async(method_call, "vpn_disconnect_failed", script, kOpenVpnTimeoutMs);
+static void start_helper_request(FlMethodCall* method_call,
+                                 HelperFields request) {
+  auto* context = new HelperCallContext{
+      FL_METHOD_CALL(g_object_ref(method_call)), std::move(request), {}, {}};
+  GThread* thread = g_thread_new("securewave-vpn-helper", run_helper_request,
+                                 context);
+  g_thread_unref(thread);
 }
 
 static void handle_vpn_call(FlMethodChannel* channel,
@@ -391,8 +237,7 @@ static void handle_vpn_call(FlMethodChannel* channel,
   if (g_strcmp0(method, "isAvailable") == 0) {
     g_autoptr(FlMethodResponse) response = FL_METHOD_RESPONSE(
         fl_method_success_response_new(fl_value_new_bool(
-            elevated_runner_available() &&
-            (wg_quick_available() || openvpn_available() || ikev2_available()))));
+            access(kHelperSocketPath, F_OK) == 0)));
     fl_method_call_respond(method_call, response, nullptr);
     return;
   }
@@ -409,14 +254,6 @@ static void handle_vpn_call(FlMethodChannel* channel,
     }
 
     if (g_strcmp0(protocol, "wireguard") == 0) {
-      if (!wg_quick_available()) {
-        respond_error(
-            method_call,
-            "vpn_unavailable",
-            "wg-quick not found. Install wireguard-tools (e.g. sudo apt-get install wireguard-tools) and retry.",
-            fl_value_new_map());
-        return;
-      }
       g_clear_pointer(&state->config_path, g_free);
       state->config_path = build_state_path(kWireGuardConfigFileName);
       if (state->config_path == nullptr) {
@@ -431,27 +268,29 @@ static void handle_vpn_call(FlMethodChannel* channel,
       g_chmod(state->config_path, 0600);
       g_clear_pointer(&state->active_protocol, g_free);
       state->active_protocol = g_strdup("wireguard");
-      spawn_wg_quick_async(method_call, "vpn_connect_failed", "up", state->config_path, TRUE);
+      start_helper_request(method_call,
+                           {{"version", "1"}, {"op", "wireguard.up"},
+                            {"config_path", state->config_path}});
       return;
     }
 
     if (g_strcmp0(protocol, "openvpn") == 0) {
-      if (!openvpn_available()) {
-        respond_error(
-            method_call,
-            "vpn_unavailable",
-            "openvpn not found. Install OpenVPN (e.g. sudo apt-get install openvpn) and retry.",
-            fl_value_new_map());
-        return;
-      }
+      // The current backend does not issue an authenticated OpenVPN
+      // credential or pass an auth-file path to this runner.  Refuse before
+      // writing profile material or changing active protocol state.
+      respond_error(
+          method_call,
+          "protocol_unavailable",
+          "OpenVPN is unavailable until authenticated current-source runtime and credential evidence is recorded.",
+          nullptr);
+      return;
+    }
+
+    if (g_strcmp0(protocol, "ikev2") == 0) {
       g_clear_pointer(&state->config_path, g_free);
-      g_clear_pointer(&state->openvpn_pid_path, g_free);
-      g_clear_pointer(&state->openvpn_log_path, g_free);
-      state->config_path = build_state_path(kOpenVpnConfigFileName);
-      state->openvpn_pid_path = build_state_path(kOpenVpnPidFileName);
-      state->openvpn_log_path = build_state_path(kOpenVpnLogFileName);
-      if (state->config_path == nullptr || state->openvpn_pid_path == nullptr || state->openvpn_log_path == nullptr) {
-        respond_error(method_call, "vpn_config_write_failed", "Unable to write OpenVPN state files.", nullptr);
+      state->config_path = build_state_path(kIkev2ConfigFileName);
+      if (state->config_path == nullptr) {
+        respond_error(method_call, "vpn_config_write_failed", "Unable to write IKEv2 state files.", nullptr);
         return;
       }
       g_autoptr(GError) error = nullptr;
@@ -461,25 +300,10 @@ static void handle_vpn_call(FlMethodChannel* channel,
       }
       g_chmod(state->config_path, 0600);
       g_clear_pointer(&state->active_protocol, g_free);
-      state->active_protocol = g_strdup("openvpn");
-      spawn_openvpn_up_async(method_call, state->config_path, state->openvpn_pid_path, state->openvpn_log_path);
-      return;
-    }
-
-    if (g_strcmp0(protocol, "ikev2") == 0) {
-      if (!ikev2_available()) {
-        respond_error(
-            method_call,
-            "vpn_unavailable",
-            "IKEv2 requires strongSwan swanctl and ipsec tooling. Install strongSwan NetworkManager support and retry.",
-            fl_value_new_map());
-        return;
-      }
-      respond_error(
-          method_call,
-          "protocol_unavailable",
-          "IKEv2 profile import/start is not wired in this Linux runner yet.",
-          nullptr);
+      state->active_protocol = g_strdup("ikev2");
+      start_helper_request(method_call,
+                           {{"version", "1"}, {"op", "ikev2.start"},
+                            {"config_path", state->config_path}});
       return;
     }
 
@@ -496,35 +320,39 @@ static void handle_vpn_call(FlMethodChannel* channel,
         respond_error(method_call, "vpn_config_missing", "OpenVPN PID file path unavailable.", nullptr);
         return;
       }
-      spawn_openvpn_down_async(method_call, state->openvpn_pid_path);
+      if (!state->openvpn_log_path) {
+        state->openvpn_log_path = build_state_path(kOpenVpnLogFileName);
+      }
+      g_autofree gchar* openvpn_auth_path = build_state_path(kOpenVpnAuthFileName);
+      if (!openvpn_auth_path) {
+        respond_error(method_call, "vpn_config_missing", "OpenVPN auth file path unavailable.", nullptr);
+        return;
+      }
+      start_helper_request(method_call,
+                           {{"version", "1"}, {"op", "openvpn.cleanup"},
+                            {"pid_path", state->openvpn_pid_path},
+                            {"log_path", state->openvpn_log_path},
+                            {"auth_path", openvpn_auth_path}});
       return;
     }
 
     if (g_strcmp0(active_protocol, "ikev2") == 0) {
-      respond_error(
-          method_call,
-          "protocol_unavailable",
-          "IKEv2 profile cleanup is not wired in this Linux runner yet.",
-          nullptr);
+      start_helper_request(method_call,
+                           {{"version", "1"}, {"op", "ikev2.cleanup"}});
       return;
     }
 
-    if (!wg_quick_available()) {
-      respond_error(
-          method_call,
-          "vpn_unavailable",
-          "wg-quick not found. Install wireguard-tools (e.g. sudo apt-get install wireguard-tools) and retry.",
-          fl_value_new_map());
-      return;
-    }
     if (!state->config_path || !g_file_test(state->config_path, G_FILE_TEST_EXISTS)) {
       state->config_path = build_state_path(kWireGuardConfigFileName);
     }
     if (!state->config_path || !g_file_test(state->config_path, G_FILE_TEST_EXISTS)) {
-      respond_error(method_call, "vpn_config_missing", "WireGuard config file not found.", nullptr);
+      start_helper_request(method_call,
+                           {{"version", "1"}, {"op", "wireguard.cleanup"}});
       return;
     }
-    spawn_wg_quick_async(method_call, "vpn_disconnect_failed", "down", state->config_path, TRUE);
+    start_helper_request(method_call,
+                         {{"version", "1"}, {"op", "wireguard.down"},
+                          {"config_path", state->config_path}});
     return;
   }
   g_autoptr(FlMethodResponse) response = FL_METHOD_RESPONSE(

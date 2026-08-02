@@ -41,9 +41,10 @@ if ! grep -qn "wireguard.exe" securewave_app/windows/runner/flutter_window.cpp; 
   exit 1
 fi
 
-# Verify Linux VPN has wg-quick integration
-if ! grep -qn "wg-quick" securewave_app/linux/runner/my_application.cc; then
-  echo "ERROR: Linux VPN bridge missing wg-quick integration."
+# Verify Linux VPN uses the authenticated helper bridge and packaged wg-quick path
+if ! grep -qn "kHelperSocketPath" securewave_app/linux/runner/my_application.cc \
+    || ! grep -qn "wg-quick" securewave_app/packaging/linux/securewave-wg-quick; then
+  echo "ERROR: Linux VPN helper bridge or packaged wg-quick integration is missing."
   exit 1
 fi
 

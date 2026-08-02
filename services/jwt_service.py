@@ -57,13 +57,28 @@ def _create_token(data: dict, expires_delta: timedelta, secret: str) -> str:
 
 
 def create_access_token(user: User) -> str:
-    claims = {"sub": str(user.id), "email": user.email, "type": "access"}
+    claims = {
+        "sub": str(user.id),
+        "email": user.email,
+        "type": "access",
+        "ver": int(getattr(user, "auth_token_version", 0) or 0),
+    }
     return _create_token(claims, timedelta(minutes=ACCESS_EXPIRE_MINUTES), ACCESS_SECRET)
 
 
 def create_refresh_token(user: User) -> str:
-    claims = {"sub": str(user.id), "email": user.email, "type": "refresh"}
+    claims = {
+        "sub": str(user.id),
+        "email": user.email,
+        "type": "refresh",
+        "ver": int(getattr(user, "auth_token_version", 0) or 0),
+    }
     return _create_token(claims, timedelta(minutes=REFRESH_EXPIRE_MINUTES), REFRESH_SECRET)
+
+
+def token_version_matches(payload: dict, user: User) -> bool:
+    """Return whether a token was issued for the user's current auth epoch."""
+    return int(payload.get("ver", 0) or 0) == int(getattr(user, "auth_token_version", 0) or 0)
 
 
 def decode_token(token: str, secret: str) -> dict:
@@ -107,6 +122,6 @@ def get_current_user(
         raise credentials_exception from exc
 
     user = db.query(User).filter(User.id == int(user_id)).first()
-    if user is None:
+    if user is None or not token_version_matches(payload, user):
         raise credentials_exception
     return user

@@ -4,7 +4,8 @@ import tempfile
 from typing import Generator
 
 from dotenv import load_dotenv
-from sqlalchemy import create_engine, event, pool
+from sqlalchemy import create_engine, event, pool, text
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import sessionmaker, Session
 from sqlalchemy.engine import Engine
 
@@ -170,7 +171,7 @@ def get_db() -> Generator[Session, None, None]:
     db = SessionLocal()
     try:
         yield db
-    except Exception as e:
+    except SQLAlchemyError as e:
         logger.error(f"Database session error: {e}")
         db.rollback()
         raise
@@ -181,7 +182,20 @@ def get_db() -> Generator[Session, None, None]:
 def create_tables():
     """Create all database tables"""
     from database import base
-    from models import user, subscription, audit_log, vpn_server, vpn_connection, vpn_demo_session
+    from models import (
+        audit_log,
+        email_log,
+        gdpr,
+        invoice,
+        subscription,
+        support_ticket,
+        usage_analytics,
+        user,
+        vpn_connection,
+        vpn_demo_session,
+        vpn_server,
+        wireguard_peer,
+    )
 
     logger.info("Creating database tables...")
     try:
@@ -202,7 +216,7 @@ def check_database_connection() -> bool:
     try:
         # Try to connect and execute a simple query
         with engine.connect() as conn:
-            result = conn.execute("SELECT 1")
+            result = conn.execute(text("SELECT 1"))
             result.fetchone()
         logger.info("✓ Database connection is healthy")
         return True

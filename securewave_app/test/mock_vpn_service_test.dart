@@ -11,8 +11,9 @@ void main() {
     final service = MockVpnService(
         connectDelay: Duration.zero, disconnectDelay: Duration.zero);
 
-    expect(service.canConnectProtocol(VpnProtocol.ikev2), isTrue);
-    expect(service.protocolUnavailableReason(VpnProtocol.ikev2), isNull);
+    expect(service.canConnectProtocol(VpnProtocol.ikev2), isFalse);
+    expect(service.protocolUnavailableReason(VpnProtocol.ikev2),
+        contains('not available'));
     expect(service.getStatus(), VpnStatus.disconnected);
 
     final connected = await service.connect(protocol: VpnProtocol.wireGuard);
@@ -24,15 +25,31 @@ void main() {
     expect(service.getStatus(), VpnStatus.disconnected);
   });
 
-  test('ChannelVpnService blocks IKEv2 on Linux release runtime', () {
+  test(
+      'ChannelVpnService exposes only WireGuard on the historical Linux baseline',
+      () {
     final service = ChannelVpnService(allowFallback: false);
 
     expect(service.canConnectProtocol(VpnProtocol.wireGuard), isTrue);
-    expect(service.canConnectProtocol(VpnProtocol.openVpn), isTrue);
+    expect(service.canConnectProtocol(VpnProtocol.openVpn), isFalse);
+    expect(service.protocolUnavailableReason(VpnProtocol.openVpn),
+        contains('authenticated current-source'));
     expect(service.canConnectProtocol(VpnProtocol.ikev2), isFalse);
-    expect(
-      service.protocolUnavailableReason(VpnProtocol.ikev2),
-      contains('strongSwan profile import/start path'),
-    );
+    expect(service.protocolUnavailableReason(VpnProtocol.ikev2),
+        contains('not available'));
   }, testOn: 'linux');
+
+  test('MockVpnService refuses OpenVPN without authenticated evidence',
+      () async {
+    final service = MockVpnService(
+        connectDelay: Duration.zero, disconnectDelay: Duration.zero);
+
+    expect(service.canConnectProtocol(VpnProtocol.openVpn), isFalse);
+    expect(service.protocolUnavailableReason(VpnProtocol.openVpn),
+        contains('authenticated current-source'));
+    expect(
+      () => service.connect(protocol: VpnProtocol.openVpn),
+      throwsA(isA<VpnServiceException>()),
+    );
+  });
 }

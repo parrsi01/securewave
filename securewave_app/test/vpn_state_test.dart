@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:dio/dio.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -87,6 +89,51 @@ void main() {
 
     final state = container.read(vpnStateProvider);
     expect(state.status, VpnStatus.connected);
+  });
+
+  test('selection cannot change while a tunnel is connected', () async {
+    final service = MockVpnService(
+        connectDelay: Duration.zero, disconnectDelay: Duration.zero);
+    final container = ProviderContainer(
+      overrides: [vpnServiceProvider.overrideWithValue(service)],
+    );
+    addTearDown(container.dispose);
+
+    final notifier = container.read(vpnStateProvider.notifier);
+    notifier.selectServer('us-chi');
+    await notifier.connect();
+    expect(container.read(vpnStateProvider).status, VpnStatus.connected);
+
+    await notifier.selectProtocol(VpnProtocol.openVpn);
+    notifier.selectServer('de-nue-1');
+
+    final state = container.read(vpnStateProvider);
+    expect(state.protocol, VpnProtocol.wireGuard);
+    expect(state.selectedServerId, 'us-chi');
+  });
+
+  test('unavailable protocol is not reported connected in demo mode', () async {
+    final api = _RecordingApiClient();
+    final service = MockVpnService(
+      connectDelay: Duration.zero,
+      disconnectDelay: Duration.zero,
+    );
+    final container = ProviderContainer(
+      overrides: [
+        vpnServiceProvider.overrideWithValue(service),
+        apiClientProvider.overrideWithValue(api),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    final notifier = container.read(vpnStateProvider.notifier);
+    await notifier.selectProtocol(VpnProtocol.openVpn);
+    await notifier.connect();
+
+    final state = container.read(vpnStateProvider);
+    expect(state.status, VpnStatus.error);
+    expect(state.errorKind, VpnErrorKind.protocolUnavailable);
+    expect(api.connectedNotifications, 0);
   });
 
   test(
@@ -200,6 +247,176 @@ void main() {
     expect(state.errorKind, VpnErrorKind.deviceLimit);
     expect(state.errorMessage, contains('Device limit reached'));
   });
+
+  test('expired cached WireGuard profile is not used after profile failure',
+      () async {
+    final service = _NativeSuccessVpnService();
+    final api = _AlwaysFailingProfileApiClient(
+      statusCode: 503,
+      body: {'detail': 'profile service unavailable'},
+    );
+    await SecureStorage().saveString(
+      SecureStorage.vpnProfileConfigKeyFor('wireguard'),
+      '[Interface]\nPrivateKey = expired\n',
+    );
+    await SecureStorage().saveString(
+      SecureStorage.vpnProfileExpiresAtKey,
+      DateTime.now().subtract(const Duration(minutes: 1)).toIso8601String(),
+    );
+
+    final container = ProviderContainer(
+      overrides: [
+        vpnServiceProvider.overrideWithValue(service),
+        apiClientProvider.overrideWithValue(api),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    await container.read(vpnStateProvider.notifier).connect();
+
+    final state = container.read(vpnStateProvider);
+    expect(state.status, VpnStatus.error);
+    expect(state.lastTunnelStartOk, isFalse);
+    expect(service.getStatus(), VpnStatus.disconnected);
+  });
+
+  test('HTTP authentication failure never falls back to cached profile',
+      () async {
+    final service = _NativeSuccessVpnService();
+    final api = _AlwaysFailingProfileApiClient(
+      statusCode: 401,
+      body: {'detail': 'invalid access token'},
+    );
+    await SecureStorage().saveString(
+      SecureStorage.vpnProfileConfigKeyFor('wireguard'),
+      '[Interface]\nPrivateKey = cached\n',
+    );
+    await SecureStorage().saveString(
+      SecureStorage.vpnProfileExpiresAtKey,
+      DateTime.now().add(const Duration(hours: 1)).toIso8601String(),
+    );
+
+    final container = ProviderContainer(
+      overrides: [
+        vpnServiceProvider.overrideWithValue(service),
+        apiClientProvider.overrideWithValue(api),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    await container.read(vpnStateProvider.notifier).connect();
+
+    final state = container.read(vpnStateProvider);
+    expect(state.status, VpnStatus.error);
+    expect(state.errorKind, VpnErrorKind.auth);
+    expect(state.lastTunnelStartOk, isFalse);
+    expect(service.getStatus(), VpnStatus.disconnected);
+  });
+
+  test('profile HTTP 503 never falls back to cached profile', () async {
+    final service = _NativeSuccessVpnService();
+    final api = _AlwaysFailingProfileApiClient(
+      statusCode: 503,
+      body: {'detail': 'protocol unavailable'},
+    );
+    await SecureStorage().saveString(
+      SecureStorage.vpnProfileConfigKeyFor('wireguard'),
+      '[Interface]\nPrivateKey = cached\n',
+    );
+    await SecureStorage().saveString(
+      SecureStorage.vpnProfileExpiresAtKey,
+      DateTime.now().add(const Duration(hours: 1)).toIso8601String(),
+    );
+
+    final container = ProviderContainer(
+      overrides: [
+        vpnServiceProvider.overrideWithValue(service),
+        apiClientProvider.overrideWithValue(api),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    await container.read(vpnStateProvider.notifier).connect();
+
+    final state = container.read(vpnStateProvider);
+    expect(state.status, VpnStatus.error);
+    expect(state.errorKind, VpnErrorKind.backendError);
+    expect(service.getStatus(), VpnStatus.disconnected);
+  });
+
+  test('network loss reconnects from an unexpired cached profile', () async {
+    final service = _NativeSuccessVpnService();
+    final api = _ReconnectProfileApiClient();
+    final container = ProviderContainer(
+      overrides: [
+        vpnServiceProvider.overrideWithValue(service),
+        apiClientProvider.overrideWithValue(api),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    final notifier = container.read(vpnStateProvider.notifier);
+    await notifier.connect();
+    expect(container.read(vpnStateProvider).status, VpnStatus.connected);
+
+    await SecureStorage().saveString(
+      SecureStorage.vpnProfileConfigKeyFor('wireguard'),
+      '[Interface]\nPostUp = securewave-test-hook\n',
+    );
+    service.forceDisconnected();
+    await notifier.handleConnectivityChange(hasNetwork: false);
+    expect(container.read(vpnStateProvider).status, VpnStatus.error);
+
+    await notifier.handleConnectivityChange(hasNetwork: true);
+    await Future<void>.delayed(const Duration(milliseconds: 10));
+
+    expect(api.calls, 2);
+    expect(container.read(vpnStateProvider).status, VpnStatus.connected);
+    expect(service.getStatus(), VpnStatus.connected);
+  });
+
+  test('restored protocol is loaded before a cold-start connect', () async {
+    await SecureStorage().saveString(
+      SecureStorage.vpnProtocolKey,
+      vpnProtocolStorageValue(VpnProtocol.openVpn),
+    );
+    final api = _RecordingProfileApiClient();
+    final service = _NativeSuccessVpnService();
+    final container = ProviderContainer(
+      overrides: [
+        vpnServiceProvider.overrideWithValue(service),
+        apiClientProvider.overrideWithValue(api),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    await container.read(vpnStateProvider.notifier).connect();
+
+    expect(api.requestedProtocols, [VpnProtocol.openVpn]);
+    expect(service.lastProtocol, VpnProtocol.openVpn);
+    expect(container.read(vpnStateProvider).protocol, VpnProtocol.openVpn);
+  });
+
+  test('repeated connect and disconnect leaves no busy state', () async {
+    final service = MockVpnService(
+      connectDelay: Duration.zero,
+      disconnectDelay: Duration.zero,
+    );
+    final container = ProviderContainer(
+      overrides: [vpnServiceProvider.overrideWithValue(service)],
+    );
+    addTearDown(container.dispose);
+
+    final notifier = container.read(vpnStateProvider.notifier);
+    for (var cycle = 0; cycle < 3; cycle += 1) {
+      await notifier.connect();
+      expect(container.read(vpnStateProvider).status, VpnStatus.connected);
+      expect(container.read(vpnStateProvider).isBusy, isFalse);
+      await notifier.disconnect();
+      expect(container.read(vpnStateProvider).status, VpnStatus.disconnected);
+      expect(container.read(vpnStateProvider).isBusy, isFalse);
+    }
+  });
 }
 
 class _FailingVpnService implements VpnService {
@@ -226,6 +443,11 @@ class _FailingVpnService implements VpnService {
 
 class _NativeSuccessVpnService implements VpnService {
   VpnStatus _status = VpnStatus.disconnected;
+  VpnProtocol? lastProtocol;
+
+  void forceDisconnected() {
+    _status = VpnStatus.disconnected;
+  }
 
   @override
   bool get isNativeAvailable => true;
@@ -242,6 +464,7 @@ class _NativeSuccessVpnService implements VpnService {
     if (config == null || config.trim().isEmpty) {
       throw VpnServiceException('invalid_config', 'missing config');
     }
+    lastProtocol = protocol;
     _status = VpnStatus.connected;
     return _status;
   }
@@ -254,6 +477,123 @@ class _NativeSuccessVpnService implements VpnService {
 
   @override
   VpnStatus getStatus() => _status;
+}
+
+class _RecordingApiClient extends ApiClient {
+  _RecordingApiClient() : super(AppConfig.defaults());
+
+  int connectedNotifications = 0;
+
+  @override
+  Future<void> notifyVpnConnected({
+    String? serverId,
+    VpnProtocol? protocol,
+  }) async {
+    connectedNotifications += 1;
+  }
+
+  @override
+  Future<void> notifyVpnDisconnected() async {}
+}
+
+class _RecordingProfileApiClient extends _RecordingApiClient {
+  final requestedProtocols = <VpnProtocol>[];
+
+  @override
+  Future<VpnProfile> fetchVpnProfile({
+    int? deviceId,
+    required String deviceName,
+    required String deviceType,
+    required VpnProtocol protocol,
+    String? serverId,
+    bool forceRotateKeys = false,
+  }) async {
+    requestedProtocols.add(protocol);
+    return VpnProfile.fromJson({
+      'device_id': 321,
+      'device_name': deviceName,
+      'device_type': deviceType,
+      'protocol': vpnProtocolStorageValue(protocol),
+      'server_id': serverId ?? 'de-nue-1',
+      'server_location': 'Nuremberg, Germany',
+      'issued_at': DateTime.now().toIso8601String(),
+      'expires_at':
+          DateTime.now().add(const Duration(hours: 1)).toIso8601String(),
+      'wireguard_config':
+          '[Interface]\nPrivateKey = test\n[Peer]\nPublicKey = test\n',
+      'openvpn_config': 'client\n',
+      'ikev2_config': '',
+      'dns': {
+        'servers': ['94.140.14.14'],
+        'enforcement': 'config',
+      },
+      'kill_switch': {
+        'mode': 'enabled',
+        'enforcement': 'best effort',
+      },
+      'peer_registered': true,
+      'registration_status': 'test',
+    });
+  }
+}
+
+class _ReconnectProfileApiClient extends ApiClient {
+  _ReconnectProfileApiClient() : super(AppConfig.defaults());
+
+  int calls = 0;
+
+  @override
+  Future<VpnProfile> fetchVpnProfile({
+    int? deviceId,
+    required String deviceName,
+    required String deviceType,
+    required VpnProtocol protocol,
+    String? serverId,
+    bool forceRotateKeys = false,
+  }) async {
+    calls += 1;
+    if (calls > 1) {
+      throw DioException(
+        requestOptions: RequestOptions(path: '/vpn/profile'),
+        type: DioExceptionType.connectionError,
+        error: const SocketException('network unavailable'),
+      );
+    }
+    return VpnProfile.fromJson({
+      'device_id': 321,
+      'device_name': deviceName,
+      'device_type': deviceType,
+      'protocol': 'wireguard',
+      'server_id': serverId ?? 'de-nue-1',
+      'server_location': 'Nuremberg, Germany',
+      'issued_at': DateTime.now().toIso8601String(),
+      'expires_at':
+          DateTime.now().add(const Duration(hours: 1)).toIso8601String(),
+      'wireguard_config':
+          '[Interface]\nPrivateKey = test\n[Peer]\nPublicKey = test\n',
+      'openvpn_config': '',
+      'ikev2_config': '',
+      'dns': {
+        'servers': ['94.140.14.14'],
+        'enforcement': 'config',
+      },
+      'kill_switch': {
+        'mode': 'enabled',
+        'enforcement': 'best effort',
+      },
+      'peer_registered': true,
+      'registration_status': 'test',
+    });
+  }
+
+  @override
+  Future<void> notifyVpnConnected({
+    String? serverId,
+    VpnProtocol? protocol,
+  }) async {}
+
+  @override
+  Future<void> notifyVpnDisconnected() async {}
 }
 
 class _ReferenceRecoveryApiClient extends ApiClient {

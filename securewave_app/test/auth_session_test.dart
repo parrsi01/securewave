@@ -2,6 +2,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:securewave_app/core/models/user_plan.dart';
 import 'package:securewave_app/core/services/auth_session.dart';
+import 'package:securewave_app/core/services/secure_storage.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -81,5 +82,37 @@ void main() {
 
     expect(plan.usagePercent, 0);
     expect(plan.remainingGb, 0);
+  });
+
+  test('clearing auth runtime state preserves the stable VPN device reference',
+      () async {
+    await SecureStorage().saveInt(SecureStorage.vpnDeviceIdKey, 42);
+    await SecureStorage().saveString(
+      SecureStorage.vpnProfileConfigKey,
+      'profile',
+    );
+
+    await SecureStorage().clearVpnRuntimeState();
+
+    expect(await SecureStorage().getInt(SecureStorage.vpnDeviceIdKey), 42);
+    expect(
+      await SecureStorage().getString(SecureStorage.vpnProfileConfigKey),
+      isNull,
+    );
+  });
+
+  test(
+      'setting a session without a refresh token removes the old refresh token',
+      () async {
+    final session = AuthSession();
+    await session.setSession(
+      accessToken: 'old-access',
+      refreshToken: 'old-refresh',
+    );
+
+    await session.setSession(accessToken: 'new-access');
+
+    expect(session.accessToken, 'new-access');
+    expect(await SecureStorage().getRefreshToken(), isNull);
   });
 }

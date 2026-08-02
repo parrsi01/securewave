@@ -133,6 +133,43 @@ class TestEmailServiceProviderReady:
             service = email_module.EmailService()
             assert service.enabled is False
 
+    def test_template_placeholders_are_not_treated_as_configuration(self):
+        env = {
+            "EMAIL_PROVIDER": "smtp",
+            "SMTP_HOST": "<REQUIRED_SMTP_HOST>",
+            "SMTP_PORT": "<REQUIRED_SMTP_PORT>",
+            "SMTP_USER": "<REQUIRED_SMTP_USER>",
+            "SMTP_PASSWORD": "<REQUIRED_SMTP_PASSWORD>",
+            "FROM_EMAIL": "<REQUIRED_APPROVED_SENDER>",
+        }
+        with patch.dict(os.environ, env, clear=True):
+            import importlib
+            import services.email_service as email_module
+            importlib.reload(email_module)
+
+            service = email_module.EmailService()
+            status = service.config_status()
+
+            assert service.enabled is False
+            assert "SMTP_PORT" in status["missing"]
+            assert "SMTP_USER" in status["missing"]
+
+    def test_enhanced_email_service_import_ignores_template_port(self):
+        env = {
+            "EMAIL_PROVIDER": "smtp",
+            "SMTP_PORT": "<REQUIRED_SMTP_PORT>",
+            "SMTP_USER": "<REQUIRED_SMTP_USER>",
+            "SMTP_PASSWORD": "<REQUIRED_SMTP_PASSWORD>",
+            "FROM_EMAIL": "<REQUIRED_APPROVED_SENDER>",
+        }
+        with patch.dict(os.environ, env, clear=True):
+            import importlib
+            import services.enhanced_email_service as enhanced_module
+            importlib.reload(enhanced_module)
+
+            assert enhanced_module.SMTP_PORT == 587
+            assert enhanced_module.EnhancedEmailService().enabled is False
+
     def test_unknown_provider_not_ready(self):
         env = {"EMAIL_PROVIDER": "unknown_provider"}
         with patch.dict(os.environ, env, clear=True):

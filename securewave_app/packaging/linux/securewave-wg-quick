@@ -8,7 +8,6 @@ usage() {
 Usage:
   securewave-wg-quick probe <wireguard|openvpn|ikev2>
   securewave-wg-quick <up|down|policy-ensure|policy-clear|policy-clear-link|nm-unmanaged|nm-reset> <config-path|iface>
-  securewave-wg-quick openvpn-start <config-path> <pid-path> <log-path> [auth-path]
   securewave-wg-quick openvpn-stop <pid>
   securewave-wg-quick wireguard-transfer
   securewave-wg-quick xfrm-state
@@ -154,22 +153,6 @@ case "$action" in
     fi
     iface="$1"
     require_sw_wg_iface "$iface"
-    ;;
-  openvpn-start)
-    if [[ $# -lt 3 || $# -gt 4 ]]; then
-      usage
-      exit 64
-    fi
-    config="$1"
-    pid_file="$2"
-    log_file="$3"
-    auth_file="${4:-}"
-    require_safe_config_path "$config"
-    require_safe_runtime_file "$pid_file" "pid"
-    require_safe_runtime_file "$log_file" "log"
-    if [[ -n "$auth_file" ]]; then
-      require_safe_runtime_file "$auth_file" "auth"
-    fi
     ;;
   openvpn-stop)
     if [[ $# -ne 1 ]]; then
@@ -365,16 +348,6 @@ if [[ "$action" == "down" ]]; then
   wg-quick down "$config" >/dev/null 2>&1 || true
   clear_policy_state 1
   exit 0
-fi
-
-if [[ "$action" == "openvpn-start" ]]; then
-  prepare_owned_runtime_file "$pid_file" "pid" "$config"
-  prepare_owned_runtime_file "$log_file" "log" "$config"
-  argv=(openvpn --config "$config" --writepid "$pid_file" --daemon --log "$log_file")
-  if [[ -n "${auth_file:-}" ]]; then
-    argv+=(--auth-user-pass "$auth_file")
-  fi
-  exec "${argv[@]}"
 fi
 
 if [[ "$action" == "openvpn-stop" ]]; then

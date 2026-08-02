@@ -7,6 +7,7 @@ import '../core/models/server_region.dart';
 import '../core/models/user_account.dart';
 import '../core/models/user_plan.dart';
 import '../core/services/auth_session.dart';
+import '../core/services/secure_storage.dart';
 import '../core/models/vpn_profile.dart';
 import '../core/models/vpn_protocol.dart';
 
@@ -26,15 +27,23 @@ class ApiClient {
           ),
         );
     if (session != null) {
+      _session = session;
+      _refreshDio = Dio(
+        BaseOptions(
+          baseUrl: _config.apiBaseUrl,
+          headers: {'Content-Type': 'application/json'},
+        ),
+      )..httpClientAdapter = _dio.httpClientAdapter;
       _dio.interceptors.add(
         InterceptorsWrapper(
           onRequest: (options, handler) {
-            final token = session.accessToken;
+            final token = _session?.accessToken;
             if (token != null && token.isNotEmpty) {
               options.headers['Authorization'] = 'Bearer $token';
             }
             return handler.next(options);
           },
+          onError: _refreshAfterUnauthorized,
         ),
       );
     }
@@ -42,6 +51,9 @@ class ApiClient {
 
   final AppConfig _config;
   late final Dio _dio;
+  AuthSession? _session;
+  late final Dio _refreshDio;
+  Future<String?>? _refreshFuture;
   List<ServerRegion>? _cachedServers;
   DateTime? _serversFetchedAt;
   UserPlan? _cachedPlan;
@@ -51,7 +63,85 @@ class ApiClient {
   static const Duration _serversCacheTtl = Duration(minutes: 5);
   static const Duration _planCacheTtl = Duration(minutes: 2);
 
-  Future<List<ServerRegion>> fetchServers({bool forceRefresh = false}) async {
+  Future<void> _refreshAfterUnauthorized(
+    DioException error,
+    ErrorInterceptorHandler handler,
+  ) async {
+    final request = error.requestOptions;
+    if (error.response?.statusCode != 401 ||
+        request.extra['securewave_auth_retry'] == true ||
+        _isAuthEndpoint(request.uri.path)) {
+      handler.next(error);
+      return;
+    }
+
+    final refreshToken = await SecureStorage().getRefreshToken();
+    if (refreshToken == null || refreshToken.isEmpty || _session == null) {
+      handler.next(error);
+      return;
+    }
+
+    try {
+      final accessToken = await _refreshAccessToken(refreshToken);
+      if (accessToken == null || accessToken.isEmpty) {
+        await _session!.clearSession();
+        handler.next(error);
+        return;
+      }
+
+      request.extra['securewave_auth_retry'] = true;
+      request.headers['Authorization'] = 'Bearer $accessToken';
+      final response = await _dio.fetch<dynamic>(request);
+      handler.resolve(response);
+    } catch (_) {
+      await _session!.clearSession();
+      handler.next(error);
+    }
+  }
+
+  Future<String?> _refreshAccessToken(String refreshToken) {
+    final existing = _refreshFuture;
+    if (existing != null) return existing;
+
+    final future = _performTokenRefresh(refreshToken);
+    _refreshFuture = future;
+    return future.whenComplete(() {
+      if (identical(_refreshFuture, future)) {
+        _refreshFuture = null;
+      }
+    });
+  }
+
+  Future<String?> _performTokenRefresh(String refreshToken) async {
+    final response = await _refreshDio.post<Map<String, dynamic>>(
+      '/auth/refresh',
+      data: {'refresh_token': refreshToken},
+    );
+    final data = response.data ?? <String, dynamic>{};
+    final accessToken = data['access_token']?.toString();
+    if (accessToken == null || accessToken.isEmpty) return null;
+
+    await _session!.setSession(
+      accessToken: accessToken,
+      refreshToken: data['refresh_token']?.toString() ?? refreshToken,
+    );
+    return accessToken;
+  }
+
+  bool _isAuthEndpoint(String path) {
+    const endpoints = <String>{
+      '/auth/login',
+      '/auth/register',
+      '/auth/refresh',
+    };
+    return endpoints
+        .any((endpoint) => path == endpoint || path.endsWith(endpoint));
+  }
+
+  Future<List<ServerRegion>> fetchServers({
+    bool forceRefresh = false,
+    String? deviceType,
+  }) async {
     if (!forceRefresh && _cachedServers != null && _serversFetchedAt != null) {
       final age = DateTime.now().difference(_serversFetchedAt!);
       if (age < _serversCacheTtl) {
@@ -66,7 +156,13 @@ class ApiClient {
       return data;
     }
     try {
-      final response = await _dio.get<Map<String, dynamic>>('/vpn/servers');
+      final response = await _dio.get<Map<String, dynamic>>(
+        '/vpn/servers',
+        queryParameters: {
+          if (deviceType != null && deviceType.isNotEmpty)
+            'device_type': deviceType,
+        },
+      );
       final data = response.data ?? <String, dynamic>{};
       final rawList =
           data['servers'] is List ? data['servers'] as List : <dynamic>[];

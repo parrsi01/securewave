@@ -82,13 +82,17 @@ class BootController extends ChangeNotifier {
     await session.ensureInitialized();
     AppLogger.info('Boot: session restored');
 
-    if (config.resetSessionOnBoot) {
+    if (config.resetSessionOnBoot || config.autoLoginForTesting) {
       final resetDone =
           await storage.getBool(SecureStorage.resetSessionDoneKey) ?? false;
-      if (!resetDone) {
+      if (config.autoLoginForTesting || !resetDone) {
         await session.clearSession();
-        await storage.saveBool(SecureStorage.resetSessionDoneKey, true);
-        AppLogger.info('Boot: session reset');
+        if (!config.autoLoginForTesting) {
+          await storage.saveBool(SecureStorage.resetSessionDoneKey, true);
+        }
+        AppLogger.info(config.autoLoginForTesting
+            ? 'Boot: session reset for automated test login'
+            : 'Boot: session reset');
       }
     }
 
