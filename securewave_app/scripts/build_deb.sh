@@ -21,6 +21,24 @@ if ! command -v dpkg-deb >/dev/null 2>&1; then
   exit 1
 fi
 
+if ! command -v git >/dev/null 2>&1; then
+  echo "ERROR: git is required to record package provenance." >&2
+  exit 1
+fi
+
+source_commit="$(git rev-parse --verify HEAD 2>/dev/null || true)"
+if [[ -z "$source_commit" ]]; then
+  echo "ERROR: unable to determine the source commit for package provenance." >&2
+  exit 1
+fi
+
+source_tree_state="$(git status --porcelain --untracked-files=all)"
+if [[ -n "$source_tree_state" ]]; then
+  echo "ERROR: refusing to package a dirty source tree." >&2
+  echo "Commit or remove all tracked and untracked changes before building." >&2
+  exit 1
+fi
+
 flutter pub get
 flutter build linux --release \
   --dart-define=SECUREWAVE_API_BASE_URL=https://api.securewaveapp.com/api \
@@ -74,6 +92,18 @@ cp -f "$ROOT_DIR/packaging/linux/securewave-helper.tmpfiles" "$staging_dir/usr/l
 cp -f "$ROOT_DIR/packaging/linux/securewave-wg-quick.contract" "$staging_dir/usr/share/securewave/packaging/linux/securewave-wg-quick.contract"
 chmod 0755 "$staging_dir/usr/share/securewave/packaging/linux/securewave-wg-quick" \
   "$staging_dir/usr/share/securewave/packaging/linux/securewave-helperd"
+
+release_dir="$staging_dir/usr/share/securewave/release"
+mkdir -p "$release_dir"
+printf '%s\n' "$source_commit" > "$release_dir/source-sha"
+printf '%s\n' "clean" > "$release_dir/source-tree-state"
+printf '%s\n' "$version" > "$release_dir/app-version"
+printf '%s\n' "$arch" > "$release_dir/package-architecture"
+tr -d '[:space:]' < "$ROOT_DIR/packaging/linux/securewave-wg-quick.contract" > "$release_dir/helper-contract"
+printf '\n' >> "$release_dir/helper-contract"
+chmod 0644 "$release_dir/source-sha" "$release_dir/source-tree-state" \
+  "$release_dir/app-version" "$release_dir/package-architecture" \
+  "$release_dir/helper-contract"
 
 cat <<CONTROL > "$staging_dir/DEBIAN/control"
 Package: $package_name
