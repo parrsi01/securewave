@@ -1,0 +1,22 @@
+DebugProfile.entitlements
+{
+  "com.apple.security.app-sandbox" => true
+  "com.apple.security.cs.allow-jit" => true
+  "com.apple.security.network.server" => true
+}
+
+Release.entitlements
+{
+  "com.apple.security.app-sandbox" => true
+}
+
+Info.plist selected keys
+  "CFBundleDevelopmentRegion" => "$(DEVELOPMENT_LANGUAGE)"
+  "CFBundleExecutable" => "$(EXECUTABLE_NAME)"
+  "CFBundleIconFile" => ""
+  "CFBundleIdentifier" => "$(PRODUCT_BUNDLE_IDENTIFIER)"
+  "CFBundleInfoDictionaryVersion" => "6.0"
+  "CFBundleName" => "$(PRODUCT_NAME)"
+  "CFBundlePackageType" => "APPL"
+  "CFBundleShortVersionString" => "$(FLUTTER_BUILD_NAME)"
+  "CFBundleVersion" => "$(FLUTTER_BUILD_NUMBER)"

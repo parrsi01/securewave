@@ -36,7 +36,9 @@ void main() {
 
     expect(
       config.apiBaseUrl,
-      apiDefine.isEmpty ? AppConstants.baseUrlFallback : apiDefine,
+      AppConfig.normalizeApiBaseUrl(
+        apiDefine.isEmpty ? AppConstants.baseUrlFallback : apiDefine,
+      ),
     );
   });
 

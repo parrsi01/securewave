@@ -84,7 +84,7 @@ logging.basicConfig(level=LOG_LEVEL, handlers=[handler])
 
 # NOTE: Table creation is handled exclusively by Alembic migrations.
 
-docs_enabled = os.getenv("ENVIRONMENT") != "production" or os.getenv("DEMO_OK", "false").lower() == "true"
+docs_enabled = not is_production() or os.getenv("DEMO_OK", "false").lower() == "true"
 
 
 @asynccontextmanager
@@ -534,6 +534,9 @@ static_directory = Path(__file__).resolve().parent / "static"
 
 page_routes = {
     "/home": "home.html",
+    "/features": "services.html",
+    "/pricing": "subscription.html",
+    "/plans": "subscription.html",
     "/login": "login.html",
     "/register": "register.html",
     "/dashboard": "dashboard.html",
@@ -544,11 +547,13 @@ page_routes = {
     "/settings": "settings.html",
     "/diagnostics": "diagnostics.html",
     "/download": "download.html",
+    "/apple-review": "apple-review.html",
     "/leak-test": "leak_test.html",
     "/subscription": "subscription.html",
     "/services": "services.html",
     "/about": "about.html",
     "/contact": "contact.html",
+    "/support": "contact.html",
     "/privacy": "privacy.html",
     "/terms": "terms.html",
 }
@@ -602,9 +607,9 @@ except Exception as e:
 
 @app.get("/", include_in_schema=False)
 async def root():
-    index_file = static_directory / "index.html"
-    if index_file.exists():
-        return FileResponse(index_file)
+    home_file = static_directory / "home.html"
+    if home_file.exists():
+        return FileResponse(home_file)
     return {"message": "SecureWave VPN API", "docs": "/api/docs"}
 
 

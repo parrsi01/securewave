@@ -1,0 +1,145 @@
+ M .github/workflows/ci-cd.yml
+ M .github/workflows/flutter-release.yml
+ M .gitignore
+ M .vscode/settings.json
+ M ARCHITECTURE.md
+ M EXECUTIVE_SUMMARY.md
+ M QUICK_START.md
+ M SECTION_2_DATABASE_STATUS.md
+ M SETUP_GUIDE.md
+ M data/models/risk_model.json
+ M docs/current_release_status.md
+ M infrastructure/azure_vpn_deployer.py
+ M infrastructure/database_backup_manager.py
+ M infrastructure/database_init.py
+ M main.py
+ M ml/configs/baseline.json
+ M ml/configs/v2.json
+ M ml/data.py
+ M ml/experiment.py
+ M pytest.ini
+ M requirements_dev.txt
+ M routers/payment_stripe.py
+ M routes/auth.py
+ M routes/billing.py
+ M routes/devices.py
+ M routes/diagnostics.py
+ M routes/servers.py
+ M routes/vpn.py
+ M scripts/train_models.py
+ M securewave_app/ANDROID_VPN_SETUP.md
+ M securewave_app/IOS_VPN_SETUP.md
+ M securewave_app/LINUX_VPN_SETUP.md
+ M securewave_app/MACOS_VPN_SETUP.md
+ M securewave_app/README.md
+ M securewave_app/WINDOWS_VPN_SETUP.md
+ M securewave_app/android/app/build.gradle.kts
+ M securewave_app/ios/PacketTunnel/PacketTunnelProvider.swift
+ M securewave_app/ios/Podfile
+ M securewave_app/ios/Runner.xcodeproj/project.pbxproj
+ M securewave_app/ios/Runner.xcodeproj/xcshareddata/xcschemes/Runner.xcscheme
+ M securewave_app/ios/Runner.xcworkspace/contents.xcworkspacedata
+ M securewave_app/ios/Runner/AppDelegate.swift
+ M securewave_app/ios/Runner/Info.plist
+ M securewave_app/ios/Runner/VPNManager.swift
+ M securewave_app/lib/core/logging/app_logger.dart
+ M securewave_app/lib/core/services/adblock_bridge.dart
+ M securewave_app/lib/core/services/adblock_engine.dart
+ M securewave_app/lib/core/services/secure_storage.dart
+ M securewave_app/lib/core/services/vpn_service.dart
+ M securewave_app/lib/core/state/adblock_state.dart
+ M securewave_app/lib/features/settings/language_page.dart
+ M securewave_app/lib/features/settings/settings_page.dart
+ M securewave_app/lib/services/api_client.dart
+ M securewave_app/lib/ui/app_ui_v1.dart
+ M securewave_app/linux/runner/my_application.cc
+ M securewave_app/macos/Flutter/Flutter-Debug.xcconfig
+ M securewave_app/macos/Flutter/Flutter-Release.xcconfig
+ D securewave_app/test/adblock_engine_test.dart
+?? ".env.example 2.flutter"
+?? .env.example.flutter
+?? "PROJECT_STATUS_2026-02-03 2.md"
+?? PROJECT_STATUS_2026-02-03.md
+?? "RELEASE_ENGINEERING_REPORT 2.md"
+?? RELEASE_ENGINEERING_REPORT.md
+?? "UI_REFACTOR_REPORT 2.md"
+?? UI_REFACTOR_REPORT.md
+?? artifacts/
+?? "docs/HETZNER_RUNBOOK 2.md"
+?? docs/HETZNER_RUNBOOK.md
+?? "docs/RELEASE_CHECKLIST 2.md"
+?? docs/RELEASE_CHECKLIST.md
+?? "docs/SECRET_REMEDIATION 2.md"
+?? docs/SECRET_REMEDIATION.md
+?? "docs/VERIFICATION_COMMANDS 2.md"
+?? docs/VERIFICATION_COMMANDS.md
+?? "docs/stripe_setup 2.md"
+?? docs/stripe_setup.md
+?? infrastructure/hetzner/
+?? "ml/configs/v3 2.json"
+?? ml/configs/v3.json
+?? package-lock.json
+?? package.json
+?? "routers/security 2.py"
+?? routers/security.py
+?? "routes/downloads 2.py"
+?? routes/downloads.py
+?? "routes/tools 2.py"
+?? routes/tools.py
+?? "routes/user 2.py"
+?? routes/user.py
+?? "scripts/build_apps 2.sh"
+?? scripts/build_apps.sh
+?? "scripts/check_cost_guardrails 2.sh"
+?? scripts/check_cost_guardrails.sh
+?? "scripts/check_xcworkspace_usage 2.sh"
+?? scripts/check_xcworkspace_usage.sh
+?? "scripts/generate_keys 2.sh"
+?? scripts/generate_keys.sh
+?? "scripts/hetzner_bootstrap 2.sh"
+?? scripts/hetzner_bootstrap.sh
+?? "scripts/release_preflight 2.sh"
+?? scripts/release_preflight.sh
+?? "scripts/run_backend_tests 2.sh"
+?? scripts/run_backend_tests.sh
+?? "scripts/run_local_web 2.sh"
+?? scripts/run_local_web.sh
+?? "scripts/setup_production_env 2.sh"
+?? scripts/setup_production_env.sh
+?? "scripts/verify_env 2.sh"
+?? scripts/verify_env.sh
+?? "scripts/verify_ios_store_compliance 2.sh"
+?? scripts/verify_ios_store_compliance.sh
+?? scripts/verify_linux_release_artifacts.sh
+?? scripts/verify_linux_runtime_guards.sh
+?? "scripts/verify_production_env 2.sh"
+?? scripts/verify_production_env.sh
+?? "securewave_app/ios/PacketTunnel/PrivacyInfo 2.xcprivacy"
+?? securewave_app/ios/PacketTunnel/PrivacyInfo.xcprivacy
+?? securewave_app/ios/Runner.xcodeproj/xcshareddata/xcschemes/PacketTunnel.xcscheme
+?? "securewave_app/ios/Runner/PrivacyInfo 2.xcprivacy"
+?? securewave_app/ios/Runner/PrivacyInfo.xcprivacy
+?? securewave_app/ios/ThirdParty/
+?? securewave_app/lib/core/models/diagnostics.dart
+?? securewave_app/lib/core/models/traffic_snapshot.dart
+?? securewave_app/lib/core/models/tunnel_health_snapshot.dart
+?? securewave_app/lib/core/services/diagnostics_service.dart
+?? securewave_app/lib/core/services/traffic_stats_service.dart
+?? securewave_app/lib/core/services/tunnel_status_service.dart
+?? securewave_app/lib/core/services/vm_environment.dart
+?? securewave_app/lib/core/state/client_settings_state.dart
+?? securewave_app/lib/core/state/network_lock_state.dart
+?? securewave_app/lib/features/settings/diagnostics_page.dart
+?? securewave_app/lib/features/vpn/connection_page.dart
+?? securewave_app/lib/ui/connect_button.dart
+?? securewave_app/lib/ui/connection_card.dart
+?? securewave_app/lib/ui/server_card.dart
+?? securewave_app/lib/ui/status_indicator.dart
+?? securewave_app/lib/ui/traffic_stats_card.dart
+?? securewave_app/lib/ui/usage_meter.dart
+?? securewave_app/macos/Podfile
+?? securewave_app/scripts/build_deb.sh
+?? securewave_app/test/client_pipeline_verification_test.dart
+?? tests/unit/test_downloads_manifest.py
+?? tests/unit/test_linux_runtime_guards.py
+?? tools/

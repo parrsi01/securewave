@@ -22,7 +22,9 @@ if ! command -v dpkg-deb >/dev/null 2>&1; then
 fi
 
 flutter pub get
-flutter build linux --release
+flutter build linux --release \
+  --dart-define=SECUREWAVE_API_BASE_URL=https://api.securewaveapp.com/api \
+  --dart-define=SECUREWAVE_USE_MOCK_API=false
 
 bundle_dir=""
 for candidate in build/linux/*/release/bundle; do

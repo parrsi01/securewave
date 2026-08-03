@@ -7,6 +7,9 @@ import '../logging/app_logger.dart';
 final appConfigProvider = StateProvider<AppConfig>((_) => AppConfig.defaults());
 
 class AppConfig {
+  static const bool _isReleaseBuild =
+      bool.fromEnvironment('dart.vm.product', defaultValue: false);
+
   AppConfig({
     required this.apiBaseUrl,
     required this.portalUrl,
@@ -26,9 +29,11 @@ class AppConfig {
     // Daily-use builds default to the live control plane. Mock data is opt-in
     // through SECUREWAVE_USE_MOCK_API for isolated UI tests and demos.
     return AppConfig(
-      apiBaseUrl: _compileTimeOrFallback(
-        'SECUREWAVE_API_BASE_URL',
-        AppConstants.baseUrlFallback,
+      apiBaseUrl: normalizeApiBaseUrl(
+        _compileTimeOrFallback(
+          'SECUREWAVE_API_BASE_URL',
+          AppConstants.baseUrlFallback,
+        ),
       ),
       portalUrl: _compileTimeOrFallback(
         'SECUREWAVE_PORTAL_URL',
@@ -38,37 +43,44 @@ class AppConfig {
         'SECUREWAVE_UPGRADE_URL',
         AppConstants.upgradeUrlFallback,
       ),
-      useMockApi: _parseBool(
-        const String.fromEnvironment(
-          'SECUREWAVE_USE_MOCK_API',
-          defaultValue: 'false',
-        ),
-      ),
+      useMockApi: _isReleaseBuild
+          ? false
+          : _parseBool(const String.fromEnvironment(
+              'SECUREWAVE_USE_MOCK_API',
+              defaultValue: 'false',
+            )),
       resetSessionOnBoot: false,
     );
   }
 
   static Future<AppConfig> load() async {
     if (_cached != null) return _cached!;
-    try {
-      if (!dotenv.isInitialized) {
-        await dotenv.load(fileName: '.env', isOptional: true);
+    if (!_isReleaseBuild) {
+      try {
+        if (!dotenv.isInitialized) {
+          await dotenv.load(fileName: '.env', isOptional: true);
+        }
+      } catch (error, stackTrace) {
+        AppLogger.warning('Config: .env load failed, using defaults');
+        AppLogger.error('Config: .env load error',
+            error: error, stackTrace: stackTrace);
       }
-    } catch (error, stackTrace) {
-      AppLogger.warning('Config: .env load failed, using defaults');
-      AppLogger.error('Config: .env load error',
-          error: error, stackTrace: stackTrace);
     }
 
-    final env = dotenv.isInitialized ? dotenv.env : const <String, String>{};
-    final baseUrl = _envOrDefault(
+    // A release bundle must not inherit a developer .env asset. Release
+    // builds receive the API explicitly through dart-define and otherwise use
+    // the live fallback below.
+    final env = !_isReleaseBuild && dotenv.isInitialized
+        ? dotenv.env
+        : const <String, String>{};
+    final baseUrl = normalizeApiBaseUrl(_envOrDefault(
       env,
       'SECUREWAVE_API_BASE_URL',
       _compileTimeOrFallback(
         'SECUREWAVE_API_BASE_URL',
         AppConstants.baseUrlFallback,
       ),
-    );
+    ));
     final portalUrl = _envOrDefault(
       env,
       'SECUREWAVE_PORTAL_URL',
@@ -86,13 +98,12 @@ class AppConfig {
       ),
     );
     // Mock API must be explicitly requested in every build mode.
-    const bool kIsReleaseMode = bool.fromEnvironment('dart.vm.product');
     var useMock = _parseBool(
       env['SECUREWAVE_USE_MOCK_API'] ??
           const String.fromEnvironment('SECUREWAVE_USE_MOCK_API',
               defaultValue: 'false'),
     );
-    if (kIsReleaseMode && useMock) {
+    if (_isReleaseBuild && useMock) {
       AppLogger.warning('Config: mock API disabled in release builds.');
       useMock = false;
     }
@@ -118,7 +129,59 @@ class AppConfig {
       Map<String, String> env, String key, String fallback) {
     final value = env[key];
     if (value == null || value.trim().isEmpty) return fallback;
-    return value;
+    return value.trim();
+  }
+
+  /// Normalize the base URL used by every relative API request.
+  ///
+  /// The backend is mounted below `/api`, while ApiClient paths intentionally
+  /// omit that prefix. A host-only override would therefore send requests to
+  /// the wrong route, so it is upgraded to `/api`; non-API paths are rejected
+  /// instead of being silently accepted.
+  static String normalizeApiBaseUrl(String raw) {
+    final value = raw.trim();
+    if (value.isEmpty) {
+      throw const FormatException('API base URL must not be empty.');
+    }
+
+    final uri = Uri.tryParse(value);
+    if (uri == null || uri.scheme.isEmpty || uri.host.isEmpty) {
+      throw FormatException('API base URL is not an absolute URL: $value');
+    }
+
+    final scheme = uri.scheme.toLowerCase();
+    if (scheme != 'http' && scheme != 'https') {
+      throw FormatException('API base URL must use HTTP or HTTPS: $value');
+    }
+    if (uri.userInfo.isNotEmpty ||
+        uri.query.isNotEmpty ||
+        uri.fragment.isNotEmpty) {
+      throw const FormatException(
+          'API base URL must not contain credentials, query parameters, or fragments.');
+    }
+
+    var path = uri.path.replaceFirst(RegExp(r'/+$'), '');
+    if (path.isEmpty) path = '/api';
+    if (path != '/api' && !path.endsWith('/api')) {
+      throw FormatException(
+          'API base URL must identify the backend /api path: $value');
+    }
+
+    final normalized = uri.replace(scheme: scheme, path: path).toString();
+    if (_isReleaseBuild && (scheme != 'https' || _isLocalHost(uri.host))) {
+      throw const FormatException(
+          'Release builds require a non-local HTTPS API base URL.');
+    }
+    return normalized;
+  }
+
+  static bool _isLocalHost(String host) {
+    final normalized = host.toLowerCase();
+    return normalized == 'localhost' ||
+        normalized == '::1' ||
+        normalized == '0.0.0.0' ||
+        normalized == '127.0.0.1' ||
+        normalized.startsWith('127.');
   }
 
   static String _compileTimeOrFallback(String key, String fallback) {

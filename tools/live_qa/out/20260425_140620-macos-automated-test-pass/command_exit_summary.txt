@@ -1,0 +1,10 @@
+flutter_analyze=0
+flutter_build_macos=1
+flutter_doctor=0
+flutter_test=0
+flutter_version=0
+macos_app_launch_smoke=0
+macos_bundle_xattrs=0
+xcodebuild_macos_unsigned_build=0
+xcodebuild_macos_unsigned_test=0
+xcodebuild_version=0

@@ -1,0 +1,6 @@
+timestamp=20260425_140620
+bundle=tools/live_qa/out/20260425_140620-macos-automated-test-pass
+cwd=/Users/simonparris/Documents/securewave
+uname=Darwin simons-macbook-pro.home 25.3.0 Darwin Kernel Version 25.3.0: Wed Jan 28 20:56:34 PST 2026; root:xnu-12377.91.3~2/RELEASE_ARM64_T8112 arm64
+flutter=/opt/homebrew/bin/flutter
+xcodebuild=/usr/bin/xcodebuild

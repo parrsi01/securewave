@@ -1,9 +1,9 @@
 <svg width="140" height="140" viewBox="0 0 140 140" fill="none" xmlns="http://www.w3.org/2000/svg">
   <title>SecureWave</title>
-  <rect x="12" y="12" width="116" height="116" rx="18" fill="#05050D"/>
-  <rect x="18" y="18" width="104" height="104" rx="12" fill="#0A0F1F" stroke="#20263C" stroke-width="3"/>
-  <path d="M70 29L101 41V66C101 89 88 106 70 114C52 106 39 89 39 66V41L70 29Z" fill="#080712" stroke="#F8F7FF" stroke-width="5" stroke-linejoin="round"/>
-  <path d="M49 70L61 82L74 59L87 82L101 68" stroke="#F8F7FF" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/>
-  <path d="M49 91C58 84 67 84 77 91C86 97 96 96 106 88" stroke="#8B5CF6" stroke-width="7" stroke-linecap="round"/>
-  <circle cx="70" cy="49" r="5" fill="#8B5CF6"/>
+  <rect x="12" y="12" width="116" height="116" rx="18" fill="#040914"/>
+  <rect x="18" y="18" width="104" height="104" rx="12" fill="#071527" stroke="#173456" stroke-width="3"/>
+  <path d="M70 29L101 41V66C101 89 88 106 70 114C52 106 39 89 39 66V41L70 29Z" fill="#061326" stroke="#F1F8FF" stroke-width="5" stroke-linejoin="round"/>
+  <path d="M49 70L61 82L74 59L87 82L101 68" stroke="#F1F8FF" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M49 91C58 84 67 84 77 91C86 97 96 96 106 88" stroke="#0EA5E9" stroke-width="7" stroke-linecap="round"/>
+  <circle cx="70" cy="49" r="5" fill="#00DCA1"/>
 </svg>

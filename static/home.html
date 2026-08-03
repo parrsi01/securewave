@@ -7,30 +7,27 @@
   <meta name="ui-version" content="UI_VERSION v1.0">
   <title>SecureWave VPN</title>
   <meta name="description" content="SecureWave delivers fast, app-first VPN protection for work, travel, and daily browsing." />
-  <link rel="stylesheet" href="/css/web_ui_v1.css?v=20260302">
+  <link rel="stylesheet" href="/css/web_ui_v1.css?v=20260717">
   <link rel="icon" type="image/svg+xml" href="/favicon.svg">
 </head>
 <body>
   <div class="page">
     <header class="navbar navbar-expand-lg">
       <div class="container navbar-row">
-        <a class="brand navbar-brand" href="/home.html">
+        <a class="brand navbar-brand" href="/home.html" aria-label="SecureWave home">
           <img src="/img/logo.svg" alt="SecureWave logo">
           <span>SecureWave</span>
         </a>
         <div class="nav-panel">
           <nav class="nav-links nav" aria-label="Primary">
-            <a class="nav-link active" href="/home.html" aria-current="page">Home</a>
-            <a class="nav-link" href="/services.html">Services</a>
-            <a class="nav-link" href="/subscription.html">Plans</a>
-            <a class="nav-link" href="/download.html">Download</a>
-            <a class="nav-link" href="/apple-review.html">Apple review</a>
-            <a class="nav-link" href="/dashboard.html">Dashboard</a>
-            <a class="nav-link" href="/contact.html">Support</a>
+            <a class="nav-link active" href="/features">Features</a>
+            <a class="nav-link" href="/pricing">Pricing</a>
+            <a class="nav-link" href="/download">Download</a>
+            <a class="nav-link" href="/about">About</a>
           </nav>
           <div class="nav-actions">
             <a class="btn btn-ghost" href="/login.html">Sign in</a>
-            <a class="btn btn-primary" href="#download">Download app</a>
+            <a class="btn btn-primary" href="/register.html">Create account</a>
           </div>
         </div>
         <button class="nav-toggle navbar-toggler" type="button" aria-label="Toggle navigation" data-nav-toggle>
@@ -40,55 +37,41 @@
     </header>
 
     <main>
-      <section class="section">
-        <div class="container hero-shell">
-          <div class="hero-copy">
-            <div class="section-header">
-              <span class="badge">Enterprise-grade VPN, built for clarity</span>
-              <h1>Stay protected without slowing down.</h1>
-              <p class="text-measure">SecureWave combines a clean desktop and mobile VPN app with a streamlined account portal. Download the app, sign in once, and keep work, travel, and daily browsing protected with one connection flow.</p>
+      <section class="terminal-hero">
+        <div class="container terminal-home">
+          <div class="terminal-home-copy">
+            <span class="terminal-eyebrow">Private VPN</span>
+            <h1>Private VPN access without confusing setup.</h1>
+            <p>Download the app, create an account, and manage your VPN from one clear place. SecureWave keeps setup, billing, devices, and support easy to find.</p>
+            <div class="terminal-actions">
+              <a class="btn btn-primary" href="/register.html">Start free &rarr;</a>
+              <a class="btn btn-secondary" href="/download.html">Download client</a>
             </div>
-            <div class="stat-list">
-              <a class="btn btn-primary" href="/download.html">Download SecureWave</a>
-              <a class="btn btn-secondary" href="/register.html">Create account</a>
-              <a class="btn btn-ghost" href="/login.html">Open dashboard</a>
-            </div>
-            <div class="hero-kpis">
-              <div class="status-tile">
-                <span class="value">3</span>
-                <span class="label">VPN protocols ready</span>
-              </div>
-              <div class="status-tile">
-                <span class="value">26+</span>
-                <span class="label">Regions available</span>
-              </div>
-              <div class="status-tile">
-                <span class="value">24/7</span>
-                <span class="label">Diagnostics and support access</span>
-              </div>
+            <div class="terminal-stats">
+              <div class="terminal-stat"><strong>Linux</strong><span>Public v1</span></div>
+              <div class="terminal-stat"><strong>5 GB</strong><span>Free transfer</span></div>
+              <div class="terminal-stat"><strong>1</strong><span>Account console</span></div>
             </div>
           </div>
 
-          <aside class="hero-panel card-strong">
-            <span class="eyebrow">Connection preview</span>
-            <div class="status-ring" aria-hidden="true"></div>
-            <div class="status-summary">
-              <strong>Ready to connect</strong>
-              <p>SecureWave keeps the tunnel experience in the app and the account experience on the web, so you always know where to go next.</p>
+          <div class="network-stage" role="img" aria-label="SecureWave VPN connection map showing an active WireGuard client and verified DNS">
+            <div class="network-status">
+              <span>Status</span>
+              <strong>&bull; Connected</strong>
+              <small>Protocol: WireGuard<br>Transfer: 3.2/5 GB</small>
             </div>
-            <div class="info-row">
-              <span class="info-label">Server location</span>
-              <span class="info-value">Auto-select</span>
-            </div>
-            <div class="info-row">
-              <span class="info-label">Protocol priority</span>
-              <span class="info-value">WireGuard first</span>
-            </div>
-            <div class="info-row">
-              <span class="info-label">Best next action</span>
-              <span class="info-value">Download the app</span>
-            </div>
-          </aside>
+            <div class="network-line active client"></div>
+            <div class="network-line green dns"></div>
+            <div class="network-line server"></div>
+            <div class="network-line auth"></div>
+            <div class="network-line device"></div>
+            <div class="network-core"><span><b>Secure</b>Wave</span></div>
+            <div class="network-node active client">Client<small>active</small></div>
+            <div class="network-node green dns">DNS<small>verified</small></div>
+            <div class="network-node server">SRV<small>standby</small></div>
+            <div class="network-node auth">Auth<small>pending</small></div>
+            <div class="network-node device">Device<small>unregistered</small></div>
+          </div>
         </div>
       </section>
 
@@ -112,7 +95,7 @@
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 7h16"/><path d="M4 12h16"/><path d="M4 17h10"/></svg>
               </div>
               <h3>One product system</h3>
-              <p>The website, dashboard, and app now share one purple-on-black design language, so nothing feels disconnected or improvised.</p>
+              <p>The website, dashboard, and app now share one dark-blue design language, so nothing feels disconnected or improvised.</p>
             </article>
             <article class="card">
               <div class="icon-circle" aria-hidden="true">
@@ -227,14 +210,14 @@
         <div class="footer-columns">
           <div class="footer-column">
             <div class="footer-title">Product</div>
-            <a href="/services.html">Services</a>
-            <a href="/subscription.html">Plans</a>
+            <a href="/features">Features</a>
+            <a href="/pricing">Pricing</a>
             <a href="/vpn.html">VPN app</a>
             <a href="/apple-review.html">Apple review</a>
           </div>
           <div class="footer-column">
             <div class="footer-title">Company</div>
-            <a href="/about.html">About</a>
+            <a href="/about">About</a>
             <a href="/contact.html">Support</a>
             <a href="/dashboard.html">Dashboard</a>
           </div>

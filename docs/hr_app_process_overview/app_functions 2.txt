@@ -1,0 +1,44 @@
+SecureWave app functions in plain English
+
+1. Create account
+   A new user enters an email and password. The app sends this to the SecureWave
+   backend. The backend creates the account or returns a visible error.
+
+2. Sign in
+   The user enters email and password. The backend returns a session token. The
+   app stores the session securely so the user does not have to sign in every
+   time the app opens.
+
+3. Show account
+   After sign in, the app displays the current email address and account state.
+
+4. Load regions
+   The app asks the backend for the current verified VPN server catalog. If no
+   servers are available, the user sees a clear empty state. If loading fails,
+   the user sees an error.
+
+5. Pick protocol
+   The user can choose WireGuard, OpenVPN, or IKEv2. The app still requires the
+   backend and Linux tools to support the selected protocol before it can
+   connect.
+
+6. Connect VPN
+   The app requests a real VPN profile from the backend, passes it to the Linux
+   VPN helper, and only marks the VPN connected when the native helper reports
+   success.
+
+7. Disconnect VPN
+   The app asks the Linux helper to stop the active tunnel and clears local
+   traffic-rate display values.
+
+8. Show usage
+   The app shows account usage on the home, account, and settings pages. Broken
+   or empty values are treated as zero instead of showing invalid numbers.
+
+9. Diagnostics
+   The app has a diagnostics panel that shows account/session state, protocol,
+   native helper availability, server catalog state, and the last visible error.
+
+10. Sign out
+    The app disconnects first if needed, clears the saved session, and returns
+    to the sign-in screen without requiring a restart.
