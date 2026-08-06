@@ -1,5 +1,16 @@
 ## Operations Runbook
 
+### CLI-only Phase 0 readiness
+
+For a non-interactive, fail-closed readiness workflow that reconciles prior
+evidence, runs local checks, validates one non-secret authorization packet, and
+stops before SMTP or production mutation, use
+[`docs/PHASE_0_CLI_READINESS_PROMPTS.md`](PHASE_0_CLI_READINESS_PROMPTS.md).
+
+The prompt pack does not grant authorization, infer targets, create
+credentials, deploy, send email, or prove live capacity. Keep the operator
+packet outside the repository and do not place secrets in it.
+
 ### Daily Checks
 1. Health endpoint: `/api/health`
 2. Ready endpoint: `/api/ready`
