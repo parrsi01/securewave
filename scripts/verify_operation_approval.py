@@ -56,6 +56,8 @@ REQUIRED_FIELDS = {
 }
 
 EMAIL_CANARY_OPERATIONS = {"smtp_canary", "sendgrid_canary"}
+RELEASE_OPERATIONS = {"release_arm64"}
+OPTIONAL_APPROVAL_FIELDS = {"artifact_sha256", "immutable_image_reference"}
 
 
 def canonical_payload(approval: Mapping[str, Any]) -> bytes:
@@ -98,7 +100,7 @@ def _validate_shape(approval: Mapping[str, Any]) -> None:
     missing = REQUIRED_FIELDS - set(approval)
     if missing:
         raise ApprovalVerificationError("approval is missing required fields")
-    unexpected = set(approval) - REQUIRED_FIELDS
+    unexpected = set(approval) - REQUIRED_FIELDS - OPTIONAL_APPROVAL_FIELDS
     if unexpected:
         raise ApprovalVerificationError("approval contains unsupported fields")
     if approval.get("schema_version") != 1:
@@ -131,6 +133,18 @@ def _validate_shape(approval: Mapping[str, Any]) -> None:
         raise ApprovalVerificationError(
             "email canary approval must contain a non-empty recipient allowlist"
         )
+    if approval.get("operation") in RELEASE_OPERATIONS:
+        if environment != "production":
+            raise ApprovalVerificationError("release approval must target production")
+        artifact_sha = approval.get("artifact_sha256")
+        if not isinstance(artifact_sha, str) or not re.fullmatch(r"[0-9a-fA-F]{64}", artifact_sha):
+            raise ApprovalVerificationError("release approval artifact SHA-256 is invalid")
+        image_reference = approval.get("immutable_image_reference")
+        if not isinstance(image_reference, str) or not re.fullmatch(
+            r"[A-Za-z0-9][A-Za-z0-9._/@:-]*@sha256:[a-fA-F0-9]{64}",
+            image_reference,
+        ):
+            raise ApprovalVerificationError("release approval image reference is invalid")
     try:
         parse_utc(str(approval["not_before_utc"]), "not_before_utc")
         parse_utc(str(approval["expires_at_utc"]), "expires_at_utc")
@@ -225,6 +239,8 @@ def verify_approval(
     target_ref: str,
     candidate_sha: str,
     recipient: str | None = None,
+    artifact_sha256: str | None = None,
+    immutable_image_reference: str | None = None,
     consume: bool = False,
     now: datetime | None = None,
     repository_root: Path | None = None,
@@ -249,6 +265,11 @@ def verify_approval(
         raise ApprovalVerificationError("approval target does not match")
     if approval["candidate_sha"].lower() != candidate_sha.lower():
         raise ApprovalVerificationError("approval candidate SHA does not match")
+    if operation in RELEASE_OPERATIONS:
+        if artifact_sha256 is None or artifact_sha256.lower() != str(approval["artifact_sha256"]).lower():
+            raise ApprovalVerificationError("approval artifact SHA-256 does not match")
+        if immutable_image_reference is None or immutable_image_reference != approval["immutable_image_reference"]:
+            raise ApprovalVerificationError("approval image reference does not match")
     if operation in EMAIL_CANARY_OPERATIONS and recipient is None:
         raise ApprovalVerificationError(
             "recipient is required when verifying an email canary approval"
@@ -288,6 +309,8 @@ def main() -> int:
     parser.add_argument("--target-ref", required=True)
     parser.add_argument("--candidate-sha", required=True)
     parser.add_argument("--recipient")
+    parser.add_argument("--artifact-sha256")
+    parser.add_argument("--immutable-image-reference")
     parser.add_argument("--consume", action="store_true")
     args = parser.parse_args()
 
@@ -301,6 +324,8 @@ def main() -> int:
             target_ref=args.target_ref,
             candidate_sha=args.candidate_sha,
             recipient=args.recipient,
+            artifact_sha256=args.artifact_sha256,
+            immutable_image_reference=args.immutable_image_reference,
             consume=args.consume,
         )
     except ApprovalVerificationError as exc:

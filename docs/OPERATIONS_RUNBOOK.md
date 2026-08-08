@@ -11,6 +11,43 @@ The prompt pack does not grant authorization, infer targets, create
 credentials, deploy, send email, or prove live capacity. Keep the operator
 packet outside the repository and do not place secrets in it.
 
+### Canonical Codex-only automation lanes
+
+Use `scripts/codex_cli_controller.py` as the single operator-facing command
+surface.  Do not invoke helper scripts with arbitrary arguments to perform
+external operations, and do not create additional long-lived branches for a
+new evidence run.  The active GitHub branch set is limited to `master`,
+`agent/securewave-model-reliability`, and
+`codex/linux-arm64-wireguard-beta-final`; old branch tips are retained only as
+archive tags.
+
+The credentialless local lane is:
+
+```bash
+.venv/bin/python scripts/codex_cli_controller.py local-e2e \
+  --evidence-dir /tmp/securewave-codex-local-evidence
+```
+
+It runs the real authentication/session contract against temporary SQLite,
+with `DEMO_MODE=false`, `WG_MOCK_MODE=false`, and a non-networking local email
+capture provider.  It is suitable for repeatable Codex/VS Code/CLI work but
+does not prove any remote target or public release.
+
+The ARM64 release gate is:
+
+```bash
+python3 scripts/codex_cli_controller.py release-arm64 \
+  --mode preflight \
+  --packet /external/securewave-release-authorization.txt \
+  --evidence-dir /external/securewave-arm64-release-evidence
+```
+
+The publish mode remains fail-closed until the operator supplies the exact
+ARM64 builder/runtime, immutable image, target, GitHub/registry access,
+provider configuration, and independent signed approval.  No source-only
+run can claim a public deployment, download update, login proof, or VPN
+runtime proof without those external results.
+
 ### Codex CLI login and controlled operations
 
 For the redacted historical login report, real-account login diagnostic,

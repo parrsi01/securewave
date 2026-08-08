@@ -89,6 +89,14 @@ OPTIONAL_PACKET_FIELDS = {
     "sendgrid_recipient_allowlist",
     "smtp_recipient_allowlist",
     "read_only_external_audit_authorized",
+    "release_branch",
+    "artifact_platform",
+    "artifact_architecture",
+    "artifact_sha256",
+    "api_base_fingerprint",
+    "arm64_validation_target_reference",
+    "public_download_reference",
+    "immutable_image_reference",
 }
 
 KNOWN_PACKET_FIELDS = set(REQUIRED_PACKET_FIELDS) | OPTIONAL_PACKET_FIELDS
@@ -101,6 +109,7 @@ ALLOWED_PACKET_OPERATIONS = {
     "smtp_canary",
     "deploy_staging",
     "deploy_production",
+    "release_arm64",
 }
 
 REQUIRED_NOT_AUTHORIZED = {
@@ -335,6 +344,43 @@ def validate_packet(
     if fingerprint and not re.fullmatch(r"[0-9a-fA-F]{64}", fingerprint):
         errors.append("api_base_fingerprint must be a SHA-256 hex fingerprint")
 
+    release_operation = "release_arm64" in set(parse_csv(packet.get("allowed_operations")))
+    if release_operation:
+        if environment != "production":
+            errors.append("release_arm64 is production-only")
+        if production_excluded != "false":
+            errors.append("release_arm64 requires production_excluded=false")
+        release_branch = packet.get("release_branch", "").strip()
+        if is_placeholder(release_branch) or any(char.isspace() for char in release_branch):
+            errors.append("release_branch is required for release_arm64")
+        elif ".." in release_branch or release_branch.startswith("-"):
+            errors.append("release_branch is not a valid Git branch reference")
+
+        if packet.get("artifact_platform", "").strip().lower() != "linux":
+            errors.append("release_arm64 requires artifact_platform=linux")
+        if packet.get("artifact_architecture", "").strip().lower() != "arm64":
+            errors.append("release_arm64 requires artifact_architecture=arm64")
+        if not re.fullmatch(r"[0-9a-fA-F]{64}", packet.get("artifact_sha256", "")):
+            errors.append("release_arm64 requires a SHA-256 artifact_sha256")
+        validation_target = packet.get("arm64_validation_target_reference", "")
+        if is_placeholder(validation_target):
+            errors.append("release_arm64 requires arm64_validation_target_reference")
+        else:
+            try:
+                validate_target_reference(validation_target)
+            except PacketValidationError as exc:
+                errors.append(f"invalid ARM64 validation target: {exc}")
+        if is_placeholder(packet.get("public_download_reference")):
+            errors.append("release_arm64 requires public_download_reference")
+        image_reference = packet.get("immutable_image_reference", "").strip()
+        if not re.fullmatch(
+            r"[A-Za-z0-9][A-Za-z0-9._/@:-]*@sha256:[a-fA-F0-9]{64}",
+            image_reference,
+        ):
+            errors.append("release_arm64 requires an immutable_image_reference digest")
+        if "deploy_production" not in set(parse_csv(packet.get("allowed_operations"))):
+            errors.append("release_arm64 requires deploy_production authorization")
+
     headroom_reference = packet.get("headroom_evidence_reference", "").strip().lower()
     if headroom_reference in VAGUE_HEADROOM_REFERENCES:
         errors.append(
@@ -403,8 +449,13 @@ def validate_packet(
     if environment == "production" and "production_deploy" in not_authorized:
         errors.append("production packet must not exclude production_deploy")
 
-    if packet.get("authorized_scope", "").strip() != "phase0_readiness_only":
-        errors.append("authorized_scope must be phase0_readiness_only")
+    if packet.get("authorized_scope", "").strip() not in {
+        "phase0_readiness_only",
+        "arm64_release_and_production_publish",
+    }:
+        errors.append("authorized_scope is not recognized")
+    if release_operation and packet.get("authorized_scope", "").strip() != "arm64_release_and_production_publish":
+        errors.append("release_arm64 requires authorized_scope=arm64_release_and_production_publish")
 
     starts_at: datetime | None = None
     ends_at: datetime | None = None

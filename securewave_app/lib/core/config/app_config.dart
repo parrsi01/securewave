@@ -10,6 +10,13 @@ class AppConfig {
   static const bool _isReleaseBuild =
       bool.fromEnvironment('dart.vm.product', defaultValue: false);
 
+  // Codex-local packages are compiled separately from production packages.
+  // This is the only release-build exception that permits a loopback API.
+  static const bool _isCodexLocalBuild = bool.fromEnvironment(
+    'SECUREWAVE_CODEX_LOCAL',
+    defaultValue: false,
+  );
+
   AppConfig({
     required this.apiBaseUrl,
     required this.portalUrl,
@@ -177,7 +184,14 @@ class AppConfig {
     }
 
     final normalized = uri.replace(scheme: scheme, path: path).toString();
-    if (_isReleaseBuild && (scheme != 'https' || _isLocalHost(uri.host))) {
+    if (_isCodexLocalBuild &&
+        (scheme != 'http' || !_isLocalHost(uri.host))) {
+      throw const FormatException(
+          'Codex-local builds require an HTTP loopback API base URL.');
+    }
+    if (_isReleaseBuild &&
+        !_isCodexLocalBuild &&
+        (scheme != 'https' || _isLocalHost(uri.host))) {
       throw const FormatException(
           'Release builds require a non-local HTTPS API base URL.');
     }

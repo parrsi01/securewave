@@ -20,6 +20,8 @@ def _write_approval(
     tmp_path: Path,
     candidate_sha: str = "a" * 40,
     operation: str = "smtp_canary",
+    artifact_sha256: str | None = None,
+    immutable_image_reference: str | None = None,
 ):
     private_key = Ed25519PrivateKey.generate()
     public_key_path = tmp_path / "approval-public.pem"
@@ -34,8 +36,8 @@ def _write_approval(
         "schema_version": 1,
         "approval_id": "approval-001",
         "issuer_key_id": "operator-key-001",
-        "environment": "staging",
-        "target_ref": "staging-fleet-01",
+        "environment": "production" if operation == "release_arm64" else "staging",
+        "target_ref": "production-fleet-01" if operation == "release_arm64" else "staging-fleet-01",
         "candidate_sha": candidate_sha,
         "operation": operation,
         "not_before_utc": (now - timedelta(minutes=1)).isoformat().replace("+00:00", "Z"),
@@ -43,6 +45,11 @@ def _write_approval(
         "recipient_allowlist": ["canary@example.test"],
         "nonce": "nonce-001",
     }
+    if operation == "release_arm64":
+        approval["artifact_sha256"] = artifact_sha256 or "b" * 64
+        approval["immutable_image_reference"] = immutable_image_reference or (
+            "registry.example.test/securewave@sha256:" + "c" * 64
+        )
     approval["signature"] = base64.b64encode(private_key.sign(canonical_payload(approval))).decode("ascii")
     approval_path = tmp_path / "approval.json"
     approval_path.write_text(json.dumps(approval), encoding="utf-8")
@@ -300,5 +307,44 @@ def test_approval_with_invalid_recipient_allowlist_is_rejected(tmp_path: Path):
             environment="staging",
             target_ref="staging-fleet-01",
             candidate_sha="a" * 40,
+            repository_root=tmp_path / "repo",
+        )
+
+
+def test_release_approval_binds_artifact_and_image_digest(tmp_path: Path):
+    artifact_sha = "b" * 64
+    image_reference = "registry.example.test/securewave@sha256:" + "c" * 64
+    approval, public_key, ledger = _write_approval(
+        tmp_path,
+        operation="release_arm64",
+        artifact_sha256=artifact_sha,
+        immutable_image_reference=image_reference,
+    )
+
+    result = verify_approval(
+        approval_file=approval,
+        public_key_file=public_key,
+        ledger_file=ledger,
+        operation="release_arm64",
+        environment="production",
+        target_ref="production-fleet-01",
+        candidate_sha="a" * 40,
+        artifact_sha256=artifact_sha,
+        immutable_image_reference=image_reference,
+        repository_root=tmp_path / "repo",
+    )
+    assert result["operation"] == "release_arm64"
+
+    with pytest.raises(ApprovalVerificationError, match="artifact SHA"):
+        verify_approval(
+            approval_file=approval,
+            public_key_file=public_key,
+            ledger_file=ledger,
+            operation="release_arm64",
+            environment="production",
+            target_ref="production-fleet-01",
+            candidate_sha="a" * 40,
+            artifact_sha256="d" * 64,
+            immutable_image_reference=image_reference,
             repository_root=tmp_path / "repo",
         )

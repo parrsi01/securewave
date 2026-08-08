@@ -15,8 +15,9 @@ from jinja2 import Template
 
 from utils.sensitive_data import redact_text, sanitize_for_evidence
 
-load_dotenv()
-load_dotenv(".env.production")
+if os.getenv("SECUREWAVE_CLI_ENV_ONLY", "").strip().lower() not in {"1", "true", "yes"}:
+    load_dotenv()
+    load_dotenv(".env.production")
 
 logger = logging.getLogger(__name__)
 
@@ -62,6 +63,11 @@ class EnhancedEmailService:
             except ImportError:
                 logger.error("boto3 not installed - required for AWS SES")
                 return False
+        elif self.provider == "local_capture":
+            return (
+                os.getenv("ENVIRONMENT", "").strip().lower() == "codex-local"
+                and bool(os.getenv("SECUREWAVE_LOCAL_EMAIL_EVIDENCE_DIR"))
+            )
         return False
 
     # ===========================
@@ -111,6 +117,10 @@ class EnhancedEmailService:
                 success, message_id = self._send_via_sendgrid(to_email, subject, html_content, text_content)
             elif self.provider == "aws_ses":
                 success, message_id = self._send_via_ses(to_email, subject, html_content, text_content)
+            elif self.provider == "local_capture":
+                success, message_id = self._send_via_local_capture(
+                    to_email, subject, html_content, text_content
+                )
             else:
                 logger.error("Unknown email provider provider=%s", self.provider)
                 return False
@@ -153,6 +163,25 @@ class EnhancedEmailService:
     # ===========================
     # PROVIDER IMPLEMENTATIONS
     # ===========================
+
+    def _send_via_local_capture(
+        self,
+        to_email: str,
+        subject: str,
+        html_content: str,
+        text_content: Optional[str] = None,
+    ) -> tuple[bool, Optional[str]]:
+        from services.local_email_capture import capture_email
+
+        return (
+            capture_email(
+                to_email=to_email,
+                subject=subject,
+                html_content=html_content,
+                text_content=text_content,
+            ),
+            None,
+        )
 
     def _send_via_smtp(
         self,

@@ -78,6 +78,13 @@ def email_config_issues(provider: Optional[str] = None) -> Tuple[str, List[str]]
     elif resolved in ("ses", "aws_ses"):
         require("FROM_EMAIL", from_email)
         require("AWS_SES_REGION", os.getenv("AWS_SES_REGION"))
+    elif resolved == "local_capture":
+        if get_environment() != "codex-local":
+            missing.append("EMAIL_PROVIDER(local_capture) requires ENVIRONMENT=codex-local")
+        require(
+            "SECUREWAVE_LOCAL_EMAIL_EVIDENCE_DIR",
+            os.getenv("SECUREWAVE_LOCAL_EMAIL_EVIDENCE_DIR"),
+        )
     else:
         missing.append(f"EMAIL_PROVIDER({resolved})")
 

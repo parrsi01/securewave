@@ -506,3 +506,41 @@ def test_sendgrid_check_only_does_not_require_approval(monkeypatch, tmp_path: Pa
     )
 
     assert result == 0
+
+
+def test_local_e2e_is_a_fixed_controller_operation(monkeypatch, tmp_path: Path):
+    monkeypatch.setattr(codex_cli_controller, "_evidence_dir", lambda _path: tmp_path)
+    monkeypatch.setattr(
+        codex_cli_controller,
+        "run_local_e2e",
+        lambda _evidence_dir: ("LOCAL_AUTOMATION_READY", tmp_path / "local-e2e.json"),
+    )
+    monkeypatch.setattr(
+        codex_cli_controller,
+        "_write_controller_evidence",
+        lambda _directory, _payload: tmp_path / "controller-result.json",
+    )
+
+    result = codex_cli_controller._local_e2e(
+        Namespace(evidence_dir=tmp_path)
+    )
+
+    assert result == 0
+
+
+def test_local_e2e_failure_is_not_reported_as_unknown(monkeypatch, tmp_path: Path, capsys):
+    monkeypatch.setattr(codex_cli_controller, "_evidence_dir", lambda _path: tmp_path)
+    monkeypatch.setattr(
+        codex_cli_controller,
+        "run_local_e2e",
+        lambda _evidence_dir: (_ for _ in ()).throw(
+            codex_cli_controller.LocalE2EError("safe local contract failure")
+        ),
+    )
+
+    result = codex_cli_controller._local_e2e(
+        Namespace(evidence_dir=tmp_path)
+    )
+
+    assert result == 3
+    assert "CONTROLLER_RESULT=FAIL:safe local contract failure" in capsys.readouterr().err

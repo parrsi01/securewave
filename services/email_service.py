@@ -73,6 +73,13 @@ class EmailService:
         elif provider in ("ses", "aws_ses"):
             require("FROM_EMAIL", FROM_EMAIL)
             require("AWS_SES_REGION", AWS_SES_REGION)
+        elif provider == "local_capture":
+            if os.getenv("ENVIRONMENT", "").strip().lower() != "codex-local":
+                missing.append("EMAIL_PROVIDER(local_capture) requires ENVIRONMENT=codex-local")
+            require(
+                "SECUREWAVE_LOCAL_EMAIL_EVIDENCE_DIR",
+                os.getenv("SECUREWAVE_LOCAL_EMAIL_EVIDENCE_DIR"),
+            )
         else:
             missing.append(f"EMAIL_PROVIDER({provider})")
 
@@ -120,6 +127,10 @@ class EmailService:
                 success = self._send_via_sendgrid(to_email, subject, html_content, text_content)
             elif self.provider in ("ses", "aws_ses"):
                 success = self._send_via_ses(to_email, subject, html_content, text_content)
+            elif self.provider == "local_capture":
+                success = self._send_via_local_capture(
+                    to_email, subject, html_content, text_content
+                )
             else:
                 logger.error(f"Unknown email provider: {self.provider}")
                 return False
@@ -149,8 +160,29 @@ class EmailService:
             return bool(SENDGRID_API_KEY and FROM_EMAIL)
         if self.provider in ("ses", "aws_ses"):
             return bool(FROM_EMAIL)
+        if self.provider == "local_capture":
+            return (
+                os.getenv("ENVIRONMENT", "").strip().lower() == "codex-local"
+                and bool(os.getenv("SECUREWAVE_LOCAL_EMAIL_EVIDENCE_DIR"))
+            )
         logger.error(f"Unknown email provider: {self.provider}")
         return False
+
+    def _send_via_local_capture(
+        self,
+        to_email: str,
+        subject: str,
+        html_content: str,
+        text_content: Optional[str],
+    ) -> bool:
+        from services.local_email_capture import capture_email
+
+        return capture_email(
+            to_email=to_email,
+            subject=subject,
+            html_content=html_content,
+            text_content=text_content,
+        )
 
     def _send_via_smtp(
         self,

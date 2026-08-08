@@ -28,6 +28,8 @@ try:  # Support both direct CLI execution and package-based tests.
         write_json_evidence,
     )
     from login_diagnostic import DiagnosticInputError, normalize_api_base, run_diagnostic
+    from codex_local_e2e import LocalE2EError, run_local_e2e
+    from release_arm64 import Arm64ReleaseBlocked, run_preflight as run_arm64_preflight, run_publish as run_arm64_publish
     from login_provenance import main as provenance_main
     from sendgrid_canary import (
         SendGridCanaryError,
@@ -64,6 +66,12 @@ except ModuleNotFoundError:  # pragma: no cover - import mode depends on invocat
         normalize_api_base,
         run_diagnostic,
     )
+    from scripts.codex_local_e2e import LocalE2EError, run_local_e2e
+    from scripts.release_arm64 import (
+        Arm64ReleaseBlocked,
+        run_preflight as run_arm64_preflight,
+        run_publish as run_arm64_publish,
+    )
     from scripts.login_provenance import main as provenance_main
     from scripts.sendgrid_canary import (
         SendGridCanaryError,
@@ -90,6 +98,10 @@ class ControllerBlocked(RuntimeError):
 
 
 def _automation_result(result: str) -> str:
+    if result == "LOCAL_AUTOMATION_READY":
+        return "READY_FOR_PHASE_0_REVIEW"
+    if result == "ARM64_RELEASE_CANDIDATE":
+        return "READY_FOR_PHASE_0_REVIEW"
     if result.startswith("PASS_"):
         return "READY_FOR_PHASE_0_REVIEW"
     if result.startswith("BLOCKED_"):
@@ -206,6 +218,78 @@ def _verify_and_consume_approval(
 
 def _write_controller_evidence(evidence_dir: Path, result: dict[str, Any]) -> Path:
     return write_json_evidence(evidence_dir, "controller-result.json", result)
+
+
+def _local_e2e(args: argparse.Namespace) -> int:
+    evidence_dir = _evidence_dir(args.evidence_dir)
+    try:
+        result, destination = run_local_e2e(evidence_dir)
+    except LocalE2EError as exc:
+        print(f"CONTROLLER_RESULT=FAIL:{exc}", file=sys.stderr)
+        print("AUTOMATION_RESULT=FAIL", file=sys.stderr)
+        return 3
+    controller_evidence = _write_controller_evidence(
+        evidence_dir,
+        {
+            "operation": "local-e2e",
+            "result": result,
+            "controller_result": result,
+            "evidence_file": destination.name,
+            "external_system_status": "not contacted",
+        },
+    )
+    print(f"CONTROLLER_RESULT={result}")
+    print(f"CONTROLLER_EVIDENCE={controller_evidence}")
+    print("AUTOMATION_RESULT=READY_FOR_PHASE_0_REVIEW")
+    return 0
+
+
+def _release_arm64(args: argparse.Namespace) -> int:
+    packet = _load_packet(args.packet)
+    evidence_dir = _evidence_dir(args.evidence_dir)
+    if "release_arm64" not in parse_csv(packet.get("allowed_operations")):
+        raise ControllerBlocked("release_arm64 is not authorized by the packet")
+
+    try:
+        if args.mode == "preflight":
+            result, destination = run_arm64_preflight(
+                packet=packet,
+                evidence_dir=evidence_dir,
+                artifact=args.artifact,
+            )
+        else:
+            if args.artifact is None or args.approval_file is None:
+                raise ControllerBlocked(
+                    "publish mode requires an external artifact and signed approval file"
+                )
+            result, destination = run_arm64_publish(
+                packet=packet,
+                evidence_dir=evidence_dir,
+                artifact=args.artifact,
+                approval_file=args.approval_file,
+            )
+    except Arm64ReleaseBlocked as exc:
+        raise ControllerBlocked(str(exc)) from exc
+
+    controller_evidence = _write_controller_evidence(
+        evidence_dir,
+        {
+            "operation": "release-arm64",
+            "mode": args.mode,
+            "result": result,
+            "evidence_file": destination.name,
+        },
+    )
+    print(f"CONTROLLER_RESULT={result}")
+    print(f"CONTROLLER_EVIDENCE={controller_evidence}")
+    if result == "ARM64_RELEASE_CANDIDATE":
+        print("AUTOMATION_RESULT=READY_FOR_PHASE_0_REVIEW")
+        return 0
+    if result.startswith("BLOCKED_"):
+        print("AUTOMATION_RESULT=BLOCKED_BEFORE_SMTP")
+        return 2
+    print("AUTOMATION_RESULT=FAIL")
+    return 3
 
 
 def _diagnose(args: argparse.Namespace) -> int:
@@ -596,6 +680,16 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Optional external local filesystem root for fixed installed-file comparison.",
     )
 
+    local_e2e = subparsers.add_parser("local-e2e")
+    local_e2e.add_argument("--evidence-dir", required=True, type=Path)
+
+    release_arm64 = subparsers.add_parser("release-arm64")
+    release_arm64.add_argument("--mode", choices=("preflight", "publish"), required=True)
+    release_arm64.add_argument("--packet", required=True, type=Path)
+    release_arm64.add_argument("--artifact", type=Path)
+    release_arm64.add_argument("--approval-file", type=Path)
+    release_arm64.add_argument("--evidence-dir", required=True, type=Path)
+
     diagnose = subparsers.add_parser("diagnose-login")
     diagnose.add_argument("--packet", required=True, type=Path)
     diagnose.add_argument("--evidence-dir", required=True, type=Path)
@@ -640,6 +734,10 @@ def main() -> int:
                 + ("READY_FOR_PHASE_0_REVIEW" if result == 0 else "FAIL")
             )
             return result
+        if args.command == "local-e2e":
+            return _local_e2e(args)
+        if args.command == "release-arm64":
+            return _release_arm64(args)
         if args.command == "diagnose-login":
             return _diagnose(args)
         if args.command == "smtp-canary":

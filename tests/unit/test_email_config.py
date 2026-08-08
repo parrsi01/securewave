@@ -97,6 +97,28 @@ class TestEmailServiceConfigStatus:
             # SendGrid should be enabled with API key + FROM_EMAIL
             assert status["enabled"] is True
 
+    def test_codex_local_capture_does_not_require_smtp(self, tmp_path):
+        env = {
+            "EMAIL_PROVIDER": "local_capture",
+            "ENVIRONMENT": "codex-local",
+            "SECUREWAVE_LOCAL_EMAIL_EVIDENCE_DIR": str(tmp_path),
+            "FROM_EMAIL": "codex-local@invalid.example",
+        }
+        with patch.dict(os.environ, env, clear=True):
+            import importlib
+            import services.email_service as email_module
+            importlib.reload(email_module)
+
+            service = email_module.EmailService()
+            assert service.enabled is True
+            assert service.config_status()["missing"] == []
+            assert service.send_email(
+                to_email="recipient@example.test",
+                subject="Local capture",
+                html_content="<p>Body</p>",
+            ) is True
+            assert list(tmp_path.glob("email-*.json"))
+
     def test_ses_config_status(self):
         env = {
             "EMAIL_PROVIDER": "ses",

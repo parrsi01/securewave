@@ -189,3 +189,42 @@ def test_packet_rejects_noncanonical_environment_spelling(tmp_path: Path):
     packet["environment"] = "PRODUCTION"
     errors = validate_packet(packet, repository_root=tmp_path / "repo")
     assert any("lowercase canonical" in error for error in errors)
+
+
+def arm64_release_packet(tmp_path: Path) -> dict[str, str]:
+    packet = valid_packet(tmp_path)
+    packet.update(
+        {
+            "environment": "production",
+            "production_excluded": "false",
+            "allowed_operations": "release_arm64,deploy_production",
+            "release_branch": "agent/securewave-model-reliability",
+            "artifact_platform": "linux",
+            "artifact_architecture": "arm64",
+            "artifact_sha256": "b" * 64,
+            "arm64_validation_target_reference": "arm64-validation-01",
+            "public_download_reference": "public-download-01",
+            "immutable_image_reference": "registry.example.test/securewave@sha256:" + "c" * 64,
+            "authorized_scope": "arm64_release_and_production_publish",
+            "not_authorized": "mock_login,email_verification_bypass,2fa_bypass,SMTP_without_approval,later_phases",
+        }
+    )
+    return packet
+
+
+def test_arm64_release_packet_requires_explicit_artifact_and_target_data(tmp_path: Path):
+    packet = arm64_release_packet(tmp_path)
+    assert validate_packet(packet, repository_root=tmp_path / "repo") == []
+
+    packet["artifact_architecture"] = "amd64"
+    errors = validate_packet(packet, repository_root=tmp_path / "repo")
+    assert any("artifact_architecture=arm64" in error for error in errors)
+
+
+def test_arm64_release_packet_rejects_mutable_image_and_staging_scope(tmp_path: Path):
+    packet = arm64_release_packet(tmp_path)
+    packet["immutable_image_reference"] = "registry.example.test/securewave:latest"
+    packet["authorized_scope"] = "phase0_readiness_only"
+    errors = validate_packet(packet, repository_root=tmp_path / "repo")
+    assert any("immutable_image_reference" in error for error in errors)
+    assert any("authorized_scope" in error for error in errors)

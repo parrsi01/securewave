@@ -23,6 +23,83 @@ authoritative target-specific record.
   caches or the non-secret Flutter environment asset.
 - Never use `--dangerously-bypass-approvals-and-sandbox`.
 
+## Canonical controller surface and branch policy
+
+The repository has one operator-facing automation surface:
+`scripts/codex_cli_controller.py`.  The controller exposes fixed operations
+only; it does not accept arbitrary shell commands or arbitrary script paths.
+The implementation helpers (`scripts/codex_local_e2e.py`,
+`scripts/release_arm64.py`, and the local email provider) are not independent
+deployment interfaces.
+
+The GitHub repository is intentionally limited to three active branches:
+
+1. `master` — the protected default branch;
+2. `agent/securewave-model-reliability` — the current implementation branch;
+3. `codex/linux-arm64-wireguard-beta-final` — the retained ARM64 beta branch.
+
+Deleted branch tips are retained only as archive tags for audit/recovery; they
+are not active branches.  Do not create a fourth long-lived branch.  A fresh
+evidence directory or a new review run is preferred to another branch.
+
+## Credentialless local lane
+
+After the checkout is clean, the local lane is run through the controller:
+
+```bash
+cd /Users/simonparris/Documents/securewave
+.venv/bin/python scripts/codex_cli_controller.py local-e2e \
+  --evidence-dir /tmp/securewave-codex-local-evidence
+```
+
+It creates a temporary SQLite database outside the repository, applies the
+existing Alembic migrations, seeds only non-production users in process, and
+exercises the real login, `/auth/me`, session, refresh, logout, invalid
+password, and unverified-account contracts.  It keeps `DEMO_MODE=false` and
+`WG_MOCK_MODE=false` and uses `EMAIL_PROVIDER=local_capture` only with
+`ENVIRONMENT=codex-local`.  The capture provider writes redacted evidence
+outside the repository and never opens a network connection.  This lane is
+not evidence of staging or production health.
+
+The local package is explicitly non-production and must remain outside the
+download manifest:
+
+```bash
+bash scripts/build_codex_local_deb.sh \
+  --api-base http://127.0.0.1:<ephemeral-port>/api \
+  --output-dir /tmp/securewave-codex-local-artifacts
+```
+
+The package is named `securewave-vpn-codex-local`, embeds a loopback API base,
+forces mock API behavior off, and is never eligible for publication.
+
+## ARM64 release operation
+
+The fixed release surface is deliberately split into preflight and publish:
+
+```bash
+python3 scripts/codex_cli_controller.py release-arm64 \
+  --mode preflight \
+  --packet /external/securewave-release-authorization.txt \
+  --artifact /external/securewave-arm64-release/securewave-vpn_arm64.deb \
+  --evidence-dir /external/securewave-arm64-release-evidence
+```
+
+Publish mode requires the same exact candidate, an immutable ARM64 package
+checksum, an independent signed approval, a production target, an immutable
+backend image digest, a clean tree, and the external CI/ARM64 runtime
+contracts.  Missing ARM64 tooling, GitHub/registry authorization, SSH access,
+provider credentials, target-specific headroom evidence, or a proven fixed
+image-builder contract is a blocker.  The controller does not replace those
+external systems and does not guess them.  It also does not mark an ARM64
+artifact available in `static/downloads/manifest.json` unless the exact
+artifact and public verification evidence exist.
+
+The local lane and the ARM64 release lane are separate profiles.  Production
+packaging rejects loopback/HTTP API bases, Codex-local flags, dirty trees, and
+mock mode.  The current production deployment guard remains the only
+production deployment path.
+
 ## CLI invocation model
 
 The installed Codex CLI supports `codex exec`, stdin prompts, `--sandbox`,

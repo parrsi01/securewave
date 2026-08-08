@@ -39,9 +39,61 @@ if [[ -n "$source_tree_state" ]]; then
   exit 1
 fi
 
+package_profile="${SECUREWAVE_PACKAGE_PROFILE:-production}"
+api_base="${SECUREWAVE_API_BASE_URL:-}"
+if [[ "$package_profile" != "production" && "$package_profile" != "codex-local" ]]; then
+  echo "ERROR: unsupported package profile." >&2
+  exit 1
+fi
+if [[ -z "$api_base" ]]; then
+  echo "ERROR: SECUREWAVE_API_BASE_URL must be supplied explicitly." >&2
+  exit 1
+fi
+case "$package_profile" in
+  production)
+    if [[ "${SECUREWAVE_CODEX_LOCAL:-false}" == "true" ]]; then
+      echo "ERROR: production packaging rejects the Codex-local flag." >&2
+      exit 1
+    fi
+    if [[ ! "$api_base" =~ ^https://[^/[:space:]]+/api/?$ ]]; then
+      echo "ERROR: production packaging requires an explicit HTTPS /api base." >&2
+      exit 1
+    fi
+    if [[ "$api_base" == *"@"* || "$api_base" == *"?"* || "$api_base" == *"#"* ]]; then
+      echo "ERROR: production packaging rejects API credentials, queries, and fragments." >&2
+      exit 1
+    fi
+    case "$api_base" in
+      https://localhost/*|https://127.*/*|https://0.0.0.0/*)
+        echo "ERROR: production packaging rejects a loopback API base." >&2
+        exit 1
+        ;;
+    esac
+    if [[ "$api_base" == "https://[::1]/api" || "$api_base" == "https://[::1]/api/" ]]; then
+      echo "ERROR: production packaging rejects a loopback API base." >&2
+      exit 1
+    fi
+    codex_local_define="false"
+    package_name="securewave-vpn"
+    ;;
+  codex-local)
+    if [[ "${SECUREWAVE_CODEX_LOCAL:-false}" != "true" ]]; then
+      echo "ERROR: Codex-local packaging requires SECUREWAVE_CODEX_LOCAL=true." >&2
+      exit 1
+    fi
+    if [[ ! "$api_base" =~ ^http://(localhost|127\.0\.0\.1)(:[0-9]+)?/api/?$ ]]; then
+      echo "ERROR: Codex-local packaging requires an HTTP loopback /api base." >&2
+      exit 1
+    fi
+    codex_local_define="true"
+    package_name="securewave-vpn-codex-local"
+    ;;
+esac
+
 flutter pub get
 flutter build linux --release \
-  --dart-define=SECUREWAVE_API_BASE_URL=https://api.securewaveapp.com/api \
+  --dart-define=SECUREWAVE_API_BASE_URL="$api_base" \
+  --dart-define=SECUREWAVE_CODEX_LOCAL="$codex_local_define" \
   --dart-define=SECUREWAVE_USE_MOCK_API=false
 
 bundle_dir=""
@@ -64,10 +116,9 @@ if [[ -z "$version" ]]; then
 fi
 
 arch="$(dpkg --print-architecture)"
-package_name="securewave-vpn"
 
 staging_dir="$ROOT_DIR/build/packaging/deb"
-output_dir="$ROOT_DIR/build/packaging"
+output_dir="${SECUREWAVE_PACKAGE_OUTPUT_DIR:-$ROOT_DIR/build/packaging}"
 
 rm -rf "$staging_dir"
 mkdir -p "$staging_dir/DEBIAN" \
@@ -99,10 +150,13 @@ printf '%s\n' "$source_commit" > "$release_dir/source-sha"
 printf '%s\n' "clean" > "$release_dir/source-tree-state"
 printf '%s\n' "$version" > "$release_dir/app-version"
 printf '%s\n' "$arch" > "$release_dir/package-architecture"
+printf '%s\n' "$package_profile" > "$release_dir/package-profile"
+printf '%s\n' "$(printf '%s' "$api_base" | sha256sum | awk '{print $1}')" > "$release_dir/api-base-fingerprint"
 tr -d '[:space:]' < "$ROOT_DIR/packaging/linux/securewave-wg-quick.contract" > "$release_dir/helper-contract"
 printf '\n' >> "$release_dir/helper-contract"
 chmod 0644 "$release_dir/source-sha" "$release_dir/source-tree-state" \
   "$release_dir/app-version" "$release_dir/package-architecture" \
+  "$release_dir/package-profile" "$release_dir/api-base-fingerprint" \
   "$release_dir/helper-contract"
 
 cat <<CONTROL > "$staging_dir/DEBIAN/control"
@@ -266,4 +320,8 @@ if ! printf '%s\n' "$package_depends" \
 fi
 
 echo "OK: Built $output_file"
-echo "OK: Local package only; no release artifact was published."
+if [[ "$package_profile" == "codex-local" ]]; then
+  echo "OK: Codex-local package only; no release artifact was published."
+else
+  echo "OK: Production-profile package built locally; no release artifact was published."
+fi

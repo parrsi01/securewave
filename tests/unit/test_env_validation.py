@@ -157,6 +157,30 @@ class TestEmailConfigIssues:
             assert "SENDGRID_API_KEY" in missing
             assert "FROM_EMAIL" in missing
 
+    def test_codex_local_email_capture_requires_external_evidence_dir(self):
+        with patch.dict(
+            os.environ,
+            {"ENVIRONMENT": "codex-local", "EMAIL_PROVIDER": "local_capture"},
+            clear=True,
+        ):
+            provider, missing = email_config_issues()
+            assert provider == "local_capture"
+            assert "SECUREWAVE_LOCAL_EMAIL_EVIDENCE_DIR" in missing
+
+    def test_codex_local_email_capture_is_not_valid_in_staging(self):
+        with patch.dict(
+            os.environ,
+            {
+                "ENVIRONMENT": "staging",
+                "EMAIL_PROVIDER": "local_capture",
+                "SECUREWAVE_LOCAL_EMAIL_EVIDENCE_DIR": "/tmp/securewave-email",
+            },
+            clear=True,
+        ):
+            provider, missing = email_config_issues()
+            assert provider == "local_capture"
+            assert any("codex-local" in item for item in missing)
+
     def test_ses_requires_region_and_from(self):
         with patch.dict(os.environ, {"EMAIL_PROVIDER": "ses"}, clear=True):
             os.environ.pop("AWS_SES_REGION", None)

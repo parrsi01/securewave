@@ -16,6 +16,20 @@ def test_deb_release_build_passes_explicit_live_api_define():
     assert "--dart-define=SECUREWAVE_USE_MOCK_API=false" in apps_source
 
 
+def test_codex_local_deb_builder_requires_loopback_and_external_output():
+    wrapper = (ROOT / "scripts/build_codex_local_deb.sh").read_text(encoding="utf-8")
+    deb_builder = (ROOT / "securewave_app/scripts/build_deb.sh").read_text(
+        encoding="utf-8"
+    )
+    assert "--api-base" in wrapper
+    assert "--output-dir" in wrapper
+    assert "HTTP loopback /api" in wrapper
+    assert "local package output must be outside the repository" in wrapper
+    assert 'package_profile="${SECUREWAVE_PACKAGE_PROFILE:-production}"' in deb_builder
+    assert "package_name=\"securewave-vpn-codex-local\"" in deb_builder
+    assert "SECUREWAVE_CODEX_LOCAL=true" in wrapper
+
+
 def test_deb_declares_linux_secure_storage_runtime_dependency():
     source = (ROOT / "securewave_app/scripts/build_deb.sh").read_text(
         encoding="utf-8"
