@@ -29,6 +29,7 @@ try:  # Support both direct CLI execution and package-based tests.
     )
     from login_diagnostic import DiagnosticInputError, normalize_api_base, run_diagnostic
     from codex_local_e2e import LocalE2EError, run_local_e2e
+    from codex_local_deb import LocalDebBlocked, LocalDebError, run_local_deb
     from release_arm64 import Arm64ReleaseBlocked, run_preflight as run_arm64_preflight, run_publish as run_arm64_publish
     from login_provenance import main as provenance_main
     from sendgrid_canary import (
@@ -67,6 +68,7 @@ except ModuleNotFoundError:  # pragma: no cover - import mode depends on invocat
         run_diagnostic,
     )
     from scripts.codex_local_e2e import LocalE2EError, run_local_e2e
+    from scripts.codex_local_deb import LocalDebBlocked, LocalDebError, run_local_deb
     from scripts.release_arm64 import (
         Arm64ReleaseBlocked,
         run_preflight as run_arm64_preflight,
@@ -98,7 +100,7 @@ class ControllerBlocked(RuntimeError):
 
 
 def _automation_result(result: str) -> str:
-    if result == "LOCAL_AUTOMATION_READY":
+    if result in {"LOCAL_AUTOMATION_READY", "LOCAL_PACKAGE_READY"}:
         return "READY_FOR_PHASE_0_REVIEW"
     if result == "ARM64_RELEASE_CANDIDATE":
         return "READY_FOR_PHASE_0_REVIEW"
@@ -242,6 +244,42 @@ def _local_e2e(args: argparse.Namespace) -> int:
     print(f"CONTROLLER_EVIDENCE={controller_evidence}")
     print("AUTOMATION_RESULT=READY_FOR_PHASE_0_REVIEW")
     return 0
+
+
+def _local_deb(args: argparse.Namespace) -> int:
+    evidence_dir = _evidence_dir(args.evidence_dir)
+    try:
+        result, destination = run_local_deb(
+            api_base=args.api_base,
+            output_dir=args.output_dir,
+            evidence_dir=evidence_dir,
+        )
+    except (LocalDebBlocked, LocalDebError, PacketValidationError) as exc:
+        raise ControllerBlocked(str(exc)) from exc
+
+    controller_evidence = _write_controller_evidence(
+        evidence_dir,
+        {
+            "operation": "local-deb",
+            "result": result,
+            "controller_result": result,
+            "evidence_file": destination.name,
+            "external_system_status": "no application, provider, deployment, or public target contacted",
+        },
+    )
+    print(f"CONTROLLER_RESULT={result}")
+    print(f"CONTROLLER_EVIDENCE={controller_evidence}")
+    if result == "LOCAL_PACKAGE_READY":
+        print("AUTOMATION_RESULT=READY_FOR_PHASE_0_REVIEW")
+        return 0
+    if result == "BLOCKED_LOCAL_BUILD":
+        print("AUTOMATION_RESULT=BLOCKED_BEFORE_SMTP")
+        return 2
+    if result == "FAIL":
+        print("AUTOMATION_RESULT=FAIL")
+        return 3
+    print("AUTOMATION_RESULT=UNKNOWN")
+    return 4
 
 
 def _release_arm64(args: argparse.Namespace) -> int:
@@ -683,6 +721,11 @@ def _build_parser() -> argparse.ArgumentParser:
     local_e2e = subparsers.add_parser("local-e2e")
     local_e2e.add_argument("--evidence-dir", required=True, type=Path)
 
+    local_deb = subparsers.add_parser("local-deb")
+    local_deb.add_argument("--api-base", required=True)
+    local_deb.add_argument("--output-dir", required=True, type=Path)
+    local_deb.add_argument("--evidence-dir", required=True, type=Path)
+
     release_arm64 = subparsers.add_parser("release-arm64")
     release_arm64.add_argument("--mode", choices=("preflight", "publish"), required=True)
     release_arm64.add_argument("--packet", required=True, type=Path)
@@ -736,6 +779,8 @@ def main() -> int:
             return result
         if args.command == "local-e2e":
             return _local_e2e(args)
+        if args.command == "local-deb":
+            return _local_deb(args)
         if args.command == "release-arm64":
             return _release_arm64(args)
         if args.command == "diagnose-login":

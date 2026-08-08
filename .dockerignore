@@ -28,3 +28,4 @@
 !scripts/
 scripts/*
 !scripts/docker-entrypoint.sh
+!scripts/codex_local_deb_container.sh

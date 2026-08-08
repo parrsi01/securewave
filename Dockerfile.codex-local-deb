@@ -1,0 +1,52 @@
+# Fixed Linux ARM64 toolchain for the credentialless Codex-local Debian lane.
+#
+# The base manifest is pinned to the ARM64 Ubuntu 24.04 image.  The
+# Flutter tag and commit are pinned together and verified during the build so
+# a mutable stable-channel checkout cannot silently change the toolchain.
+FROM --platform=linux/arm64 ubuntu:24.04@sha256:b17516cd982bf06bdd5d5600253d12a8de017b9eb831cc052b532a0363d294f9
+
+ARG DEBIAN_FRONTEND=noninteractive
+ARG FLUTTER_VERSION=3.44.0
+ARG FLUTTER_COMMIT=559ffa3f75e7402d65a8def9c28389a9b2e6fe42
+
+ENV DEBIAN_FRONTEND=${DEBIAN_FRONTEND} \
+    PATH=/opt/flutter/bin:/opt/flutter/bin/cache/dart-sdk/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin \
+    CI=true \
+    PUB_CACHE=/opt/pub-cache
+
+RUN apt-get update \
+    && apt-get install --no-install-recommends --yes \
+        bash \
+        ca-certificates \
+        clang \
+        cmake \
+        curl \
+        dpkg \
+        dpkg-dev \
+        file \
+        g++ \
+        git \
+        libgtk-3-dev \
+        libsecret-1-dev \
+        liblzma-dev \
+        make \
+        ninja-build \
+        pkg-config \
+        python3 \
+        unzip \
+        wireguard-tools \
+        xz-utils \
+        zip \
+    && rm -rf /var/lib/apt/lists/* \
+    && git clone --branch "${FLUTTER_VERSION}" --depth 1 \
+        https://github.com/flutter/flutter.git /opt/flutter \
+    && test "$(git -C /opt/flutter rev-parse HEAD)" = "${FLUTTER_COMMIT}" \
+    && flutter config --no-analytics \
+    && flutter precache --linux \
+    && mkdir -p "${PUB_CACHE}" /work /out
+
+COPY scripts/codex_local_deb_container.sh /usr/local/bin/codex-local-deb-container
+RUN chmod 0755 /usr/local/bin/codex-local-deb-container
+
+WORKDIR /work
+ENTRYPOINT ["/usr/local/bin/codex-local-deb-container"]

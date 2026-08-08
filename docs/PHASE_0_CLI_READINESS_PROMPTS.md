@@ -73,6 +73,31 @@ bash scripts/build_codex_local_deb.sh \
 The package is named `securewave-vpn-codex-local`, embeds a loopback API base,
 forces mock API behavior off, and is never eligible for publication.
 
+To build and statically inspect that package through the canonical controller
+surface, use the Linux/aarch64 Docker lane:
+
+```bash
+.venv/bin/python scripts/codex_cli_controller.py local-deb \
+  --api-base http://127.0.0.1:<ephemeral-port>/api \
+  --output-dir /tmp/securewave-codex-local-artifacts \
+  --evidence-dir /tmp/securewave-codex-local-package-evidence
+```
+
+This operation uses the pinned `Dockerfile.codex-local-deb` toolchain and
+invokes only the existing local package builder.  It requires a Docker daemon
+whose server platform is Linux ARM64; it never falls back to x86_64.  The
+source checkout is cloned into a temporary container workspace, so Flutter and
+Debian build output cannot modify the host worktree.  Package metadata,
+provenance, helper contents, and the SHA-256 checksum are written as redacted
+evidence outside the repository.  The public download manifest is checked for
+non-modification.
+
+`LOCAL_PACKAGE_READY` means only that non-production package construction and
+static inspection passed.  It does not prove package installation, systemd,
+secure-storage/keyring access, remote login, SendGrid/SMTP, public download,
+or WireGuard connect/disconnect behavior.  Those checks require a separate
+authorized ARM64 runtime and remain outside the credentialless lane.
+
 ## ARM64 release operation
 
 The fixed release surface is deliberately split into preflight and publish:

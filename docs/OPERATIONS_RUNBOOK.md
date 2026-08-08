@@ -33,6 +33,31 @@ with `DEMO_MODE=false`, `WG_MOCK_MODE=false`, and a non-networking local email
 capture provider.  It is suitable for repeatable Codex/VS Code/CLI work but
 does not prove any remote target or public release.
 
+The credentialless ARM64 Debian package lane is also controller-only:
+
+```bash
+.venv/bin/python scripts/codex_cli_controller.py local-deb \
+  --api-base http://127.0.0.1:<ephemeral-port>/api \
+  --output-dir /tmp/securewave-codex-local-artifacts \
+  --evidence-dir /tmp/securewave-codex-local-package-evidence
+```
+
+The operation uses the fixed `Dockerfile.codex-local-deb` Linux/aarch64
+toolchain, copies only the clean tracked checkout into a temporary container
+workspace, and invokes `scripts/build_codex_local_deb.sh` with the
+`codex-local` profile.  The package and redacted metadata stay outside the
+repository.  It must never be copied into `static/downloads/manifest.json` or
+used as a production release artifact.  A non-zero result is either
+`BLOCKED_LOCAL_BUILD` when Docker or the Linux ARM64 toolchain is unavailable,
+or `FAIL` when an executed build or package validation fails.  The operation
+does not install the package, start systemd, access secure storage, contact a
+remote API or email provider, or exercise WireGuard routing.
+
+The Docker daemon must report Linux ARM64.  x86_64 is not a substitute for
+this lane.  Installation, helper-service, keyring, authenticated-login, and
+WireGuard runtime evidence still requires a real authorized ARM64 Debian or
+Ubuntu host and belongs to the separate authenticated release lane.
+
 The ARM64 release gate is:
 
 ```bash
