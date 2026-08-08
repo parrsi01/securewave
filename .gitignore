@@ -149,6 +149,10 @@ venv/
 # IDE
 .vscode/
 .idea/
+!.vscode/
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
 
 # Local data
 data/models/*.pkl

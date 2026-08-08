@@ -58,6 +58,27 @@ this lane.  Installation, helper-service, keyring, authenticated-login, and
 WireGuard runtime evidence still requires a real authorized ARM64 Debian or
 Ubuntu host and belongs to the separate authenticated release lane.
 
+VS Code exposes the same local controller lanes through these workspace tasks:
+
+- `SecureWave: Local E2E`
+- `SecureWave: Local ARM64 Debian`
+- `SecureWave: Verify Local Candidate`
+
+Use **Terminal: Run Task** to invoke them.  The package task prompts only for
+an explicit loopback `/api` base and writes each package and evidence set to a
+timestamped directory under `/tmp`.  The equivalent CLI commands are the
+`local-e2e` and `local-deb` commands above; no additional wrapper script or
+command passthrough is used.  The generated `.codex/environments/environment.toml`
+is a Codex desktop-app configuration, not part of the CLI or VS Code task
+contract.  If desktop actions are needed, regenerate them through the Codex
+app settings and point them directly at the controller rather than creating
+the missing `script/build_and_run*.sh` wrappers.
+
+Local task success proves only local authentication contracts or package
+construction and static inspection, as applicable.  It does not prove package
+installation, systemd startup, secure storage, authenticated remote login,
+SendGrid delivery, a public download, or WireGuard routing.
+
 The ARM64 release gate is:
 
 ```bash
@@ -67,11 +88,12 @@ python3 scripts/codex_cli_controller.py release-arm64 \
   --evidence-dir /external/securewave-arm64-release-evidence
 ```
 
-The publish mode remains fail-closed until the operator supplies the exact
-ARM64 builder/runtime, immutable image, target, GitHub/registry access,
-provider configuration, and independent signed approval.  No source-only
-run can claim a public deployment, download update, login proof, or VPN
-runtime proof without those external results.
+The `release-arm64 --mode publish` path intentionally remains fail-closed until
+the operator supplies an exact authorized ARM64 builder/runtime contract,
+immutable image, target, GitHub/registry access, provider configuration, and
+independent signed approval.  No source-only run can claim a public deployment,
+download update, login proof, or VPN runtime proof without those external
+results.
 
 ### Codex CLI login and controlled operations
 

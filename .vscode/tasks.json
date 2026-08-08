@@ -1,0 +1,52 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "SecureWave: Local E2E",
+            "type": "shell",
+            "command": "bash",
+            "args": [
+                "-lc",
+                "run_id=\"$(date -u +%Y%m%dT%H%M%SZ)-$$\"; exec \"${workspaceFolder}/.venv/bin/python\" \"${workspaceFolder}/scripts/codex_cli_controller.py\" local-e2e --evidence-dir \"/tmp/securewave-codex-local-e2e-${run_id}\""
+            ],
+            "options": {
+                "cwd": "${workspaceFolder}"
+            },
+            "problemMatcher": []
+        },
+        {
+            "label": "SecureWave: Local ARM64 Debian",
+            "type": "shell",
+            "command": "bash",
+            "args": [
+                "-lc",
+                "run_id=\"$(date -u +%Y%m%dT%H%M%SZ)-$$\"; exec \"${workspaceFolder}/.venv/bin/python\" \"${workspaceFolder}/scripts/codex_cli_controller.py\" local-deb --api-base \"${input:securewaveLocalApiBase}\" --output-dir \"/tmp/securewave-codex-local-artifacts-${run_id}\" --evidence-dir \"/tmp/securewave-codex-local-package-evidence-${run_id}\""
+            ],
+            "options": {
+                "cwd": "${workspaceFolder}"
+            },
+            "problemMatcher": []
+        },
+        {
+            "label": "SecureWave: Verify Local Candidate",
+            "type": "shell",
+            "command": "bash",
+            "args": [
+                "-lc",
+                "set -euo pipefail\ncd \"${workspaceFolder}\"\ngit status --short --branch\npython3 -m json.tool .vscode/settings.json >/dev/null\npython3 -m json.tool .vscode/tasks.json >/dev/null\npython3 -m py_compile main.py scripts/*.py\nbash -n scripts/*.sh\ngit diff --check\nbash scripts/verify_release_guards.sh\nbash scripts/verify_website.sh\nPYTEST_DISABLE_PLUGIN_AUTOLOAD=1 .venv/bin/python -m pytest --confcutdir=tests/unit -q tests/unit/test_codex_local_deb.py tests/unit/test_codex_local_lane_contract.py tests/unit/test_cli_controller.py tests/unit/test_release_arm64.py"
+            ],
+            "options": {
+                "cwd": "${workspaceFolder}"
+            },
+            "problemMatcher": []
+        }
+    ],
+    "inputs": [
+        {
+            "id": "securewaveLocalApiBase",
+            "type": "promptString",
+            "description": "Loopback API base ending in /api",
+            "default": "http://127.0.0.1:18080/api"
+        }
+    ]
+}
