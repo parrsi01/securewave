@@ -10,9 +10,10 @@ Run from a clean checkout with the candidate identity supplied explicitly:
 
 ```bash
 cd /Users/simonparris/Documents/securewave
+CANDIDATE_SHA=$(git rev-parse HEAD)
 .venv/bin/python scripts/codex_cli_controller.py workflow \
   --expected-branch agent/securewave-model-reliability \
-  --expected-sha 449bd23c597f74a7066f6891f05f37ca93fb2e43 \
+  --expected-sha "$CANDIDATE_SHA" \
   --api-base http://127.0.0.1:18080/api \
   --evidence-dir /tmp/securewave-codex-workflows
 ```
@@ -44,7 +45,9 @@ table in the external summary.
 2. `LOCAL_VALIDATE` runs syntax checks, release guards, website verification,
    and the focused unit contract tests. Pydantic plugin discovery is disabled
    because this lane has no application plugins and must not scan arbitrary
-   installed distributions.
+   installed distributions. Python bytecode is also cached under the external
+   evidence directory, so a macOS checkout with stale data-less `.pyc` files
+   continues to use the current tracked source without changing the repository.
 3. `LOCAL_E2E` runs the real credentialless authentication/session contract
    against temporary SQLite and local email capture.
 4. `PACKAGE` invokes the existing controller `local-deb` operation. The

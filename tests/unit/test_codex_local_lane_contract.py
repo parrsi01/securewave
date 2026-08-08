@@ -1,4 +1,9 @@
+import os
+import subprocess
+import sys
 from pathlib import Path
+
+from scripts import codex_local_e2e
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -14,6 +19,62 @@ def test_local_lane_uses_real_auth_without_mock_or_remote_email():
     assert "send_verification_email" in source
     assert "EnhancedEmailService" in source
     assert "SendGrid" not in source
+
+
+def test_local_e2e_uses_an_external_bytecode_cache_and_restores_process_state(
+    monkeypatch, tmp_path: Path
+):
+    observed: dict[str, str | None] = {}
+    previous_prefix = sys.pycache_prefix
+    previous_environment_prefix = os.environ.get("PYTHONPYCACHEPREFIX")
+
+    def fake_migrations(_database_url: str):
+        observed["sys_prefix"] = sys.pycache_prefix
+        observed["environment_prefix"] = os.environ.get("PYTHONPYCACHEPREFIX")
+        return {"exit_code": 0}
+
+    def fake_seed():
+        capture_dir = Path(os.environ["SECUREWAVE_LOCAL_EMAIL_EVIDENCE_DIR"])
+        capture_dir.mkdir(parents=True, exist_ok=True)
+        (capture_dir / "captured.json").write_text("{}\n", encoding="utf-8")
+        return {"seeded": True}
+
+    monkeypatch.setattr(codex_local_e2e, "_run_migrations", fake_migrations)
+    monkeypatch.setattr(codex_local_e2e, "_seed_users", fake_seed)
+    monkeypatch.setattr(
+        codex_local_e2e,
+        "_run_auth_contract",
+        lambda: {"valid_login_status": 200},
+    )
+
+    result, evidence_path = codex_local_e2e.run_local_e2e(tmp_path)
+
+    expected_prefix = str((tmp_path / "python-pycache").resolve())
+    assert result == "LOCAL_AUTOMATION_READY"
+    assert evidence_path.is_file()
+    assert observed == {
+        "sys_prefix": expected_prefix,
+        "environment_prefix": expected_prefix,
+    }
+    assert sys.pycache_prefix == previous_prefix
+    assert os.environ.get("PYTHONPYCACHEPREFIX") == previous_environment_prefix
+
+
+def test_local_e2e_binds_migrations_to_the_active_python_interpreter(monkeypatch):
+    observed: dict[str, object] = {}
+
+    def fake_run(command, **kwargs):
+        observed["command"] = command
+        observed["environment"] = kwargs["env"]
+        return subprocess.CompletedProcess(command, 0, "migration complete", "")
+
+    monkeypatch.setattr(codex_local_e2e.subprocess, "run", fake_run)
+
+    result = codex_local_e2e._run_migrations("sqlite:////tmp/codex-local.db")
+
+    assert result["exit_code"] == 0
+    assert observed["command"] == [sys.executable, "-m", "alembic", "upgrade", "head"]
+    assert observed["environment"]["DATABASE_URL"] == "sqlite:////tmp/codex-local.db"
 
 
 def test_codex_local_package_is_distinct_and_never_a_download_manifest_artifact():

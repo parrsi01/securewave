@@ -79,6 +79,32 @@ def test_command_failure_blocks_stage_by_default():
     assert codex_workflow._status_for_checks([{"status": "FAIL"}]) == "FAIL"
 
 
+def test_bounded_commands_use_an_external_bytecode_cache(monkeypatch, tmp_path: Path):
+    observed: dict[str, str] = {}
+
+    def fake_run(*_args, **kwargs):
+        observed.update(kwargs["env"])
+        return subprocess.CompletedProcess(
+            args=kwargs.get("args", []), returncode=0, stdout="", stderr=""
+        )
+
+    monkeypatch.setattr(codex_workflow.subprocess, "run", fake_run)
+
+    result = codex_workflow._run_command(
+        command=["python", "-c", "pass"],
+        display_command=None,
+        label="external-pycache",
+        evidence_dir=tmp_path,
+        timeout=5,
+        env={"PYTHONPYCACHEPREFIX": "/unsafe/repository-cache"},
+    )
+
+    expected_prefix = str((tmp_path / "python-pycache").resolve())
+    assert result["status"] == "PASS"
+    assert observed["PYTHONPYCACHEPREFIX"] == expected_prefix
+    assert (tmp_path / "python-pycache").is_dir()
+
+
 def test_precheck_detects_clean_and_dirty_worktrees(monkeypatch, tmp_path: Path):
     _patch_precheck_environment(monkeypatch, clean=True, docker_platform="linux/arm64")
     clean, _ = codex_workflow._precheck(

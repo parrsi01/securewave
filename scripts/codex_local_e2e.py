@@ -12,7 +12,6 @@ from __future__ import annotations
 import argparse
 import json
 import os
-import shutil
 import subprocess
 import sys
 import tempfile
@@ -95,12 +94,11 @@ def _database_url(path: Path) -> str:
 
 
 def _run_migrations(database_url: str) -> dict[str, Any]:
-    alembic = shutil.which("alembic")
-    if not alembic:
-        raise LocalE2EError("alembic CLI is unavailable")
     env = os.environ.copy()
     env["DATABASE_URL"] = database_url
-    command = [alembic, "upgrade", "head"]
+    # Bind Alembic to the interpreter that launched this controller.  Calling
+    # this script as <venv>/bin/python must not require activating that venv.
+    command = [sys.executable, "-m", "alembic", "upgrade", "head"]
     completed = subprocess.run(
         command,
         cwd=ROOT,
@@ -299,13 +297,30 @@ def run_local_e2e(evidence_dir: Path) -> tuple[str, Path]:
         temp_path = Path(temp_root)
         database_path = temp_path / "securewave.db"
         capture_dir = evidence_dir / "email-capture"
+        pycache_dir = evidence_dir / "python-pycache"
 
-        previous = {key: os.environ.get(key) for key in (*LOCAL_ENV, "DATABASE_URL", "SECUREWAVE_LOCAL_EMAIL_EVIDENCE_DIR", "WG_DATA_DIR")}
+        previous = {
+            key: os.environ.get(key)
+            for key in (
+                *LOCAL_ENV,
+                "DATABASE_URL",
+                "SECUREWAVE_LOCAL_EMAIL_EVIDENCE_DIR",
+                "WG_DATA_DIR",
+                "PYTHONPYCACHEPREFIX",
+            )
+        }
+        previous_pycache_prefix = sys.pycache_prefix
         try:
             os.environ.update(LOCAL_ENV)
             os.environ["DATABASE_URL"] = _database_url(database_path)
             os.environ["SECUREWAVE_LOCAL_EMAIL_EVIDENCE_DIR"] = str(capture_dir)
             os.environ["WG_DATA_DIR"] = str(temp_path / "wireguard")
+            # The macOS checkout can retain ignored, data-less .pyc files.
+            # Keep local-lane bytecode outside the repository so imports use
+            # the current tracked source rather than blocking on those caches.
+            pycache_dir.mkdir(parents=True, exist_ok=True)
+            os.environ["PYTHONPYCACHEPREFIX"] = str(pycache_dir)
+            sys.pycache_prefix = str(pycache_dir)
             migrations = _run_migrations(os.environ["DATABASE_URL"])
             seed = _seed_users()
             auth = _run_auth_contract()
@@ -322,6 +337,7 @@ def run_local_e2e(evidence_dir: Path) -> tuple[str, Path]:
                 "seed": seed,
                 "auth_contract": auth,
                 "email_capture_file_count": len(capture_files),
+                "python_bytecode_cache": "external",
                 "secrets_persisted": False,
             }
             destination = write_json_evidence(evidence_dir, "local-e2e.json", evidence)
@@ -339,6 +355,7 @@ def run_local_e2e(evidence_dir: Path) -> tuple[str, Path]:
             write_json_evidence(evidence_dir, "local-e2e-failure.json", failure)
             raise
         finally:
+            sys.pycache_prefix = previous_pycache_prefix
             for key, value in previous.items():
                 if value is None:
                     os.environ.pop(key, None)
