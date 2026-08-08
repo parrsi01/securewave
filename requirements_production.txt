@@ -1,5 +1,5 @@
 # Production Requirements
-# ML dependencies are OPTIONAL - optimizer auto-detects and adapts
+# ML dependencies are OPTIONAL - the core service starts in MARL-only mode
 # Install without ML for fastest deployment, or with ML for enhanced performance
 
 # FastAPI and ASGI server
@@ -32,6 +32,9 @@ python-dotenv==1.2.2
 pydantic==2.10.6
 pydantic-settings==2.7.0
 email-validator==2.2.0
+
+# Email Services
+sendgrid==6.11.0
 
 # Security & Rate Limiting
 slowapi==0.1.9

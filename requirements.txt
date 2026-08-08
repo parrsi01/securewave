@@ -1,6 +1,7 @@
 # Production Requirements
 # Optimized for fast deployment - ML dependencies are OPTIONAL
-# The VPN optimizer auto-detects ML availability and adapts accordingly
+# The core service starts in MARL-only mode; optional ML is loaded only when
+# an optimizer caller explicitly requests it.
 
 # FastAPI and ASGI server
 fastapi==0.138.2

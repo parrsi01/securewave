@@ -16,6 +16,7 @@ class AppConfig {
     required this.upgradeUrl,
     required this.useMockApi,
     required this.resetSessionOnBoot,
+    this.diagnosticsEnabled = false,
   });
 
   final String apiBaseUrl;
@@ -23,7 +24,13 @@ class AppConfig {
   final String upgradeUrl;
   final bool useMockApi;
   final bool resetSessionOnBoot;
+  final bool diagnosticsEnabled;
   static AppConfig? _cached;
+
+  static const bool _diagnosticsEnabled = bool.fromEnvironment(
+    'SECUREWAVE_DIAGNOSTICS',
+    defaultValue: false,
+  );
 
   factory AppConfig.defaults() {
     // Daily-use builds default to the live control plane. Mock data is opt-in
@@ -50,6 +57,7 @@ class AppConfig {
               defaultValue: 'false',
             )),
       resetSessionOnBoot: false,
+      diagnosticsEnabled: _diagnosticsEnabled,
     );
   }
 
@@ -121,6 +129,7 @@ class AppConfig {
       upgradeUrl: upgradeUrl,
       useMockApi: useMock,
       resetSessionOnBoot: resetSessionOnBoot,
+      diagnosticsEnabled: _diagnosticsEnabled,
     );
     return _cached!;
   }

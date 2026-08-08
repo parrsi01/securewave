@@ -385,7 +385,7 @@ async def initialize_app_background():
     except Exception as e:
         logger.warning(f"WireGuard service init failed: {e}")
 
-    # Initialize VPN optimizer with database servers (auto-detects ML availability)
+    # Initialize the optional-ML VPN optimizer without delaying auth startup.
     try:
         from services.vpn_optimizer import get_vpn_optimizer, load_servers_from_database
 
@@ -395,7 +395,7 @@ async def initialize_app_background():
         # Load servers from database
         try:
             server_count = load_servers_from_database(optimizer, db)
-            ml_status = "with ML" if optimizer.use_ml else "without ML (dependencies not available)"
+            ml_status = "with ML" if optimizer.use_ml else "without optional ML (MARL-only fallback)"
             logger.info(f"VPN Optimizer initialized {ml_status} - {server_count} servers from database")
 
             # If no servers in database, log warning

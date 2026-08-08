@@ -22,6 +22,9 @@ Key Optimizations:
 - Reduced memory footprint
 - Model persistence for faster startup
 """
+from __future__ import annotations
+
+import importlib
 import time
 import logging
 import secrets
@@ -29,28 +32,59 @@ from collections import deque, OrderedDict
 from dataclasses import dataclass
 from typing import Dict, List, Optional, Tuple, Any
 
-# Lazy imports - only load if available
+# NumPy is used for inexpensive numeric helpers when it is installed. The
+# optional XGBoost/scikit-learn stack is deliberately not imported here: the
+# backend must be able to import and serve authentication routes without
+# waiting for optional ML native extensions to initialize.
 try:
     import numpy as np
     NUMPY_AVAILABLE = True
 except ImportError:
+    np = None
     NUMPY_AVAILABLE = False
 
-try:
-    import xgboost as xgb
-    XGBOOST_AVAILABLE = True
-except ImportError:
-    XGBOOST_AVAILABLE = False
-
-try:
-    from sklearn.preprocessing import StandardScaler
-    SKLEARN_AVAILABLE = True
-except ImportError:
-    SKLEARN_AVAILABLE = False
-
-ML_AVAILABLE = NUMPY_AVAILABLE and XGBOOST_AVAILABLE and SKLEARN_AVAILABLE
+# These remain module attributes for compatibility with existing callers, but
+# are populated only if ML is explicitly requested by an optimizer instance.
+xgb = None
+StandardScaler = None
+XGBOOST_AVAILABLE = False
+SKLEARN_AVAILABLE = False
+ML_AVAILABLE = False
+_ML_DEPENDENCIES_ATTEMPTED = False
 RNG = secrets.SystemRandom()
 logger = logging.getLogger(__name__)
+
+
+def _load_ml_dependencies() -> bool:
+    """Load optional ML dependencies only when an ML caller requests them."""
+    global xgb, StandardScaler, XGBOOST_AVAILABLE, SKLEARN_AVAILABLE
+    global ML_AVAILABLE, _ML_DEPENDENCIES_ATTEMPTED
+
+    if _ML_DEPENDENCIES_ATTEMPTED:
+        return ML_AVAILABLE
+
+    _ML_DEPENDENCIES_ATTEMPTED = True
+    if not NUMPY_AVAILABLE:
+        return False
+
+    try:
+        xgb = importlib.import_module("xgboost")
+        XGBOOST_AVAILABLE = True
+        StandardScaler = importlib.import_module(
+            "sklearn.preprocessing"
+        ).StandardScaler
+        SKLEARN_AVAILABLE = True
+    except Exception as exc:
+        # Optional ML must never prevent the core service from starting. Keep
+        # the exception type in debug logs without exposing dependency output.
+        logger.debug("Optional ML dependencies unavailable: %s", type(exc).__name__)
+        xgb = None
+        StandardScaler = None
+        XGBOOST_AVAILABLE = False
+        SKLEARN_AVAILABLE = False
+
+    ML_AVAILABLE = NUMPY_AVAILABLE and XGBOOST_AVAILABLE and SKLEARN_AVAILABLE
+    return ML_AVAILABLE
 
 
 @dataclass
@@ -102,7 +136,7 @@ class OptimizedVPNOptimizer:
     - Optional ML dependencies (graceful degradation)
     """
 
-    def __init__(self, model_path: Optional[str] = None, use_ml: bool = ML_AVAILABLE):
+    def __init__(self, model_path: Optional[str] = None, use_ml: Optional[bool] = None):
         self.servers: Dict[str, ServerMetrics] = {}
         self.connection_states: Dict[int, ConnectionState] = {}
 
@@ -120,17 +154,20 @@ class OptimizedVPNOptimizer:
         # Performance tracking
         self.reward_history = deque(maxlen=500)  # Reduced from 1000
 
-        # ML initialization (lazy)
-        self.use_ml = use_ml and ML_AVAILABLE
+        # ML initialization is opt-in so optional native extensions cannot
+        # delay backend startup. A caller that wants ML must pass use_ml=True.
+        self.use_ml = False
         self.xgb_model = None
         self.scaler = None
 
-        if self.use_ml:
+        if use_ml is True and _load_ml_dependencies():
+            self.use_ml = True
             self._initialize_ml_components(model_path)
 
     def _initialize_ml_components(self, model_path: Optional[str] = None):
         """Initialize ML components only if dependencies available"""
-        if not ML_AVAILABLE:
+        if not _load_ml_dependencies():
+            self.use_ml = False
             return
 
         try:

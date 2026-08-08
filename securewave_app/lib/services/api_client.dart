@@ -78,20 +78,18 @@ class ApiClient {
       _cachedServers = servers;
       _serversFetchedAt = DateTime.now();
       return servers;
-    } catch (error, stackTrace) {
+    } catch (_, stackTrace) {
       if (_config.useMockApi) {
         _logMockApi();
         AppLogger.warning(
             'Server list unavailable; using mock regions (mock API mode).');
-        AppLogger.error('Server list error',
-            error: error, stackTrace: stackTrace);
+        AppLogger.error('Server list error', stackTrace: stackTrace);
         final data = _mockServers();
         _cachedServers = data;
         _serversFetchedAt = DateTime.now();
         return data;
       }
-      AppLogger.error('Server list error',
-          error: error, stackTrace: stackTrace);
+      AppLogger.error('Server list error', stackTrace: stackTrace);
       rethrow;
     }
   }
@@ -117,18 +115,18 @@ class ApiClient {
       _cachedPlan = plan;
       _planFetchedAt = DateTime.now();
       return plan;
-    } catch (error, stackTrace) {
+    } catch (_, stackTrace) {
       if (_config.useMockApi) {
         _logMockApi();
         AppLogger.warning(
             'Plan lookup failed; using mock plan (mock API mode).');
-        AppLogger.error('Plan error', error: error, stackTrace: stackTrace);
+        AppLogger.error('Plan error', stackTrace: stackTrace);
         final plan = _mockPlan();
         _cachedPlan = plan;
         _planFetchedAt = DateTime.now();
         return plan;
       }
-      AppLogger.error('Plan error', error: error, stackTrace: stackTrace);
+      AppLogger.error('Plan error', stackTrace: stackTrace);
       rethrow;
     }
   }
@@ -149,9 +147,8 @@ class ApiClient {
       final response = await _dio.get<Map<String, dynamic>>('/auth/me');
       final data = response.data ?? <String, dynamic>{};
       return UserAccount.fromJson(data);
-    } catch (error, stackTrace) {
-      AppLogger.error('Current user lookup failed',
-          error: error, stackTrace: stackTrace);
+    } catch (_, stackTrace) {
+      AppLogger.error('Current user lookup failed', stackTrace: stackTrace);
       rethrow;
     }
   }
@@ -162,6 +159,7 @@ class ApiClient {
       _logMockApi();
       return _mockTokens(email);
     }
+    final stopwatch = Stopwatch()..start();
     try {
       final response =
           await _dio.post<Map<String, dynamic>>('/auth/login', data: {
@@ -172,19 +170,70 @@ class ApiClient {
       final accessToken = data['access_token']?.toString();
       if (accessToken == null || accessToken.isEmpty) {
         if (data['requires_2fa'] == true) {
+          _logLoginDiagnostic(
+            stopwatch,
+            statusCode: response.statusCode,
+            category: '2fa_required',
+          );
           throw StateError(
               'Two-factor authentication is required for this account.');
         }
+        _logLoginDiagnostic(
+          stopwatch,
+          statusCode: response.statusCode,
+          category: 'missing_access_token',
+        );
         throw StateError('Login response did not include an access token.');
       }
+      _logLoginDiagnostic(
+        stopwatch,
+        statusCode: response.statusCode,
+        category: 'access_token_received',
+      );
       return AuthTokens(
         accessToken: accessToken,
         refreshToken: data['refresh_token']?.toString(),
       );
+    } on DioException catch (error, stackTrace) {
+      _logLoginDiagnostic(
+        stopwatch,
+        statusCode: error.response?.statusCode,
+        category: _dioErrorCategory(error),
+      );
+      // Keep the original exception for UI/API error handling, but never
+      // attach it to logs because Dio may retain request data or headers.
+      AppLogger.error('Login error', stackTrace: stackTrace);
+      rethrow;
     } catch (error, stackTrace) {
-      AppLogger.error('Login error', error: error, stackTrace: stackTrace);
+      _logLoginDiagnostic(
+        stopwatch,
+        category: error is StateError ? 'application_contract' : 'unexpected',
+      );
+      AppLogger.error('Login error', stackTrace: stackTrace);
       rethrow;
     }
+  }
+
+  void _logLoginDiagnostic(
+    Stopwatch stopwatch, {
+    int? statusCode,
+    required String category,
+  }) {
+    if (!_config.diagnosticsEnabled) return;
+    AppLogger.diagnostic(
+      'login route=/auth/login status=${statusCode ?? 'none'} '
+      'category=$category elapsed_ms=${stopwatch.elapsedMilliseconds}',
+    );
+  }
+
+  String _dioErrorCategory(DioException error) {
+    final statusCode = error.response?.statusCode;
+    if (statusCode == 401) return 'unauthorized';
+    if (statusCode == 403) return 'forbidden';
+    if (statusCode == 423) return 'account_locked';
+    if (statusCode == 429) return 'rate_limited';
+    if (statusCode != null && statusCode >= 500) return 'remote_failure';
+    return error.type.name;
   }
 
   Future<AuthTokens?> register(
@@ -209,9 +258,10 @@ class ApiClient {
         accessToken: accessToken,
         refreshToken: data['refresh_token']?.toString(),
       );
-    } catch (error, stackTrace) {
-      AppLogger.error('Registration error',
-          error: error, stackTrace: stackTrace);
+    } catch (_, stackTrace) {
+      // Registration also carries a password; keep the original exception
+      // for the caller without retaining it in application logs.
+      AppLogger.error('Registration error', stackTrace: stackTrace);
       rethrow;
     }
   }
@@ -301,8 +351,7 @@ class ApiClient {
         'VPN profile request: protocol=${vpnProtocolStorageValue(protocol)} '
         'device_type=$deviceType '
         'server=$profileServerLabel '
-        'device_id=$profileDeviceIdLabel '
-        'api_base=${_config.apiBaseUrl}',
+        'device_id=$profileDeviceIdLabel',
       );
       final response = await _dio.post<Map<String, dynamic>>(
         '/vpn/profile',
@@ -317,9 +366,8 @@ class ApiClient {
       );
       final data = response.data ?? <String, dynamic>{};
       return VpnProfile.fromJson(data);
-    } catch (error, stackTrace) {
-      AppLogger.error('VPN profile fetch failed',
-          error: error, stackTrace: stackTrace);
+    } catch (_, stackTrace) {
+      AppLogger.error('VPN profile fetch failed', stackTrace: stackTrace);
       rethrow;
     }
   }
@@ -347,10 +395,9 @@ class ApiClient {
           if (protocol != null) 'protocol': vpnProtocolStorageValue(protocol),
         },
       );
-    } catch (error, stackTrace) {
+    } catch (_, stackTrace) {
       AppLogger.warning('Backend VPN connect notification failed (non-fatal).');
-      AppLogger.error('VPN connect notify error',
-          error: error, stackTrace: stackTrace);
+      AppLogger.error('VPN connect notify error', stackTrace: stackTrace);
     }
   }
 
@@ -362,11 +409,10 @@ class ApiClient {
     }
     try {
       await _dio.post<Map<String, dynamic>>('/vpn/disconnect');
-    } catch (error, stackTrace) {
+    } catch (_, stackTrace) {
       AppLogger.warning(
           'Backend VPN disconnect notification failed (non-fatal).');
-      AppLogger.error('VPN disconnect notify error',
-          error: error, stackTrace: stackTrace);
+      AppLogger.error('VPN disconnect notify error', stackTrace: stackTrace);
     }
   }
 

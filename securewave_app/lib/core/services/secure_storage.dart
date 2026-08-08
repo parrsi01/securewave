@@ -1,5 +1,17 @@
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
+/// Raised when the platform secure-storage backend cannot be accessed.
+///
+/// Linux normally reports this when the desktop keyring is locked or
+/// unavailable. The app must not fall back to plaintext token storage or
+/// pretend that authentication succeeded.
+class SecureStorageUnavailableException extends StateError {
+  SecureStorageUnavailableException()
+      : super(
+          'Secure storage is unavailable. Unlock the system keyring and try again.',
+        );
+}
+
 class SecureStorage {
   static const _storage = FlutterSecureStorage();
 
@@ -36,12 +48,19 @@ class SecureStorage {
   }
 
   Future<void> clearVpnRuntimeState() async {
-    await _storage.delete(key: selectedServerKey);
-    await _storage.delete(key: vpnDeviceIdKey);
-    await _storage.delete(key: vpnProfileExpiresAtKey);
-    await _storage.delete(key: vpnProfileConfigKeyFor('wireguard'));
-    await _storage.delete(key: vpnProfileConfigKeyFor('openvpn'));
-    await _storage.delete(key: vpnProfileConfigKeyFor('ikev2'));
+    try {
+      await _storage.delete(key: selectedServerKey);
+      await _storage.delete(key: vpnDeviceIdKey);
+      await _storage.delete(key: vpnProfileExpiresAtKey);
+      await _storage.delete(key: vpnProfileConfigKeyFor('wireguard'));
+      await _storage.delete(key: vpnProfileConfigKeyFor('openvpn'));
+      await _storage.delete(key: vpnProfileConfigKeyFor('ikev2'));
+    } catch (_) {
+      // Login clears stale VPN state before persisting the new session. A
+      // locked keyring must surface as the same safe storage blocker rather
+      // than being mistaken for an authentication failure.
+      throw SecureStorageUnavailableException();
+    }
   }
 
   Future<void> saveString(String key, String value) =>

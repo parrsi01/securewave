@@ -252,5 +252,18 @@ output_file="$output_dir/${package_name}_${version}_${arch}.deb"
 
 dpkg-deb --root-owner-group --build "$staging_dir" "$output_file" >/dev/null
 
+# Keep the native Flutter secure-storage linkage and Debian runtime contract
+# synchronized. A package that contains libsecret-linked code but omits the
+# runtime dependency can launch on one workstation and fail at keyring access
+# on another, which is a login regression rather than a database failure.
+package_depends="$(dpkg-deb --field "$output_file" Depends 2>/dev/null || true)"
+if ! printf '%s\n' "$package_depends" \
+  | tr ',' '\n' \
+  | sed 's/^ *//; s/ *$//' \
+  | grep -Fx 'libsecret-1-0' >/dev/null; then
+  echo "ERROR: built package is missing required libsecret-1-0 runtime dependency." >&2
+  exit 1
+fi
+
 echo "OK: Built $output_file"
 echo "OK: Local package only; no release artifact was published."

@@ -495,6 +495,30 @@ class TestVPNOptimizer:
 class TestGracefulDegradation:
     """ML components must degrade gracefully when libraries are missing."""
 
+    def test_optional_ml_modules_do_not_import_xgboost_at_module_import(self):
+        """Core imports must not load optional native ML extensions."""
+        import os
+        import subprocess
+        import sys
+        from pathlib import Path
+
+        repo_root = Path(__file__).resolve().parents[2]
+        script = (
+            "import sys; "
+            "import services.xgb_qos, services.xgb_risk, services.vpn_optimizer; "
+            "assert 'xgboost' not in sys.modules"
+        )
+        result = subprocess.run(
+            [sys.executable, "-c", script],
+            cwd=repo_root,
+            env={**os.environ, "PYTHONPATH": str(repo_root)},
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+
+        assert result.returncode == 0, result.stderr
+
     def test_qos_without_trained_model(self):
         """QoS classifier without training should use rule-based fallback."""
         from services.xgb_qos import XGBQoSClassifier, QoSInput

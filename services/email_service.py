@@ -11,8 +11,12 @@ from email.mime.multipart import MIMEMultipart
 from typing import Optional, Dict
 from dotenv import load_dotenv
 
-load_dotenv()
-load_dotenv(".env.production")
+# The application keeps its existing dotenv behavior.  The CLI SMTP canary
+# opts out explicitly so its environment-only mode cannot silently consume
+# repository .env files.
+if os.getenv("SECUREWAVE_CLI_ENV_ONLY", "").strip().lower() not in {"1", "true", "yes"}:
+    load_dotenv()
+    load_dotenv(".env.production")
 
 logger = logging.getLogger(__name__)
 
@@ -29,6 +33,10 @@ EMAIL_PROVIDER = os.getenv("EMAIL_PROVIDER", "smtp").strip().lower()
 SENDGRID_API_KEY = os.getenv("SENDGRID_API_KEY")
 AWS_SES_REGION = os.getenv("AWS_SES_REGION", "us-east-1")
 APP_URL = os.getenv("APP_URL", "https://securewave.example.com")
+
+
+def _redacted_email(_value: str) -> str:
+    return "[redacted-email]"
 
 
 class EmailService:
@@ -98,7 +106,11 @@ class EmailService:
             True if successful, False otherwise
         """
         if not self.enabled:
-            logger.warning(f"Email service disabled - Would send: {subject} to {to_email}")
+            logger.warning(
+                "Email service disabled - Would send: %s to %s",
+                subject,
+                _redacted_email(to_email),
+            )
             return False
 
         try:
@@ -113,13 +125,21 @@ class EmailService:
                 return False
 
             if success:
-                logger.info(f"✓ Email sent successfully: {subject} to {to_email}")
+                logger.info(
+                    "Email sent successfully: %s to %s",
+                    subject,
+                    _redacted_email(to_email),
+                )
             else:
-                logger.error(f"✗ Failed to send email to {to_email}")
+                logger.error("Failed to send email to %s", _redacted_email(to_email))
             return success
 
-        except Exception as e:
-            logger.error(f"✗ Failed to send email to {to_email}: {e}")
+        except Exception as exc:
+            logger.error(
+                "Failed to send email to %s exception_type=%s",
+                _redacted_email(to_email),
+                type(exc).__name__,
+            )
             return False
 
     def _provider_ready(self) -> bool:

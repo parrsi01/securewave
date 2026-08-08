@@ -82,11 +82,26 @@ HEADER
 print_export "ENVIRONMENT" "production"
 print_export "DATABASE_URL" "${DATABASE_URL:-}"
 print_export "EMAIL_PROVIDER" "$email_provider"
-print_export "SMTP_HOST" "${SMTP_HOST:-}"
-print_export "SMTP_PORT" "${SMTP_PORT:-}"
-print_export "SMTP_USER" "${SMTP_USER:-}"
-print_export "SMTP_PASSWORD" "${SMTP_PASSWORD:-}" true
-print_export "FROM_EMAIL" "$from_email"
+case "$email_provider" in
+  sendgrid)
+    print_export "SENDGRID_API_KEY" "${SENDGRID_API_KEY:-}" true
+    print_export "FROM_EMAIL" "$from_email"
+    ;;
+  smtp)
+    print_export "SMTP_HOST" "${SMTP_HOST:-}"
+    print_export "SMTP_PORT" "${SMTP_PORT:-}"
+    print_export "SMTP_USER" "${SMTP_USER:-}"
+    print_export "SMTP_PASSWORD" "${SMTP_PASSWORD:-}" true
+    print_export "FROM_EMAIL" "$from_email"
+    ;;
+  ses|aws_ses)
+    print_export "AWS_SES_REGION" "${AWS_SES_REGION:-}"
+    print_export "FROM_EMAIL" "$from_email"
+    ;;
+  *)
+    print_export "FROM_EMAIL" "$from_email"
+    ;;
+esac
 print_export "AUTH_ENCRYPTION_KEY" "$auth_key"
 print_export "WG_ENCRYPTION_KEY" "$wg_key"
 

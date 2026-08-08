@@ -321,7 +321,7 @@ runtime configuration file.
 Use this structure and fill it with approved values before validation:
 
 ```text
-packet_version=1
+packet_version=2
 
 accountable_owner=
 approver_role=
@@ -340,12 +340,22 @@ authorization_window_end_utc=
 headroom_evidence_reference=
 headroom_result=
 
-accepted_candidate_sha=
+candidate_sha=
 original_expected_sha=
+# Use exactly one: same_candidate, accept_promoted_candidate,
+# or require_original_expected_sha.
 sha_acceptance_decision=
+api_base_fingerprint=
+
+email_provider=sendgrid
+allowed_operations=login_diagnostic,sendgrid_check,sendgrid_canary
+sendgrid_recipient_allowlist=
+smtp_recipient_allowlist=
+approval_public_key_file=
+approval_ledger_file=
 
 authorized_scope=phase0_readiness_only
-not_authorized=SMTP,production_deploy,later_phases
+not_authorized=mock_login,email_verification_bypass,2fa_bypass,SMTP_without_approval,email_without_approval,production_deploy,later_phases
 read_only_external_audit_authorized=false
 ```
 
@@ -376,9 +386,13 @@ Required fields:
 - authorization_window_end_utc;
 - headroom_evidence_reference;
 - headroom_result;
-- accepted_candidate_sha;
+- candidate_sha;
 - original_expected_sha;
 - sha_acceptance_decision.
+- api_base_fingerprint;
+- allowed_operations;
+- approval_public_key_file;
+- approval_ledger_file.
 
 Validation rules:
 1. Blank values are invalid.
@@ -396,17 +410,25 @@ Validation rules:
    is not sufficient.
 8. headroom_result must state the observed result, not merely that someone
    believes capacity is sufficient.
-9. accepted_candidate_sha must exist locally and must be compared with the
+9. candidate_sha must exist locally and must be compared with the
    current HEAD.
-10. If accepted_candidate_sha differs from original_expected_sha,
+10. If candidate_sha differs from original_expected_sha,
     sha_acceptance_decision must explicitly state whether the promoted
     candidate is accepted or the original SHA is required.
 11. A missing or contradictory SHA decision is BLOCKED.
+    The controller packet uses `same_candidate`,
+    `accept_promoted_candidate`, or `require_original_expected_sha`.
 12. authorized_scope must remain phase0_readiness_only.
 13. SMTP, production deployment, Terraform apply, public URL verification, and
     later phases must remain explicitly unauthorized.
 14. Do not print or inspect secret values.
 15. Do not contact the target.
+16. api_base_fingerprint must be a SHA-256 fingerprint of the explicit API
+    base supplied through the execution environment; do not put the URL in
+    this packet.
+17. allowed_operations must use only repository-defined controller operations.
+18. approval_public_key_file and approval_ledger_file must point outside the
+    repository. Private signing keys must not be present.
 
 For every field output:
 - PRESENT and valid;
@@ -727,5 +749,237 @@ Codex CLI cannot legitimately invent or replace:
 8. If the packet is corrected later, use the resume prompt rather than
    restarting the repository.
 
-No SecureWave API, route, runtime contract, or production configuration is
-changed by this prompt pack.
+## Codex CLI-only login diagnosis and authorized operations
+
+The following controller is the only supported command surface for the new
+login diagnostic, provider canaries, and staging/production operation workflow:
+
+```text
+python3 scripts/codex_cli_controller.py reconcile-login-history --evidence-dir <external-dir>
+python3 scripts/codex_cli_controller.py diagnose-login --packet <external-packet> --evidence-dir <external-dir>
+python3 scripts/codex_cli_controller.py smtp-canary --mode check-only --packet <external-packet> --evidence-dir <external-dir>
+python3 scripts/codex_cli_controller.py smtp-canary --mode send --recipient <approved-recipient> --packet <external-packet> --approval-file <external-approval> --evidence-dir <external-dir>
+python3 scripts/codex_cli_controller.py sendgrid-canary --mode check-only --packet <external-packet> --evidence-dir <external-dir>
+python3 scripts/codex_cli_controller.py sendgrid-canary --mode send --recipient <approved-recipient> --packet <external-packet> --approval-file <external-approval> --evidence-dir <external-dir>
+python3 scripts/codex_cli_controller.py deploy --environment staging --packet <external-packet> --approval-file <external-approval> --evidence-dir <external-dir>
+python3 scripts/codex_cli_controller.py deploy --environment production --packet <external-packet> --approval-file <external-approval> --evidence-dir <external-dir>
+```
+
+Do not put the API URL, login email, login password, SMTP credentials, SSH
+keys, approval private key, or raw provider output in a Codex prompt. Inject
+runtime credentials through the process environment. The diagnostic uses:
+
+```text
+SECUREWAVE_API_BASE_URL
+SECUREWAVE_DIAGNOSTIC_EMAIL
+SECUREWAVE_DIAGNOSTIC_PASSWORD
+```
+
+The legacy SMTP canary uses the existing `EMAIL_PROVIDER`, `SMTP_HOST`,
+`SMTP_PORT`, `SMTP_USER`, `SMTP_PASSWORD`, and `FROM_EMAIL` environment
+contract. The SendGrid canary instead requires `EMAIL_PROVIDER=sendgrid`,
+`SENDGRID_API_KEY`, and `FROM_EMAIL`; SMTP variables are not required. Both
+check-only modes never connect or send. Both send modes are available only
+through the controller after a valid, non-expired, non-replayed Ed25519
+approval is consumed.
+
+The approval verifier reads only an externally provisioned Ed25519 public key;
+it does not generate signing keys or approvals. The private signing key and
+the independent approval decision must remain outside the repository and
+outside the unattended Codex process. A certificate or mTLS path is not
+invented because the current repository does not establish such a target
+contract.
+
+The controller does not provide an arbitrary command passthrough and does not
+override Codex CLI sandbox permissions. Missing network, SSH, SMTP, target,
+credential, image, or approval access remains `BLOCKED`.
+
+For a deployment operation, inject the exact non-secret target reference again
+as `SECUREWAVE_DEPLOY_TARGET_REFERENCE`; it must match the packet and signed
+approval byte-for-byte. Staging additionally requires
+`SECUREWAVE_STAGING_HOST`, `SECUREWAVE_STAGING_IMAGE`,
+`SECUREWAVE_STAGING_USER`, `SECUREWAVE_STAGING_REMOTE_APP_DIR`, and
+`CONFIRM_DEPLOY=securewave-staging`. The staging image must be a complete
+`@sha256:<64-hex-digest>` reference. Production operations use
+`SECUREWAVE_PRODUCTION_IMAGE` and the existing production environment contract
+while still invoking `scripts/deploy_production.sh`. Do not put these values in
+the packet or prompt; inject them into the process environment.
+
+Use this prompt for a read-only login provenance run:
+
+```text
+Read and obey:
+- /Users/simonparris/Documents/securewave/AGENTS.md
+- /Users/simonparris/Documents/securewave/SECURITY.md
+- /Users/simonparris/Documents/securewave/docs/PHASE_0_CLI_READINESS_PROMPTS.md
+
+Do not edit tracked files, contact external systems, print secrets, or infer a
+target. Run only:
+
+python3 scripts/codex_cli_controller.py reconcile-login-history \
+  --evidence-dir /tmp/securewave-login-history
+
+Report the exact exit code and evidence path. End with one of the required
+AUTOMATION_RESULT values from the shared safety preamble.
+```
+
+When an exact external `.deb` and a separately captured launch log are
+available, add them to the same read-only operation:
+
+```text
+python3 scripts/codex_cli_controller.py reconcile-login-history \
+  --deb-artifact /tmp/securewave-linux-x64.deb \
+  --runtime-log /tmp/securewave-linux-launch.log \
+  --evidence-dir /tmp/securewave-login-history
+```
+
+When the installed package tree is available as a separately authorized local
+filesystem root, add `--installed-root /path/to/installed-root`. The comparison
+is limited to the fixed application wrapper and executable paths, records only
+redacted hashes and match flags, and never executes or mutates the installed
+files. If no root is supplied, the report must keep the installed-file result
+`UNKNOWN`; package inspection alone is not proof that the installed files match
+the downloaded artifact.
+
+The controller inspects the package without installing or executing it. The
+report records only package identity, architecture, source-SHA relationship,
+API-value fingerprints, auth-route markers, secure-storage presence, native
+`libsecret-1.so.0` linkage, whether the Debian package declares the matching
+`libsecret-1-0` runtime dependency, and safe runtime signal flags. It never
+copies package strings, hostnames, account values, tokens, or raw launch-log
+text into evidence.
+
+Use this prompt for an explicitly authorized staging login diagnostic:
+
+```text
+Read and obey:
+- /Users/simonparris/Documents/securewave/AGENTS.md
+- /Users/simonparris/Documents/securewave/SECURITY.md
+- /Users/simonparris/Documents/securewave/docs/PHASE_0_CLI_READINESS_PROMPTS.md
+- /Users/simonparris/Documents/securewave-phase0-authorization.txt
+
+Do not invent a target, URL, account, password, approval, or headroom result.
+Do not print secrets, tokens, raw response bodies, or production host/IP
+values. Do not register an account, bypass email verification, bypass 2FA,
+send SMTP, deploy, run Terraform, or use an arbitrary command passthrough.
+
+The shell environment must already contain the approved target's:
+SECUREWAVE_API_BASE_URL, SECUREWAVE_DIAGNOSTIC_EMAIL, and
+SECUREWAVE_DIAGNOSTIC_PASSWORD. The URL fingerprint must match the external
+operator packet.
+
+Run only:
+
+python3 scripts/codex_cli_controller.py diagnose-login \
+  --packet /Users/simonparris/Documents/securewave-phase0-authorization.txt \
+  --evidence-dir /tmp/securewave-login-diagnostic
+
+Return the controller result, exact exit code, and redacted evidence path.
+End with exactly one AUTOMATION_RESULT value from the shared safety preamble.
+```
+
+Use this prompt for an explicitly authorized controller operation. Replace the
+operation command only with one of the listed controller commands; do not add
+shell commands, script paths, or free-form arguments not required by that
+command.
+
+```text
+You are operating as the SecureWave Codex CLI controller.
+
+Read and obey:
+- /Users/simonparris/Documents/securewave/AGENTS.md
+- /Users/simonparris/Documents/securewave/SECURITY.md
+- /Users/simonparris/Documents/securewave/docs/PHASE_0_CLI_READINESS_PROMPTS.md
+- /Users/simonparris/Documents/securewave-phase0-authorization.txt
+
+Do not invent credentials, hosts, target references, image references,
+recipient values, approval values, or evidence.
+
+Do not:
+- use --dangerously-bypass-approvals-and-sandbox;
+- bypass a project guard;
+- print secrets, tokens, passwords, private keys, raw provider output, or
+  production host/IP values;
+- modify authentication behavior;
+- enable mock login in a release build;
+- bypass email verification or 2FA;
+- register an account for a login diagnosis;
+- invoke Terraform mutation;
+- run an arbitrary shell command or arbitrary script path;
+- send SMTP or SendGrid email without the controller's signed-approval path;
+- deploy without a valid, non-expired, non-replayed signed approval.
+
+The process environment must already contain only the externally authorized
+runtime values required by the selected operation. Keep credentials and
+private signing keys outside the packet and prompt.
+
+Run exactly one of these controller operations, with the externally supplied
+packet, evidence directory, and—when required—approval file:
+
+python3 scripts/codex_cli_controller.py smtp-canary \
+  --mode check-only \
+  --packet /Users/simonparris/Documents/securewave-phase0-authorization.txt \
+  --evidence-dir /tmp/securewave-smtp-check
+
+python3 scripts/codex_cli_controller.py smtp-canary \
+  --mode send \
+  --recipient <approved-recipient> \
+  --packet /Users/simonparris/Documents/securewave-phase0-authorization.txt \
+  --approval-file <external-approval-file> \
+  --evidence-dir /tmp/securewave-smtp-canary
+
+python3 scripts/codex_cli_controller.py sendgrid-canary \
+  --mode check-only \
+  --packet /Users/simonparris/Documents/securewave-phase0-authorization.txt \
+  --evidence-dir /tmp/securewave-sendgrid-check
+
+python3 scripts/codex_cli_controller.py sendgrid-canary \
+  --mode send \
+  --recipient <approved-recipient> \
+  --packet /Users/simonparris/Documents/securewave-phase0-authorization.txt \
+  --approval-file <external-approval-file> \
+  --evidence-dir /tmp/securewave-sendgrid-canary
+
+python3 scripts/codex_cli_controller.py deploy \
+  --environment staging \
+  --packet /Users/simonparris/Documents/securewave-phase0-authorization.txt \
+  --approval-file <external-approval-file> \
+  --evidence-dir /tmp/securewave-staging-deploy
+
+python3 scripts/codex_cli_controller.py deploy \
+  --environment production \
+  --packet /Users/simonparris/Documents/securewave-phase0-authorization.txt \
+  --approval-file <external-approval-file> \
+  --evidence-dir /tmp/securewave-production-deploy
+
+If a required target, credential, image, provider value, SSH identity, network
+path, approval public key, or replay ledger is absent, return BLOCKED. Do not
+substitute a guessed value. Check-only SMTP and SendGrid modes must remain
+no-send. A successful provider result means provider submission acceptance
+only, not inbox delivery. A successful deployment command does not prove the
+public URL or post-deployment behavior changed.
+
+If an explicit login target cannot be reached because of DNS, TLS, or external
+connectivity failure, the controller must emit
+`CONTROLLER_RESULT=BLOCKED_EXTERNAL_ACCESS` and retain the specific diagnostic
+category only in redacted evidence. Missing SSH/SCP tools must use the same
+blocker; never bypass the Codex CLI sandbox.
+
+Record the exact command, exit code, redacted evidence path, and one of PASS,
+FAIL, BLOCKED, NOT_RUN, or UNKNOWN. End with exactly one required
+AUTOMATION_RESULT line.
+```
+
+The operation prompt does not grant network, SSH, SMTP, provider, or target
+access that the Codex CLI process does not already have. Never use
+`--dangerously-bypass-approvals-and-sandbox`.
+
+The controller and diagnostic do not alter the existing authentication routes
+or make a local source change live. A new Flutter diagnostic artifact must be
+built and separately distributed before a downloaded binary can contain the
+new redacted login diagnostics.
+
+The provenance report also inspects the tracked Linux x64 portable tarball when
+present. If it reports `release_safety=BLOCKED_EMBEDDED_API_TEMPLATE`, treat
+that artifact as historical/stale evidence and rebuild it from a clean reviewed
+Linux source tree; do not manually edit or repack its Flutter `.env` asset.

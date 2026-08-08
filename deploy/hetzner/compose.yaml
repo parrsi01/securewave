@@ -32,7 +32,7 @@ services:
     env_file:
       - ${SECUREWAVE_ENV_FILE:-.env}
     environment:
-      ENVIRONMENT: production
+      ENVIRONMENT: ${SECUREWAVE_ENVIRONMENT:-production}
       PORT: "8080"
       DEMO_MODE: "false"
       WG_MOCK_MODE: "false"

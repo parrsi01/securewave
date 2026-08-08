@@ -198,9 +198,11 @@ jobs:
               and item["architecture"] == "x64"
               and item["filename"] == "securewave-linux-x64.deb"
           )
-          if deb["status"] != "beta":
-              raise SystemExit(f"linux x64 deb status must stay beta, got {deb['status']!r}")
-          print("linux-x64-deb-status=beta")
+          if deb["status"] != "coming_soon":
+              raise SystemExit(
+                  f"linux x64 deb status must stay coming_soon, got {deb['status']!r}"
+              )
+          print("linux-x64-deb-status=coming_soon")
           PY
 
       - name: Run downloads manifest unit test when dependencies are available

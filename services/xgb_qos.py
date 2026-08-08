@@ -16,7 +16,9 @@ Output:
 - qos_score: float (0-1)
 - confidence: float
 """
+from __future__ import annotations
 
+import importlib
 import os
 from dataclasses import dataclass
 from collections import Counter
@@ -30,13 +32,32 @@ try:
 except ImportError:
     NUMPY_AVAILABLE = False
 
-try:
-    import xgboost as xgb
-    XGBOOST_AVAILABLE = True
-except ImportError:
-    XGBOOST_AVAILABLE = False
+xgb = None
+XGBOOST_AVAILABLE = False
+ML_AVAILABLE = False
+_ML_DEPENDENCIES_ATTEMPTED = False
 
-ML_AVAILABLE = NUMPY_AVAILABLE and XGBOOST_AVAILABLE
+
+def _load_ml_dependencies() -> bool:
+    """Load XGBoost only for an explicit model load or training operation."""
+    global xgb, XGBOOST_AVAILABLE, ML_AVAILABLE, _ML_DEPENDENCIES_ATTEMPTED
+
+    if _ML_DEPENDENCIES_ATTEMPTED:
+        return ML_AVAILABLE
+
+    _ML_DEPENDENCIES_ATTEMPTED = True
+    if not NUMPY_AVAILABLE:
+        return False
+
+    try:
+        xgb = importlib.import_module("xgboost")
+        XGBOOST_AVAILABLE = True
+    except Exception:
+        xgb = None
+        XGBOOST_AVAILABLE = False
+
+    ML_AVAILABLE = NUMPY_AVAILABLE and XGBOOST_AVAILABLE
+    return ML_AVAILABLE
 
 
 @dataclass
@@ -83,15 +104,18 @@ class XGBQoSClassifier:
     LABEL_TO_INT = {label: i for i, label in enumerate(LABELS)}
 
     def __init__(self, model_path: Optional[str] = None):
-        self.model: Optional[xgb.XGBClassifier] = None
-        self.use_ml = ML_AVAILABLE
+        self.model = None
+        self.use_ml = False
         self.is_trained = False
 
-        if self.use_ml and model_path and Path(model_path).exists():
+        if model_path and Path(model_path).exists() and _load_ml_dependencies():
+            self.use_ml = True
             self._load_model(model_path)
 
     def _load_model(self, path: str) -> None:
         """Load pre-trained model from disk"""
+        if not self.use_ml or xgb is None:
+            return
         try:
             self.model = xgb.XGBClassifier()
             self.model.load_model(path)
@@ -170,8 +194,9 @@ class XGBQoSClassifier:
         config: Optional[XGBQoSConfig] = None,
         eval_set: Optional[Tuple[List[List[float]], List[str]]] = None,
     ) -> None:
-        if not self.use_ml:
+        if not self.use_ml and not _load_ml_dependencies():
             return
+        self.use_ml = True
 
         cfg = config or XGBQoSConfig()
         y_int = [self.LABEL_TO_INT[label] for label in y]

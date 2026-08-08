@@ -31,6 +31,12 @@ class AppLogger {
     _record(message, level: 500, tag: tag);
   }
 
+  /// Record caller-redacted diagnostic metadata without accepting an error
+  /// object that could retain request payloads or authorization headers.
+  static void diagnostic(String message) {
+    _record(message, level: 500, tag: 'SecureWaveDiagnostic');
+  }
+
   static void warning(String message, {String tag = 'SecureWave'}) {
     _record(message, level: 900, tag: tag);
   }

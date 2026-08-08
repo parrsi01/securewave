@@ -309,7 +309,10 @@ class _AuthScreenState extends ConsumerState<_AuthScreen> {
       ref.invalidate(userPlanProvider);
       ref.invalidate(serversProvider);
     } catch (error, stackTrace) {
-      AppLogger.error('Auth form failed', error: error, stackTrace: stackTrace);
+      // Preserve the original error for the user-safe ApiError mapping below,
+      // but do not attach Dio because it may retain passwords, headers, or
+      // response payloads in the diagnostic logger.
+      AppLogger.error('Auth form failed', stackTrace: stackTrace);
       setState(() {
         _error = ApiError.messageFrom(
           error,

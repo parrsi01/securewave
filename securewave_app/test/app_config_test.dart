@@ -29,4 +29,18 @@ void main() {
       throwsFormatException,
     );
   });
+
+  test('diagnostic mode is an explicit non-authentication setting', () {
+    final config = AppConfig(
+      apiBaseUrl: 'https://api.example.test/api',
+      portalUrl: 'https://example.test',
+      upgradeUrl: 'https://example.test',
+      useMockApi: false,
+      resetSessionOnBoot: false,
+      diagnosticsEnabled: true,
+    );
+
+    expect(config.diagnosticsEnabled, isTrue);
+    expect(config.useMockApi, isFalse);
+  });
 }

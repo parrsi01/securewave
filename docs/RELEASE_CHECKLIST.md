@@ -17,7 +17,7 @@ OK: Release preflight checks passed.
 
 ---
 
-## 1) SMTP / Email Provider
+## 1) Email Provider
 
 **Required env vars (pick one provider):**
 
@@ -289,6 +289,31 @@ export FROM_EMAIL=noreply@yourdomain.com
 1. Enable 2FA on Google Account
 2. Go to Security > App passwords
 3. Generate password for "Mail"
+
+### SendGrid API Configuration
+
+For the CLI-only staging path, use the existing application provider through
+the SendGrid HTTPS API instead of SMTP:
+
+```bash
+export EMAIL_PROVIDER=sendgrid
+export SENDGRID_API_KEY="<injected-from-secret-manager>"
+export FROM_EMAIL="noreply@yourdomain.com"
+```
+
+The SendGrid API key must be injected at runtime and must not be committed,
+placed in the operator packet, or printed in evidence. Validate the non-secret
+configuration without sending:
+
+```bash
+python3 scripts/codex_cli_controller.py sendgrid-canary \
+  --mode check-only \
+  --packet /external/securewave-phase0-authorization.txt \
+  --evidence-dir /external/securewave-sendgrid-check
+```
+
+An actual canary send requires an allowlisted recipient and an independent,
+short-lived signed approval. Submission acceptance is not inbox-delivery proof.
 
 ---
 

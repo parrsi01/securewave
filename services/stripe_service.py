@@ -2,14 +2,54 @@
 SecureWave VPN - Stripe Payment Integration Service
 Complete Stripe integration for subscription management and payment processing
 """
+from __future__ import annotations
 
+import importlib
 import os
 import logging
 from typing import Dict, Optional, List
 from datetime import datetime, timedelta
+from types import SimpleNamespace
 from dotenv import load_dotenv
 
-import stripe
+
+class _StripeUnavailableError(RuntimeError):
+    """Raised when the optional Stripe SDK cannot be loaded for an operation."""
+
+
+class _LazyStripe:
+    """Defer optional Stripe SDK import until a payment operation is called."""
+
+    def __init__(self) -> None:
+        self.api_key: Optional[str] = None
+        self.api_version: Optional[str] = None
+        self.error = SimpleNamespace(StripeError=_StripeUnavailableError)
+        self._module = None
+        self._load_error: Optional[Exception] = None
+
+    def _load(self):
+        if self._module is not None:
+            return self._module
+        if self._load_error is not None:
+            raise _StripeUnavailableError("Stripe SDK is unavailable") from self._load_error
+
+        try:
+            module = importlib.import_module("stripe")
+            module.api_key = self.api_key
+            if self.api_version:
+                module.api_version = self.api_version
+            self.error = getattr(module, "error", self.error)
+            self._module = module
+            return module
+        except Exception as exc:
+            self._load_error = exc
+            raise _StripeUnavailableError("Stripe SDK is unavailable") from exc
+
+    def __getattr__(self, name: str):
+        return getattr(self._load(), name)
+
+
+stripe = _LazyStripe()
 
 # Load environment variables
 load_dotenv()
