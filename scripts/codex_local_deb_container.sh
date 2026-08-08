@@ -11,21 +11,12 @@ case "$mode" in
     mkdir -p /work
     source_sha="$(git -C /source rev-parse HEAD)"
     source_tree="$(git -C /source rev-parse "$source_sha^{tree}")"
-    # Docker Desktop on macOS can fail while Git packs objects from a
-    # read-only bind mount. Archive the exact commit, then reconstruct only
-    # its tree and commit object in the temporary container repository.
-    git -C /source archive --format=tar "$source_sha" | tar -xf - -C /work
-    cd /work
-    git init --quiet
-    git config user.email codex-local@invalid.example
-    git config user.name SecureWave-Codex-Local
-    git add --all
-    test "$(git write-tree)" = "$source_tree"
-    written_sha="$(git -C /source cat-file commit "$source_sha" | git hash-object -w -t commit --stdin)"
-    test "$written_sha" = "$source_sha"
-    git update-ref refs/heads/codex-local "$source_sha"
-    git symbolic-ref HEAD refs/heads/codex-local
-    git -C /work checkout --detach HEAD >/dev/null
+    # Copy objects without hardlinks or writes to the read-only source mount,
+    # then check out the exact reviewed commit in the container workspace.
+    git clone --quiet --no-hardlinks --no-checkout /source /work
+    git -C /work checkout --quiet --detach "$source_sha"
+    test "$(git -C /work rev-parse HEAD)" = "$source_sha"
+    test "$(git -C /work rev-parse "HEAD^{tree}")" = "$source_tree"
     test -z "$(git -C /work status --porcelain --untracked-files=all)"
 
     cd /work

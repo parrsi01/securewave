@@ -104,7 +104,8 @@ def test_local_deb_builder_uses_the_pinned_linux_arm64_toolchain():
     assert "--platform=linux/arm64" in builder
     assert "codex_local_deb_container.sh" in dockerfile
     container = (ROOT / "scripts/codex_local_deb_container.sh").read_text(encoding="utf-8")
-    assert "git -C /source archive --format=tar \"$source_sha\"" in container
-    assert "git write-tree" in container
-    assert "git hash-object -w -t commit --stdin" in container
+    assert "git clone --quiet --no-hardlinks --no-checkout /source /work" in container
+    assert 'git -C /work checkout --quiet --detach "$source_sha"' in container
+    assert 'git -C /work rev-parse "HEAD^{tree}"' in container
+    assert "git -C /source archive" not in container
     assert "arbitrary" not in builder.lower()
