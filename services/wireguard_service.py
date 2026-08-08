@@ -9,7 +9,6 @@ from io import BytesIO
 from pathlib import Path
 from typing import Tuple
 
-import qrcode
 from cryptography.fernet import Fernet
 from cryptography.hazmat.primitives.asymmetric.x25519 import X25519PrivateKey
 from cryptography.hazmat.primitives.serialization import (
@@ -241,6 +240,8 @@ class WireGuardService:
         return config_path, config_content
 
     def qr_from_config(self, config_text: str) -> str:
+        import qrcode
+
         img = qrcode.make(config_text)
         buffer = BytesIO()
         img.save(buffer, format="PNG")

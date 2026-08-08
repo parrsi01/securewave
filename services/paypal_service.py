@@ -6,10 +6,25 @@ Complete PayPal integration for subscription management and payment processing
 import os
 import logging
 import base64
-import requests
+import importlib
 from typing import Dict, Optional, List
 from datetime import datetime, timedelta
 from dotenv import load_dotenv
+
+
+class _LazyRequests:
+    """Load the outbound HTTP client only when a PayPal call is made."""
+
+    def __init__(self) -> None:
+        self._module = None
+
+    def __getattr__(self, name: str):
+        if self._module is None:
+            self._module = importlib.import_module("requests")
+        return getattr(self._module, name)
+
+
+requests = _LazyRequests()
 
 # Load environment variables
 load_dotenv()

@@ -18,6 +18,7 @@ try:  # Support direct CLI execution and package-based tests.
         current_git_identity,
         ensure_external_path,
         fingerprint_api_base,
+        redact_text,
         write_json_evidence,
     )
 except ModuleNotFoundError:  # pragma: no cover - import mode depends on invocation
@@ -26,6 +27,7 @@ except ModuleNotFoundError:  # pragma: no cover - import mode depends on invocat
         current_git_identity,
         ensure_external_path,
         fingerprint_api_base,
+        redact_text,
         write_json_evidence,
     )
 
@@ -59,6 +61,18 @@ class LocalDebBlocked(RuntimeError):
 
 class LocalDebError(RuntimeError):
     """Raised when an executed local build or package validation fails."""
+
+
+def _docker_failure_detail(result: subprocess.CompletedProcess[str]) -> str:
+    """Return a bounded, redacted child-process detail for external evidence."""
+
+    output = redact_text((result.stdout or "") + "\n" + (result.stderr or "")).strip()
+    return output[-800:] if output else ""
+
+
+def _docker_failure_message(message: str, result: subprocess.CompletedProcess[str]) -> str:
+    detail = _docker_failure_detail(result)
+    return f"{message}: {detail}" if detail else message
 
 
 def validate_loopback_api_base(value: str) -> str:
@@ -159,8 +173,8 @@ def _build_image() -> dict[str, Any]:
     )
     if result.returncode != 0:
         if result.returncode == 125:
-            raise LocalDebBlocked("Docker could not build the fixed local ARM64 image")
-        raise LocalDebError("the fixed local ARM64 Docker image build failed")
+            raise LocalDebBlocked(_docker_failure_message("Docker could not build the fixed local ARM64 image", result))
+        raise LocalDebError(_docker_failure_message("the fixed local ARM64 Docker image build failed", result))
 
     inspect = _run_docker(
         ["image", "inspect", DOCKER_IMAGE, "--format", "{{.Os}}/{{.Architecture}}"],
@@ -208,21 +222,21 @@ def _run_package_build(api_base: str, output_dir: Path) -> int:
         timeout=60,
     )
     if created.returncode == 125:
-        raise LocalDebBlocked("Docker could not create the local ARM64 package builder")
+        raise LocalDebBlocked(_docker_failure_message("Docker could not create the local ARM64 package builder", created))
     if created.returncode != 0:
-        raise LocalDebError("Docker could not create the local ARM64 package builder")
+        raise LocalDebError(_docker_failure_message("Docker could not create the local ARM64 package builder", created))
     try:
         started = _run_docker(["start", "--attach", container_name], timeout=3600)
         if started.returncode == 125:
-            raise LocalDebBlocked("Docker could not start the local ARM64 package builder")
+            raise LocalDebBlocked(_docker_failure_message("Docker could not start the local ARM64 package builder", started))
         if started.returncode != 0:
-            raise LocalDebError("the local Debian package build failed")
+            raise LocalDebError(_docker_failure_message("the local Debian package build failed", started))
         copied = _run_docker(
             ["cp", f"{container_name}:/out/.", str(output_dir)],
             timeout=300,
         )
         if copied.returncode != 0:
-            raise LocalDebError("Docker could not copy the local Debian artifact")
+            raise LocalDebError(_docker_failure_message("Docker could not copy the local Debian artifact", copied))
         return started.returncode
     finally:
         _remove_container(container_name)
@@ -273,9 +287,9 @@ def _validate_package(api_base: str, output_dir: Path, source_sha: str) -> dict[
         timeout=60,
     )
     if created.returncode == 125:
-        raise LocalDebBlocked("Docker could not create the local ARM64 package validator")
+        raise LocalDebBlocked(_docker_failure_message("Docker could not create the local ARM64 package validator", created))
     if created.returncode != 0:
-        raise LocalDebError("Docker could not create the local ARM64 package validator")
+        raise LocalDebError(_docker_failure_message("Docker could not create the local ARM64 package validator", created))
     try:
         copied = _run_docker(
             ["cp", str(package), f"{container_name}:/out/"],
@@ -285,9 +299,9 @@ def _validate_package(api_base: str, output_dir: Path, source_sha: str) -> dict[
             raise LocalDebError("Docker could not copy the local package for inspection")
         started = _run_docker(["start", "--attach", container_name], timeout=300)
         if started.returncode == 125:
-            raise LocalDebBlocked("Docker could not start the local ARM64 package validator")
+            raise LocalDebBlocked(_docker_failure_message("Docker could not start the local ARM64 package validator", started))
         if started.returncode != 0:
-            raise LocalDebError("the local Debian package validator failed")
+            raise LocalDebError(_docker_failure_message("the local Debian package validator failed", started))
         fields, contents = _parse_validation_output(started.stdout)
     finally:
         _remove_container(container_name)

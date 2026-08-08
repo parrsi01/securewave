@@ -30,6 +30,7 @@ try:  # Support both direct CLI execution and package-based tests.
     from login_diagnostic import DiagnosticInputError, normalize_api_base, run_diagnostic
     from codex_local_e2e import LocalE2EError, run_local_e2e
     from codex_local_deb import LocalDebBlocked, LocalDebError, run_local_deb
+    from codex_workflow import WorkflowInputError, run_workflow
     from release_arm64 import Arm64ReleaseBlocked, run_preflight as run_arm64_preflight, run_publish as run_arm64_publish
     from login_provenance import main as provenance_main
     from sendgrid_canary import (
@@ -69,6 +70,7 @@ except ModuleNotFoundError:  # pragma: no cover - import mode depends on invocat
     )
     from scripts.codex_local_e2e import LocalE2EError, run_local_e2e
     from scripts.codex_local_deb import LocalDebBlocked, LocalDebError, run_local_deb
+    from scripts.codex_workflow import WorkflowInputError, run_workflow
     from scripts.release_arm64 import (
         Arm64ReleaseBlocked,
         run_preflight as run_arm64_preflight,
@@ -276,6 +278,40 @@ def _local_deb(args: argparse.Namespace) -> int:
         print("AUTOMATION_RESULT=BLOCKED_BEFORE_SMTP")
         return 2
     if result == "FAIL":
+        print("AUTOMATION_RESULT=FAIL")
+        return 3
+    print("AUTOMATION_RESULT=UNKNOWN")
+    return 4
+
+
+def _workflow(args: argparse.Namespace) -> int:
+    try:
+        result = run_workflow(
+            evidence_root=args.evidence_dir,
+            expected_branch=args.expected_branch,
+            expected_sha=args.expected_sha,
+            api_base=args.api_base,
+            release_packet=args.release_packet,
+            staging_packet=args.staging_packet,
+            approval_file=args.approval_file,
+        )
+    except WorkflowInputError as exc:
+        raise ControllerBlocked(str(exc)) from exc
+
+    print(f"WORKFLOW_RESULT={result['result']}")
+    print(f"WORKFLOW_EVIDENCE={result['run_directory']}")
+    print(f"WORKFLOW_SUMMARY_JSON={result['summary_json']}")
+    print(f"WORKFLOW_SUMMARY_MD={result['summary_md']}")
+    print(f"LOCAL_WORKFLOW_READY={'yes' if result['local_workflow_ready'] else 'no'}")
+    print(f"PACKAGE_READY={'yes' if result['package_ready'] else 'no'}")
+    print("EXTERNAL_RELEASE_READY=no")
+    if result["result"] == "LOCAL_WORKFLOW_READY":
+        print("AUTOMATION_RESULT=LOCAL_WORKFLOW_READY")
+        return 0
+    if result["result"] == "BLOCKED_LOCAL_REMEDIATION":
+        print("AUTOMATION_RESULT=BLOCKED_LOCAL_REMEDIATION")
+        return 2
+    if result["result"] == "FAIL":
         print("AUTOMATION_RESULT=FAIL")
         return 3
     print("AUTOMATION_RESULT=UNKNOWN")
@@ -726,6 +762,18 @@ def _build_parser() -> argparse.ArgumentParser:
     local_deb.add_argument("--output-dir", required=True, type=Path)
     local_deb.add_argument("--evidence-dir", required=True, type=Path)
 
+    workflow = subparsers.add_parser(
+        "workflow",
+        help="run bounded local readiness stages and write external evidence",
+    )
+    workflow.add_argument("--expected-branch")
+    workflow.add_argument("--expected-sha")
+    workflow.add_argument("--api-base")
+    workflow.add_argument("--release-packet", type=Path)
+    workflow.add_argument("--staging-packet", type=Path)
+    workflow.add_argument("--approval-file", type=Path)
+    workflow.add_argument("--evidence-dir", required=True, type=Path)
+
     release_arm64 = subparsers.add_parser("release-arm64")
     release_arm64.add_argument("--mode", choices=("preflight", "publish"), required=True)
     release_arm64.add_argument("--packet", required=True, type=Path)
@@ -781,6 +829,8 @@ def main() -> int:
             return _local_e2e(args)
         if args.command == "local-deb":
             return _local_deb(args)
+        if args.command == "workflow":
+            return _workflow(args)
         if args.command == "release-arm64":
             return _release_arm64(args)
         if args.command == "diagnose-login":

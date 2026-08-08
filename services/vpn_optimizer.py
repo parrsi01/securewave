@@ -32,16 +32,11 @@ from collections import deque, OrderedDict
 from dataclasses import dataclass
 from typing import Dict, List, Optional, Tuple, Any
 
-# NumPy is used for inexpensive numeric helpers when it is installed. The
-# optional XGBoost/scikit-learn stack is deliberately not imported here: the
-# backend must be able to import and serve authentication routes without
-# waiting for optional ML native extensions to initialize.
-try:
-    import numpy as np
-    NUMPY_AVAILABLE = True
-except ImportError:
-    np = None
-    NUMPY_AVAILABLE = False
+# NumPy and the optional XGBoost/scikit-learn stack are loaded only when an ML
+# caller explicitly requests them. The backend must be able to import and
+# serve authentication routes without importing optional native extensions.
+np = None
+NUMPY_AVAILABLE = False
 
 # These remain module attributes for compatibility with existing callers, but
 # are populated only if ML is explicitly requested by an optimizer instance.
@@ -58,12 +53,21 @@ logger = logging.getLogger(__name__)
 def _load_ml_dependencies() -> bool:
     """Load optional ML dependencies only when an ML caller requests them."""
     global xgb, StandardScaler, XGBOOST_AVAILABLE, SKLEARN_AVAILABLE
-    global ML_AVAILABLE, _ML_DEPENDENCIES_ATTEMPTED
+    global ML_AVAILABLE, _ML_DEPENDENCIES_ATTEMPTED, np, NUMPY_AVAILABLE
 
     if _ML_DEPENDENCIES_ATTEMPTED:
         return ML_AVAILABLE
 
     _ML_DEPENDENCIES_ATTEMPTED = True
+    try:
+        np = importlib.import_module("numpy")
+        NUMPY_AVAILABLE = True
+    except Exception as exc:
+        logger.debug("Optional NumPy dependency unavailable: %s", type(exc).__name__)
+        np = None
+        NUMPY_AVAILABLE = False
+        return False
+
     if not NUMPY_AVAILABLE:
         return False
 

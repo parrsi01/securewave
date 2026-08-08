@@ -42,6 +42,9 @@ LOCAL_ENV = {
     "SECUREWAVE_CLI_ENV_ONLY": "true",
     "EMAIL_VALIDATOR_CHECK_DELIVERABILITY": "false",
     "AUTO_CREATE_TABLES": "false",
+    # Pydantic plugin discovery scans every installed distribution.  The
+    # credentialless lane has no application plugins and must remain bounded.
+    "PYDANTIC_DISABLE_PLUGINS": "1",
 }
 
 

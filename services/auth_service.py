@@ -18,7 +18,6 @@ from cryptography.hazmat.primitives.hashes import SHA1
 from cryptography.hazmat.backends import default_backend
 from cryptography.fernet import Fernet, InvalidToken
 import pyotp
-import qrcode
 from io import BytesIO
 
 from models.user import User
@@ -362,6 +361,10 @@ class AuthService:
         Returns:
             PNG image bytes
         """
+        # QR generation is only needed for the 2FA setup UI.  Keep Pillow and
+        # its image plugins out of the authentication/login import path.
+        import qrcode
+
         qr = qrcode.QRCode(version=1, box_size=10, border=5)
         qr.add_data(provisioning_uri)
         qr.make(fit=True)

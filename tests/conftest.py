@@ -28,6 +28,7 @@ os.environ["EMAIL_VALIDATOR_CHECK_DELIVERABILITY"] = "false"
 os.environ["BCRYPT_ROUNDS"] = "4"  # Fast hashing in tests
 os.environ["WG_DATA_DIR"] = "/tmp/securewave_test_wg"
 os.environ["AUTO_CREATE_TABLES"] = "false"  # Prevent auto-create on import
+os.environ["PYDANTIC_DISABLE_PLUGINS"] = "1"  # Keep optional plugin discovery bounded
 
 import pytest
 from datetime import datetime, timedelta

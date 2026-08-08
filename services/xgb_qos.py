@@ -25,12 +25,10 @@ from collections import Counter
 from pathlib import Path
 from typing import Dict, Optional, Tuple, List
 
-# Lazy ML imports
-try:
-    import numpy as np
-    NUMPY_AVAILABLE = True
-except ImportError:
-    NUMPY_AVAILABLE = False
+# Lazy ML imports. NumPy is also deferred because the rule-based scorer is the
+# normal startup path and must not import optional native extensions.
+np = None
+NUMPY_AVAILABLE = False
 
 xgb = None
 XGBOOST_AVAILABLE = False
@@ -41,11 +39,20 @@ _ML_DEPENDENCIES_ATTEMPTED = False
 def _load_ml_dependencies() -> bool:
     """Load XGBoost only for an explicit model load or training operation."""
     global xgb, XGBOOST_AVAILABLE, ML_AVAILABLE, _ML_DEPENDENCIES_ATTEMPTED
+    global np, NUMPY_AVAILABLE
 
     if _ML_DEPENDENCIES_ATTEMPTED:
         return ML_AVAILABLE
 
     _ML_DEPENDENCIES_ATTEMPTED = True
+    try:
+        np = importlib.import_module("numpy")
+        NUMPY_AVAILABLE = True
+    except Exception:
+        np = None
+        NUMPY_AVAILABLE = False
+        return False
+
     if not NUMPY_AVAILABLE:
         return False
 

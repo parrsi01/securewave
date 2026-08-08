@@ -50,6 +50,32 @@ def test_local_builder_rejects_unavailable_docker_without_leaking_input(
     assert "token" not in serialized.lower()
 
 
+def test_docker_build_failure_evidence_is_bounded_and_redacted(monkeypatch, tmp_path: Path):
+    def fake_docker(arguments, *, timeout):
+        if arguments[0] == "create":
+            return subprocess.CompletedProcess(arguments, 0, "", "")
+        if arguments[0] == "start":
+            return subprocess.CompletedProcess(
+                arguments,
+                1,
+                "https://provider.example/build failed\npassword=should-not-appear\n",
+                "build failed\n",
+            )
+        return subprocess.CompletedProcess(arguments, 0, "", "")
+
+    monkeypatch.setattr(codex_local_deb, "_run_docker", fake_docker)
+    with pytest.raises(codex_local_deb.LocalDebError) as failure:
+        codex_local_deb._run_package_build(
+            "http://127.0.0.1:18080/api",
+            tmp_path / "artifacts",
+        )
+
+    detail = str(failure.value)
+    assert "[redacted-url]" in detail
+    assert "should-not-appear" not in detail
+    assert len(detail) < 1000
+
+
 def test_validation_output_is_structured_without_raw_provider_data():
     fields, contents = codex_local_deb._parse_validation_output(
         "package_filename=securewave-vpn-codex-local_4.0.0+1_arm64.deb\n"

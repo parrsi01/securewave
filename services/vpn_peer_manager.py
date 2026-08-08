@@ -13,7 +13,6 @@ from io import BytesIO
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy import func
-import qrcode
 
 from models.user import User
 from models.vpn_server import VPNServer
@@ -295,6 +294,8 @@ class VPNPeerManager:
         config = self.generate_config(peer, server)
 
         # Generate QR code
+        import qrcode
+
         qr = qrcode.QRCode(
             version=1,
             error_correction=qrcode.constants.ERROR_CORRECT_L,
