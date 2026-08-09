@@ -78,7 +78,7 @@ ensure_firewall() {
 prepare_runtime_config() {
   local source="$1"
   local temporary="${RUNTIME_CONFIG}.tmp.$$"
-  install -d -o root -g root -m 0750 /run/securewave
+  install -d -o root -g securewave -m 0750 /run/securewave
   umask 077
   awk 'tolower($1) != "dns" { print }' "$source" > "$temporary"
   chmod 0600 "$temporary"

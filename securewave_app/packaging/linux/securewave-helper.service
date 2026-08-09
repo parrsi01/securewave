@@ -12,6 +12,7 @@ User=root
 Group=securewave
 RuntimeDirectory=securewave
 RuntimeDirectoryMode=0750
+ExecStartPre=/usr/bin/install -d -o root -g securewave -m 0750 /run/securewave
 NoNewPrivileges=yes
 PrivateTmp=yes
 UMask=0077

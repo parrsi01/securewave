@@ -46,6 +46,7 @@ def test_release_requirements_and_package_are_small() -> None:
 def test_linux_helper_is_one_wireguard_contract() -> None:
     helper = (ROOT / "securewave_app" / "linux" / "helperd" / "securewave_helperd.cc").read_text().lower()
     wrapper = (ROOT / "securewave_app" / "packaging" / "linux" / "securewave-wg-quick").read_text().lower()
+    service = (ROOT / "securewave_app" / "packaging" / "linux" / "securewave-helper.service").read_text().lower()
     contract = (ROOT / "securewave_app" / "packaging" / "linux" / "securewave-wg-quick.contract").read_text().strip()
     assert contract == "13"
     assert '"wireguard.status"' in helper
@@ -54,3 +55,5 @@ def test_linux_helper_is_one_wireguard_contract() -> None:
     assert '"wireguard.down"' in helper
     assert 'interface="sw-wg"' in wrapper
     assert "wg-quick" in wrapper
+    assert "install -d -o root -g securewave -m 0750 /run/securewave" in wrapper
+    assert "execstartpre=/usr/bin/install -d -o root -g securewave -m 0750 /run/securewave" in service
