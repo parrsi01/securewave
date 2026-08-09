@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'core/config/app_config.dart';
 import 'core/models/server_region.dart';
 import 'core/models/user_plan.dart';
+import 'core/models/vpn_protocol.dart';
 import 'core/models/vpn_status.dart';
 import 'core/services/auth_session.dart';
 import 'core/state/app_state.dart';
@@ -851,12 +852,24 @@ class _ConnectPage extends ConsumerWidget {
   }
 }
 
-class _ServersPage extends ConsumerWidget {
+class _ServersPage extends ConsumerStatefulWidget {
   const _ServersPage();
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final target = ref.watch(targetProvider);
+  ConsumerState<_ServersPage> createState() => _ServersPageState();
+}
+
+class _ServersPageState extends ConsumerState<_ServersPage> {
+  bool _staleSelectionRecovered = false;
+  bool _recoveryScheduled = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final servers = ref.watch(serversProvider);
+    final vpn = ref.watch(vpnStateProvider);
+    final selectionLocked = vpn.status == VpnStatus.connected ||
+        vpn.status == VpnStatus.connecting ||
+        vpn.status == VpnStatus.disconnecting;
     return _PageFrame(
       storageKey: 'servers-page',
       child: Column(
@@ -865,58 +878,36 @@ class _ServersPage extends ConsumerWidget {
           Text('Servers', style: Theme.of(context).textTheme.headlineMedium),
           const SizedBox(height: 8),
           Text(
-            'Your current SecureWave WireGuard target.',
+            'The Linux beta currently uses a limited, verified location catalog.',
             style: Theme.of(context).textTheme.bodyMedium,
           ),
           const SizedBox(height: 20),
-          target.when(
-            data: (value) => AppPanel(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Row(
-                    children: [
-                      const Icon(
-                        Icons.dns_outlined,
-                        color: AppUIv1.cyan,
-                        size: 22,
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Text(
-                          value.name,
-                          style: Theme.of(context).textTheme.titleLarge,
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      AppStatusChip(
-                        label: value.health,
-                        tone: _serverHealthTone(value.health),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 18),
-                  const Divider(height: 1),
-                  const SizedBox(height: 18),
-                  _InformationRow(label: 'Location', value: value.location),
-                  const SizedBox(height: 14),
-                  const _InformationRow(
-                    label: 'Protocol',
-                    value: 'WireGuard',
-                  ),
-                ],
-              ),
+          if (selectionLocked) ...[
+            const AppInlineNotice(
+              text: 'Disconnect before changing the selected location.',
+              tone: AppNoticeTone.info,
+            ),
+            const SizedBox(height: 14),
+          ],
+          servers.when(
+            data: (items) => _buildCatalog(
+              context,
+              items,
+              vpn,
+              selectionLocked: selectionLocked,
             ),
             loading: () => const AppStatePanel(
-              title: 'Loading server',
-              message: 'Retrieving the current SecureWave target.',
+              key: ValueKey('servers-loading'),
+              title: 'Loading locations',
+              message: 'Retrieving the current SecureWave beta catalog.',
               tone: AppStateTone.loading,
             ),
             error: (error, _) => AppStatePanel(
-              title: 'Server unavailable',
+              key: const ValueKey('servers-error'),
+              title: 'Locations unavailable',
               message: ApiError.messageFrom(
                 error,
-                fallback: 'SecureWave could not load the current server.',
+                fallback: 'SecureWave could not load the location catalog.',
               ),
               tone: AppStateTone.error,
             ),
@@ -926,14 +917,252 @@ class _ServersPage extends ConsumerWidget {
     );
   }
 
-  AppStatusTone _serverHealthTone(String health) {
-    return switch (health.toLowerCase()) {
-      'healthy' || 'available' || 'online' => AppStatusTone.success,
-      'degraded' || 'transitioning' => AppStatusTone.warning,
-      'unhealthy' || 'offline' || 'error' => AppStatusTone.error,
-      _ => AppStatusTone.neutral,
-    };
+  Widget _buildCatalog(
+    BuildContext context,
+    List<ServerRegion> items,
+    VpnState vpn, {
+    required bool selectionLocked,
+  }) {
+    if (items.isEmpty) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const AppStatePanel(
+            key: ValueKey('servers-empty'),
+            title: 'No locations available',
+            message:
+                'Auto-select will remain active until the catalog returns.',
+            tone: AppStateTone.empty,
+          ),
+          const SizedBox(height: 12),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: OutlinedButton.icon(
+              onPressed: () => ref.invalidate(serversProvider),
+              icon: const Icon(Icons.refresh_rounded),
+              label: const Text('Retry catalog'),
+            ),
+          ),
+        ],
+      );
+    }
+
+    final ids = items.map((server) => server.id).where((id) => id.isNotEmpty);
+    final stale = vpn.selectedServerId != null &&
+        !items.any((server) => server.id == vpn.selectedServerId);
+    if (stale && !_recoveryScheduled) {
+      _recoveryScheduled = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) async {
+        final recovered = await ref
+            .read(vpnStateProvider.notifier)
+            .recoverStaleServerSelection(ids);
+        if (mounted) {
+          setState(() {
+            _recoveryScheduled = false;
+            _staleSelectionRecovered = _staleSelectionRecovered || recovered;
+          });
+        }
+      });
+    }
+
+    final anyConnectable = items.any((server) => server.isWireGuardConnectable);
+    return Column(
+      key: const ValueKey('servers-catalog'),
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        if (stale || _staleSelectionRecovered) ...[
+          const AppInlineNotice(
+            key: ValueKey('stale-server-notice'),
+            text:
+                'The previous location is no longer in the catalog. Auto-select was restored.',
+            tone: AppNoticeTone.warning,
+          ),
+          const SizedBox(height: 14),
+        ],
+        _ServerSelectionCard(
+          key: const ValueKey('server-auto-select'),
+          title: 'Auto-select',
+          subtitle: anyConnectable
+              ? 'Use the available WireGuard beta location.'
+              : 'Waiting for verified WireGuard location evidence.',
+          icon: Icons.near_me_outlined,
+          selected: vpn.selectedServerId == null,
+          enabled: anyConnectable && !selectionLocked,
+          onTap: () => unawaited(
+            ref.read(vpnStateProvider.notifier).selectServer(null),
+          ),
+        ),
+        const SizedBox(height: 12),
+        for (var index = 0; index < items.length; index++) ...[
+          _ServerSelectionCard(
+            key: ValueKey('server-location-$index'),
+            title: items[index].name,
+            subtitle: items[index].location,
+            icon: Icons.location_on_outlined,
+            selected: vpn.selectedServerId == items[index].id,
+            enabled: items[index].id.isNotEmpty &&
+                items[index].isWireGuardConnectable &&
+                !selectionLocked,
+            server: items[index],
+            onTap: () => unawaited(
+              ref.read(vpnStateProvider.notifier).selectServer(items[index].id),
+            ),
+          ),
+          if (index < items.length - 1) const SizedBox(height: 12),
+        ],
+      ],
+    );
   }
+}
+
+class _ServerSelectionCard extends StatelessWidget {
+  const _ServerSelectionCard({
+    required this.title,
+    required this.icon,
+    required this.selected,
+    required this.enabled,
+    required this.onTap,
+    super.key,
+    this.subtitle,
+    this.server,
+  });
+
+  final String title;
+  final String? subtitle;
+  final IconData icon;
+  final bool selected;
+  final bool enabled;
+  final VoidCallback onTap;
+  final ServerRegion? server;
+
+  @override
+  Widget build(BuildContext context) {
+    final details = server == null ? const <Widget>[] : _serverDetails(server!);
+    return Semantics(
+      label: '$title server selection',
+      button: true,
+      selected: selected,
+      enabled: enabled,
+      child: Material(
+        color: selected ? AppUIv1.primarySoft : AppUIv1.surface,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(AppUIv1.radius),
+          side: BorderSide(
+            color: selected ? AppUIv1.primary : AppUIv1.line,
+            width: selected ? 2 : 1,
+          ),
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: enabled ? onTap : null,
+          focusColor: AppUIv1.focus.withValues(alpha: 0.18),
+          hoverColor: AppUIv1.primary.withValues(alpha: 0.10),
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(minHeight: 64),
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(
+                    selected ? Icons.check_circle_rounded : icon,
+                    color: selected
+                        ? AppUIv1.cyan
+                        : enabled
+                            ? AppUIv1.graphiteMuted
+                            : AppUIv1.disabled,
+                    size: 22,
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                title,
+                                style: Theme.of(context).textTheme.titleMedium,
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Text(
+                              selected ? 'Selected' : 'Not selected',
+                              style: Theme.of(context).textTheme.labelMedium,
+                            ),
+                          ],
+                        ),
+                        if (subtitle != null &&
+                            subtitle!.trim().isNotEmpty) ...[
+                          const SizedBox(height: 5),
+                          Text(
+                            subtitle!,
+                            style: Theme.of(context).textTheme.bodyMedium,
+                          ),
+                        ],
+                        if (details.isNotEmpty) ...[
+                          const SizedBox(height: 12),
+                          Wrap(spacing: 8, runSpacing: 8, children: details),
+                        ],
+                        if (!enabled && server != null) ...[
+                          const SizedBox(height: 10),
+                          Text(
+                            server!.isUnavailable
+                                ? 'This location is currently unavailable.'
+                                : 'WireGuard support is not verified for this location.',
+                            style: Theme.of(context)
+                                .textTheme
+                                .bodySmall
+                                ?.copyWith(color: AppUIv1.amber),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  List<Widget> _serverDetails(ServerRegion value) {
+    final details = <Widget>[];
+    void add(String label, {AppStatusTone tone = AppStatusTone.neutral}) {
+      details.add(
+        AppStatusChip(label: label, tone: tone),
+      );
+    }
+
+    if (value.city != null) add(value.city!);
+    if (value.country != null) add(value.country!);
+    if (value.latencyMs != null) add('${value.latencyMs} ms');
+    if (value.loadPercent != null) {
+      add('${value.loadPercent!.round()}% load');
+    }
+    if (value.health != null) {
+      add(
+        value.health!,
+        tone: _serverHealthTone(value.health!),
+      );
+    }
+    if (value.hasProtocolEvidenceFor(VpnProtocol.wireGuard)) {
+      add('WireGuard', tone: AppStatusTone.info);
+    }
+    return details;
+  }
+}
+
+AppStatusTone _serverHealthTone(String health) {
+  return switch (health.toLowerCase()) {
+    'healthy' || 'available' || 'online' || 'up' => AppStatusTone.success,
+    'degraded' || 'transitioning' => AppStatusTone.warning,
+    'unhealthy' || 'offline' || 'unavailable' || 'error' => AppStatusTone.error,
+    _ => AppStatusTone.neutral,
+  };
 }
 
 class _SettingsPage extends ConsumerStatefulWidget {
