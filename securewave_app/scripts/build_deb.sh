@@ -264,12 +264,6 @@ case "${1:-}" in
   *) exit 0 ;;
 esac
 
-HELPERD=/usr/local/libexec/securewave-helperd
-if [[ -x "$HELPERD" ]] && command -v systemctl >/dev/null 2>&1 &&
-   [[ -d /run/systemd/system ]] && systemctl is-active --quiet securewave-helper.service; then
-  printf 'version=1\nop=wireguard.cleanup\n' | "$HELPERD" --request >/dev/null
-fi
-
 if command -v ip >/dev/null 2>&1 && ip link show dev sw-wg >/dev/null 2>&1; then
   echo "SecureWave WireGuard interface is still active; refusing package removal." >&2
   exit 1

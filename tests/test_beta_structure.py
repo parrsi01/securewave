@@ -38,6 +38,8 @@ def test_release_requirements_and_package_are_small() -> None:
     assert "systemctl restart securewave-helper.service" in package_builder
     assert '[[ -s "$runtime_dir/helper.sock" ]]' in package_builder
     assert "seq 1 50" in package_builder
+    assert "op=wireguard.cleanup" not in package_builder
+    assert "refusing package removal" in package_builder
     assert "usr/share/securewave/release/source-sha" in package_builder
 
 
