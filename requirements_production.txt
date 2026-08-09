@@ -16,7 +16,7 @@ alembic==1.13.1
 # Authentication & Security
 python-jose[cryptography]==3.5.0
 passlib==1.7.4
-bcrypt==3.2.2
+bcrypt==5.0.0
 cryptography==49.0.0
 
 # Payment Processing
