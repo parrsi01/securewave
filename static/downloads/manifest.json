@@ -7,7 +7,7 @@
     "url": "/downloads/securewave-vpn_4.0.0+3_arm64.deb",
     "status": "candidate",
     "published": false,
-    "checksum_sha256": "1874f4e8c60e3c24d64ce5f415c9353b5dc4f92fffa5935d667a17dbce07da8f"
+    "checksum_sha256": "bf797948e25d422719f1f1caac0957899a90a4459d61d0163b32f1948b7c8c9f"
   },
   "notes": "ARM64 is the only documented Beta 1 architecture. Publish this exact package only after clean-device installation and live WireGuard egress acceptance. amd64 is future work."
 }

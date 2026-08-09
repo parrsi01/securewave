@@ -19,11 +19,10 @@ done
 # Keep package metadata reproducible. Flutter bundle contents are copied into
 # the staging tree, so normalize every filesystem timestamp before dpkg-deb
 # creates the control/data archives. SOURCE_DATE_EPOCH may be supplied by a
-# release job; local builds use the checked-out commit timestamp.
-source_date_epoch="${SOURCE_DATE_EPOCH:-}"
-if [[ -z "$source_date_epoch" ]]; then
-  source_date_epoch="$(git -C "$REPO_ROOT" show -s --format=%ct HEAD 2>/dev/null || printf '0')"
-fi
+# release job; local builds use a stable epoch so the published checksum does
+# not change merely because the candidate was committed after the package was
+# built.
+source_date_epoch="${SOURCE_DATE_EPOCH:-0}"
 if [[ ! "$source_date_epoch" =~ ^[0-9]+$ ]]; then
   echo "ERROR: SOURCE_DATE_EPOCH must be an integer Unix timestamp." >&2
   exit 1
