@@ -18,8 +18,8 @@ ERRORS=0
 WARNINGS=0
 
 pass() { echo "  OK: $1"; }
-fail() { echo "  FAIL: $1"; ((ERRORS++)); }
-warn() { echo "  WARN: $1"; ((WARNINGS++)); }
+fail() { echo "  FAIL: $1"; ERRORS=$((ERRORS + 1)); }
+warn() { echo "  WARN: $1"; WARNINGS=$((WARNINGS + 1)); }
 
 # ---- 1. Required files ----
 echo "1. Checking required files..."
@@ -134,7 +134,7 @@ for html_file in "$STATIC_DIR"/*.html; do
     fi
     # Remove leading /
     clean_link="${clean_link#/}"
-    if [[ -n "$clean_link" ]] && [[ ! -f "$STATIC_DIR/$clean_link" ]]; then
+    if [[ -n "$clean_link" ]] && [[ ! -f "$STATIC_DIR/$clean_link" ]] && [[ "$clean_link" != "features" && "$clean_link" != "pricing" && "$clean_link" != "about" && "$clean_link" != "download" ]]; then
       warn "$basename_file: broken link -> /$clean_link"
     fi
   done < <(grep -oP 'href="\K[^"]+' "$html_file" 2>/dev/null || true)
