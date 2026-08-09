@@ -70,7 +70,8 @@ void main() {
     expect(await service.disconnect(), VpnStatus.disconnected);
   });
 
-  test('auth session survives restart and fails closed on storage errors', () async {
+  test('auth session survives restart and fails closed on storage errors',
+      () async {
     final storage = MemorySecureStorage();
     final first = AuthSession(storage: storage);
     await first.ensureInitialized();
@@ -95,7 +96,8 @@ void main() {
     final storage = MemorySecureStorage();
     final session = AuthSession(storage: storage);
     await session.ensureInitialized();
-    final dio = Dio(BaseOptions(baseUrl: 'https://network-must-not-run.invalid/api'));
+    final dio =
+        Dio(BaseOptions(baseUrl: 'https://network-must-not-run.invalid/api'));
     var requested = false;
     dio.interceptors.add(InterceptorsWrapper(onRequest: (options, handler) {
       requested = true;
@@ -114,11 +116,11 @@ void main() {
     );
 
     final registered = await api.register(
-      email: 'reviewer@example.invalid',
+      email: 'reviewer@example.test',
       password: 'Secure123',
     );
     final loggedIn = await api.login(
-      email: 'reviewer@example.invalid',
+      email: 'reviewer@example.test',
       password: 'Secure123',
     );
     final user = await api.fetchCurrentUser();
@@ -129,7 +131,7 @@ void main() {
     );
     await api.logout();
 
-    expect(registered.accessToken, 'demo-session-reviewer@example.invalid');
+    expect(registered.accessToken, 'demo-session-reviewer@example.test');
     expect(loggedIn.accessToken, registered.accessToken);
     expect(user.email, 'demo@securewave.local');
     expect(target.location, 'Simulated target');

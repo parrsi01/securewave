@@ -8,19 +8,30 @@ import 'package:securewave_app/core/services/auth_session.dart';
 import 'package:securewave_app/core/services/secure_storage.dart';
 
 class _TestSecureStorage extends SecureStorage {
-  String? token = 'test-access-token';
+  @override
+  Future<String?> getAccessToken() async => null;
 
   @override
-  Future<String?> getAccessToken() async => token;
+  Future<void> saveToken(String accessToken) async {}
 
   @override
-  Future<void> saveToken(String accessToken) async => token = accessToken;
-
-  @override
-  Future<void> clearToken() async => token = null;
+  Future<void> clearToken() async {}
 
   @override
   Future<void> clearVpnRuntimeState() async {}
+}
+
+class _AuthenticatedTestSession extends AuthSession {
+  _AuthenticatedTestSession() : super(storage: _TestSecureStorage());
+
+  @override
+  bool get isInitialized => true;
+
+  @override
+  bool get isAuthenticated => true;
+
+  @override
+  String? get accessToken => null;
 }
 
 void main() {
@@ -179,8 +190,7 @@ Future<void> _pumpAuthenticatedShell(
 ) async {
   tester.view.devicePixelRatio = 1;
   tester.view.physicalSize = size;
-  final session = AuthSession(storage: _TestSecureStorage());
-  await session.ensureInitialized();
+  final session = _AuthenticatedTestSession();
   await tester.pumpWidget(
     ProviderScope(
       overrides: [

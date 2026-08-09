@@ -25,12 +25,21 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('DEMO MODE · Simulated connection only'), findsOneWidget);
-    expect(find.text('Welcome back'), findsOneWidget);
+    expect(
+      tester
+          .widget<Text>(
+            find.byKey(const ValueKey('authentication-title')),
+          )
+          .data,
+      'Sign in',
+    );
 
-    await tester.tap(find.text('Create a new account'));
+    await tester.tap(
+      find.byKey(const ValueKey('authentication-mode-switch')),
+    );
     await tester.pumpAndSettle();
     await tester.enterText(
-        find.byType(TextFormField).at(0), 'reviewer@example.invalid');
+        find.byType(TextFormField).at(0), 'reviewer@example.test');
     await tester.enterText(find.byType(TextFormField).at(1), 'Secure123');
     await tester.enterText(find.byType(TextFormField).at(2), 'Secure123');
     await tester.tap(find.text('Create account'));
@@ -88,7 +97,14 @@ void main() {
     await tester.tap(find.text('Sign out'));
     await tester.pumpAndSettle();
 
-    expect(find.text('Welcome back'), findsOneWidget);
+    expect(
+      tester
+          .widget<Text>(
+            find.byKey(const ValueKey('authentication-title')),
+          )
+          .data,
+      'Sign in',
+    );
     expect(find.text('DEMO MODE · Simulated connection only'), findsOneWidget);
   });
 }

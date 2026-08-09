@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -81,138 +82,105 @@ class _AuthViewState extends ConsumerState<_AuthView> {
     final config = ref.watch(appConfigProvider);
     return Scaffold(
       body: SafeArea(
-        child: Center(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.all(24),
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 420),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  const _BrandMark(),
-                  const SizedBox(height: 32),
-                  Text(
-                    _register
-                        ? 'Create your SecureWave account'
-                        : 'Welcome back',
-                    style: Theme.of(context).textTheme.headlineMedium,
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final desktop = constraints.maxWidth >= 900;
+            final horizontalPadding = desktop ? 32.0 : 16.0;
+            final verticalPadding = desktop ? 32.0 : 16.0;
+            final keyboardInset = MediaQuery.viewInsetsOf(context).bottom;
+            final bottomPadding = math.max(verticalPadding, keyboardInset + 16);
+            return SingleChildScrollView(
+              key: const ValueKey('authentication-scroll-view'),
+              padding: EdgeInsets.fromLTRB(
+                horizontalPadding,
+                verticalPadding,
+                horizontalPadding,
+                bottomPadding,
+              ),
+              child: ConstrainedBox(
+                constraints: BoxConstraints(
+                  minHeight: math.max(
+                    0,
+                    constraints.maxHeight - verticalPadding - bottomPadding,
                   ),
-                  const SizedBox(height: 8),
-                  Text(
-                    _register
-                        ? 'One account for your Linux WireGuard beta.'
-                        : 'Sign in to connect to SecureWave Beta.',
-                    style: Theme.of(context).textTheme.bodyMedium,
-                  ),
-                  if (config.demoMode) ...[
-                    const SizedBox(height: 14),
-                    const _DemoBanner(),
-                  ],
-                  const SizedBox(height: 24),
-                  AppPanel(
-                    child: Form(
-                      key: _formKey,
-                      child: AutofillGroup(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            TextFormField(
-                              controller: _email,
-                              autofillHints: const [AutofillHints.email],
-                              keyboardType: TextInputType.emailAddress,
-                              textInputAction: TextInputAction.next,
-                              decoration:
-                                  const InputDecoration(labelText: 'Email'),
-                              validator: (value) {
-                                if (value == null || !value.contains('@')) {
-                                  return 'Enter a valid email.';
-                                }
-                                return null;
-                              },
-                            ),
-                            const SizedBox(height: 14),
-                            TextFormField(
-                              controller: _password,
-                              obscureText: _hidePassword,
-                              autofillHints: [
-                                _register
-                                    ? AutofillHints.newPassword
-                                    : AutofillHints.password,
-                              ],
-                              textInputAction: _register
-                                  ? TextInputAction.next
-                                  : TextInputAction.done,
-                              decoration: InputDecoration(
-                                labelText: 'Password',
-                                suffixIcon: IconButton(
-                                  tooltip: _hidePassword
-                                      ? 'Show password'
-                                      : 'Hide password',
-                                  onPressed: () => setState(
-                                      () => _hidePassword = !_hidePassword),
-                                  icon: Icon(_hidePassword
-                                      ? Icons.visibility_outlined
-                                      : Icons.visibility_off_outlined),
+                ),
+                child: Center(
+                  child: ConstrainedBox(
+                    constraints:
+                        const BoxConstraints(maxWidth: AppUIv1.maxWidth),
+                    child: desktop
+                        ? Row(
+                            crossAxisAlignment: CrossAxisAlignment.center,
+                            children: [
+                              const Expanded(child: _AuthIntroduction()),
+                              const SizedBox(width: 56),
+                              SizedBox(
+                                width: 440,
+                                child: _AuthenticationCard(
+                                  formKey: _formKey,
+                                  email: _email,
+                                  password: _password,
+                                  confirm: _confirm,
+                                  register: _register,
+                                  busy: _busy,
+                                  hidePassword: _hidePassword,
+                                  error: _error,
+                                  isDemo: config.demoMode,
+                                  onTogglePassword: _togglePasswordVisibility,
+                                  onSubmit: _submit,
+                                  onSwitchMode: _switchMode,
                                 ),
                               ),
-                              validator: (value) =>
-                                  value == null || value.length < 8
-                                      ? 'Use at least 8 characters.'
-                                      : null,
-                            ),
-                            if (_register) ...[
-                              const SizedBox(height: 14),
-                              TextFormField(
-                                controller: _confirm,
-                                obscureText: true,
-                                decoration: const InputDecoration(
-                                    labelText: 'Confirm password'),
-                                validator: (value) => value != _password.text
-                                    ? 'Passwords do not match.'
-                                    : null,
+                            ],
+                          )
+                        : Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              const Align(
+                                key: ValueKey('mobile-auth-brand'),
+                                alignment: Alignment.centerLeft,
+                                child: _BrandMark(compact: true),
+                              ),
+                              const SizedBox(height: 20),
+                              _AuthenticationCard(
+                                formKey: _formKey,
+                                email: _email,
+                                password: _password,
+                                confirm: _confirm,
+                                register: _register,
+                                busy: _busy,
+                                hidePassword: _hidePassword,
+                                error: _error,
+                                isDemo: config.demoMode,
+                                onTogglePassword: _togglePasswordVisibility,
+                                onSubmit: _submit,
+                                onSwitchMode: _switchMode,
                               ),
                             ],
-                            if (_error != null) ...[
-                              const SizedBox(height: 14),
-                              AppInlineNotice(
-                                text: _error!,
-                                tone: AppNoticeTone.error,
-                              ),
-                            ],
-                            const SizedBox(height: 20),
-                            FilledButton(
-                              onPressed: _busy ? null : _submit,
-                              child: _busy
-                                  ? const AppProgressIndicator(
-                                      label: 'Submitting account form',
-                                    )
-                                  : Text(
-                                      _register ? 'Create account' : 'Sign in'),
-                            ),
-                            const SizedBox(height: 6),
-                            TextButton(
-                              onPressed: _busy
-                                  ? null
-                                  : () => setState(() {
-                                        _register = !_register;
-                                        _error = null;
-                                      }),
-                              child: Text(_register
-                                  ? 'Use an existing account'
-                                  : 'Create a new account'),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
+                          ),
                   ),
-                ],
+                ),
               ),
-            ),
-          ),
+            );
+          },
         ),
       ),
     );
+  }
+
+  void _togglePasswordVisibility() {
+    if (_busy) return;
+    setState(() => _hidePassword = !_hidePassword);
+  }
+
+  void _switchMode() {
+    if (_busy) return;
+    setState(() {
+      _register = !_register;
+      _error = null;
+      _formKey.currentState?.reset();
+    });
   }
 
   Future<void> _submit() async {
@@ -231,17 +199,306 @@ class _AuthViewState extends ConsumerState<_AuthView> {
       }
       ref.invalidate(currentUserProvider);
       ref.invalidate(targetProvider);
-    } catch (error, stackTrace) {
-      debugPrint('SecureWave auth failed: $error\n$stackTrace');
+    } catch (error) {
       if (mounted) {
-        setState(() => _error = ApiError.messageFrom(error,
-            fallback:
-                'Authentication failed. Check your details and try again.'));
+        setState(() => _error = _authenticationErrorMessage(error));
       }
     } finally {
       if (mounted) setState(() => _busy = false);
     }
   }
+}
+
+class _AuthIntroduction extends StatelessWidget {
+  const _AuthIntroduction();
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      key: const ValueKey('desktop-auth-introduction'),
+      container: true,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const _BrandMark(),
+            const SizedBox(height: 40),
+            Text(
+              'SecureWave Linux beta',
+              style: Theme.of(context).textTheme.headlineLarge,
+            ),
+            const SizedBox(height: 12),
+            Text(
+              'Authenticated WireGuard connection controls for Ubuntu 24.04 ARM64.',
+              style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                    color: AppUIv1.graphiteMuted,
+                  ),
+            ),
+            const SizedBox(height: 28),
+            const _AuthFact(
+              icon: Icons.shield_outlined,
+              text: 'Connect to the SecureWave beta target.',
+            ),
+            const SizedBox(height: 16),
+            const _AuthFact(
+              icon: Icons.dns_outlined,
+              text: 'View the current WireGuard server target.',
+            ),
+            const SizedBox(height: 16),
+            const _AuthFact(
+              icon: Icons.lock_outline_rounded,
+              text: 'Store the signed-in session with secure device storage.',
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _AuthFact extends StatelessWidget {
+  const _AuthFact({required this.icon, required this.text});
+
+  final IconData icon;
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Icon(icon, color: AppUIv1.cyan, size: 20),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Text(text, style: Theme.of(context).textTheme.bodyMedium),
+        ),
+      ],
+    );
+  }
+}
+
+class _AuthenticationCard extends StatelessWidget {
+  const _AuthenticationCard({
+    required this.formKey,
+    required this.email,
+    required this.password,
+    required this.confirm,
+    required this.register,
+    required this.busy,
+    required this.hidePassword,
+    required this.error,
+    required this.isDemo,
+    required this.onTogglePassword,
+    required this.onSubmit,
+    required this.onSwitchMode,
+  });
+
+  final GlobalKey<FormState> formKey;
+  final TextEditingController email;
+  final TextEditingController password;
+  final TextEditingController confirm;
+  final bool register;
+  final bool busy;
+  final bool hidePassword;
+  final String? error;
+  final bool isDemo;
+  final VoidCallback onTogglePassword;
+  final VoidCallback onSubmit;
+  final VoidCallback onSwitchMode;
+
+  @override
+  Widget build(BuildContext context) {
+    return AppPanel(
+      key: const ValueKey('authentication-card'),
+      padding: const EdgeInsets.all(28),
+      child: Form(
+        key: formKey,
+        child: AutofillGroup(
+          child: FocusTraversalGroup(
+            policy: OrderedTraversalPolicy(),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Text(
+                  register ? 'Create your account' : 'Sign in',
+                  key: const ValueKey('authentication-title'),
+                  style: Theme.of(context).textTheme.headlineMedium,
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  register
+                      ? 'Create an account for the SecureWave Linux beta.'
+                      : 'Use your SecureWave account to continue.',
+                  style: Theme.of(context).textTheme.bodyMedium,
+                ),
+                if (isDemo) ...[
+                  const SizedBox(height: 16),
+                  const _DemoBanner(),
+                ],
+                const SizedBox(height: 24),
+                FocusTraversalOrder(
+                  order: const NumericFocusOrder(1),
+                  child: TextFormField(
+                    key: const ValueKey('auth-email-field'),
+                    controller: email,
+                    enabled: !busy,
+                    autofillHints: const [AutofillHints.email],
+                    keyboardType: TextInputType.emailAddress,
+                    textInputAction: TextInputAction.next,
+                    decoration: const InputDecoration(
+                      labelText: 'Email',
+                      hintText: 'name@example.test',
+                    ),
+                    validator: _validateEmail,
+                  ),
+                ),
+                const SizedBox(height: 16),
+                FocusTraversalOrder(
+                  order: const NumericFocusOrder(2),
+                  child: TextFormField(
+                    key: const ValueKey('auth-password-field'),
+                    controller: password,
+                    enabled: !busy,
+                    obscureText: hidePassword,
+                    autofillHints: [
+                      register
+                          ? AutofillHints.newPassword
+                          : AutofillHints.password,
+                    ],
+                    textInputAction:
+                        register ? TextInputAction.next : TextInputAction.done,
+                    onFieldSubmitted:
+                        register || busy ? null : (_) => onSubmit(),
+                    decoration: InputDecoration(
+                      labelText: 'Password',
+                      suffixIcon: IconButton(
+                        key: const ValueKey('auth-password-visibility'),
+                        tooltip:
+                            hidePassword ? 'Show password' : 'Hide password',
+                        onPressed: busy ? null : onTogglePassword,
+                        icon: Icon(
+                          hidePassword
+                              ? Icons.visibility_outlined
+                              : Icons.visibility_off_outlined,
+                        ),
+                      ),
+                    ),
+                    validator: _validatePassword,
+                  ),
+                ),
+                if (register) ...[
+                  const SizedBox(height: 16),
+                  FocusTraversalOrder(
+                    order: const NumericFocusOrder(3),
+                    child: TextFormField(
+                      key: const ValueKey('auth-confirm-field'),
+                      controller: confirm,
+                      enabled: !busy,
+                      obscureText: true,
+                      textInputAction: TextInputAction.done,
+                      onFieldSubmitted: busy ? null : (_) => onSubmit(),
+                      decoration: const InputDecoration(
+                        labelText: 'Confirm password',
+                      ),
+                      validator: (value) {
+                        if (value == null || value.isEmpty) {
+                          return 'Confirm your password.';
+                        }
+                        if (value != password.text) {
+                          return 'Passwords do not match.';
+                        }
+                        return null;
+                      },
+                    ),
+                  ),
+                ],
+                if (error != null) ...[
+                  const SizedBox(height: 16),
+                  AppInlineNotice(
+                    key: const ValueKey('authentication-error'),
+                    text: error!,
+                    tone: AppNoticeTone.error,
+                  ),
+                ],
+                const SizedBox(height: 22),
+                FocusTraversalOrder(
+                  order: const NumericFocusOrder(4),
+                  child: FilledButton(
+                    key: const ValueKey('authentication-primary-action'),
+                    onPressed: busy ? null : onSubmit,
+                    child: busy
+                        ? Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              AppProgressIndicator(
+                                label: register
+                                    ? 'Creating account'
+                                    : 'Signing in',
+                              ),
+                              const SizedBox(width: 10),
+                              Text(
+                                register ? 'Creating account' : 'Signing in',
+                              ),
+                            ],
+                          )
+                        : Text(register ? 'Create account' : 'Sign in'),
+                  ),
+                ),
+                const SizedBox(height: 10),
+                FocusTraversalOrder(
+                  order: const NumericFocusOrder(5),
+                  child: Wrap(
+                    alignment: WrapAlignment.center,
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    children: [
+                      Text(
+                        register
+                            ? 'Already have an account?'
+                            : 'New to SecureWave?',
+                        style: Theme.of(context).textTheme.bodyMedium,
+                      ),
+                      TextButton(
+                        key: const ValueKey('authentication-mode-switch'),
+                        onPressed: busy ? null : onSwitchMode,
+                        child: Text(register ? 'Sign in' : 'Create an account'),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  static String? _validateEmail(String? value) {
+    final email = value?.trim() ?? '';
+    if (email.isEmpty) return 'Enter your email.';
+    if (!email.contains('@')) return 'Enter a valid email.';
+    return null;
+  }
+
+  static String? _validatePassword(String? value) {
+    if (value == null || value.isEmpty) return 'Enter your password.';
+    if (value.length < 8) return 'Use at least 8 characters.';
+    return null;
+  }
+}
+
+String _authenticationErrorMessage(Object error) {
+  const fallback = 'Authentication failed. Check your details and try again.';
+  final mapped = ApiError.messageFrom(error, fallback: fallback).trim();
+  if (mapped.isEmpty ||
+      mapped.startsWith('HTTP ') ||
+      mapped.contains('DioException') ||
+      mapped.contains('access token')) {
+    return fallback;
+  }
+  return mapped;
 }
 
 enum _HomeDestination {
