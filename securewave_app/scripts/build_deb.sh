@@ -126,7 +126,7 @@ Version: $version
 Section: net
 Priority: optional
 Architecture: $arch
-Depends: wireguard-tools, iproute2, iptables, systemd, systemd-resolved, libgtk-3-0t64, libsecret-1-0
+Depends: wireguard-tools, iproute2, iptables, systemd, systemd-resolved, libgtk-3-0t64, libsecret-1-0, libegl1, libgles2
 Maintainer: SecureWave Release <release@securewave.app>
 Description: SecureWave WireGuard Linux beta client
  A small Linux beta client with one authenticated WireGuard runtime.

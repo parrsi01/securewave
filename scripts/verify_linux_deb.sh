@@ -33,7 +33,7 @@ depends="$(dpkg-deb --field "$package_path" Depends)"
   echo "ERROR: package does not depend on wireguard-tools" >&2
   exit 1
 }
-for required_dependency in libgtk-3-0t64 libsecret-1-0; do
+for required_dependency in libgtk-3-0t64 libsecret-1-0 libegl1 libgles2; do
   [[ "$depends" == *"$required_dependency"* ]] || {
     echo "ERROR: package does not depend on $required_dependency" >&2
     exit 1

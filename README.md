@@ -27,7 +27,7 @@ The real Flutter build has no localhost fallback. Set `SECUREWAVE_API_BASE_URL` 
 ## Boundaries
 
 - One production branch and one deterministic demo branch are the only product branches planned after review; historical refs are retained.
-- The package contains its GTK/secure-storage runtime, WireGuard tools, iproute2, iptables, systemd integration, and the contract-13 helper. It has no retired VPN or payment dependencies.
+- The package declares its GTK, secure-storage, EGL/GLES, WireGuard, iproute2, iptables, and systemd runtime dependencies and contains the contract-13 helper. It has no retired VPN or payment dependencies.
 - No email delivery, email verification, billing, subscriptions, region picker, server picker, protocol picker, or optimizer is on the Beta 1 runtime path.
 - Do not deploy, publish, push, or merge from local certification commands.
 

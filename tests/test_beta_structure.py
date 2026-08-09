@@ -33,6 +33,8 @@ def test_release_requirements_and_package_are_small() -> None:
     assert "wireguard-tools" in package_builder
     assert "libgtk-3-0t64" in package_builder
     assert "libsecret-1-0" in package_builder
+    assert "libegl1" in package_builder
+    assert "libgles2" in package_builder
     assert "systemctl restart securewave-helper.service" in package_builder
     assert '[[ -s "$runtime_dir/helper.sock" ]]' in package_builder
     assert "seq 1 50" in package_builder
