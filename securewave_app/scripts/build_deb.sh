@@ -42,6 +42,19 @@ flutter pub get
 flutter build linux --release \
   --dart-define=SECUREWAVE_API_BASE_URL="$api_url"
 
+# Capture provenance after dependency resolution and compilation so a build
+# step that unexpectedly changes tracked source can never be marked clean.
+source_commit="unversioned"
+source_tree_state="unversioned"
+if git -C "$REPO_ROOT" rev-parse HEAD >/dev/null 2>&1; then
+  source_commit="$(git -C "$REPO_ROOT" rev-parse HEAD)"
+  if [[ -n "$(git -C "$REPO_ROOT" status --porcelain --untracked-files=all -- . ':!securewave_app/build' ':!static/downloads/*.deb')" ]]; then
+    source_tree_state="dirty"
+  else
+    source_tree_state="clean"
+  fi
+fi
+
 bundle_dir=""
 for candidate in build/linux/*/release/bundle; do
   if [[ -d "$candidate" ]]; then
@@ -80,7 +93,8 @@ mkdir -p \
   "$staging_dir/usr/lib/tmpfiles.d" \
   "$staging_dir/usr/share/applications" \
   "$staging_dir/usr/share/icons/hicolor/256x256/apps" \
-  "$staging_dir/usr/share/securewave/packaging/linux"
+  "$staging_dir/usr/share/securewave/packaging/linux" \
+  "$staging_dir/usr/share/securewave/release"
 
 cp -a "$bundle_dir/." "$staging_dir/usr/lib/securewave/"
 install -m 0755 "$ROOT_DIR/packaging/linux/securewave-wg-quick" \
@@ -95,13 +109,24 @@ install -m 0644 \
 install -m 0644 "$ROOT_DIR/packaging/linux/securewave-helper.tmpfiles" \
   "$staging_dir/usr/lib/tmpfiles.d/securewave-helper.conf"
 
+helper_contract="$(tr -d '[:space:]' < "$ROOT_DIR/packaging/linux/securewave-wg-quick.contract")"
+[[ "$helper_contract" == "13" ]] || {
+  echo "ERROR: Beta 1 requires helper contract 13, got $helper_contract" >&2
+  exit 1
+}
+printf '%s\n' "$version" > "$staging_dir/usr/share/securewave/release/app-version"
+printf '%s\n' "$arch" > "$staging_dir/usr/share/securewave/release/package-architecture"
+printf '%s\n' "$helper_contract" > "$staging_dir/usr/share/securewave/release/helper-contract"
+printf '%s\n' "$source_commit" > "$staging_dir/usr/share/securewave/release/source-sha"
+printf '%s\n' "$source_tree_state" > "$staging_dir/usr/share/securewave/release/source-tree-state"
+
 cat <<CONTROL > "$staging_dir/DEBIAN/control"
 Package: $package_name
 Version: $version
 Section: net
 Priority: optional
 Architecture: $arch
-Depends: wireguard-tools, iproute2, iptables, systemd, systemd-resolved
+Depends: wireguard-tools, iproute2, iptables, systemd, systemd-resolved, libgtk-3-0t64, libsecret-1-0
 Maintainer: SecureWave Release <release@securewave.app>
 Description: SecureWave WireGuard Linux beta client
  A small Linux beta client with one authenticated WireGuard runtime.
@@ -208,7 +233,17 @@ install -m 0644 "$SOURCE_DIR/securewave-helper.service" "$SERVICE_FILE"
 install -m 0644 "$SOURCE_DIR/securewave-helper.tmpfiles" "$TMPFILES_FILE"
 systemd-tmpfiles --create "$TMPFILES_FILE"
 systemctl daemon-reload
-systemctl enable --now securewave-helper.service
+systemctl enable securewave-helper.service
+systemctl restart securewave-helper.service
+systemctl is-active --quiet securewave-helper.service || {
+  echo "SecureWave helper did not start after installation." >&2
+  exit 1
+}
+probe_output="$(printf 'version=1\nop=probe\n' | "$HELPER_DIR/securewave-helperd" --request)"
+printf '%s\n' "$probe_output" | grep -qx 'ok=true' || {
+  echo "SecureWave helper failed its post-install contract probe." >&2
+  exit 1
+}
 POSTINST
 
 cat <<'PRERM' > "$staging_dir/DEBIAN/prerm"
@@ -278,9 +313,8 @@ find "$staging_dir" -exec touch -h -d "@$SOURCE_DATE_EPOCH" {} +
 mkdir -p "$output_dir"
 dpkg-deb --root-owner-group --build "$staging_dir" "$output_file" >/dev/null
 sha256sum "$output_file" > "$output_file.sha256"
-if git -C "$REPO_ROOT" rev-parse HEAD >/dev/null 2>&1; then
-  source_commit="$(git -C "$REPO_ROOT" rev-parse HEAD)"
-  if [[ -n "$(git -C "$REPO_ROOT" status --porcelain --untracked-files=all -- . ':!securewave_app/build' ':!static/downloads/*.deb')" ]]; then
+if [[ "$source_commit" != "unversioned" ]]; then
+  if [[ "$source_tree_state" == "dirty" ]]; then
     tracked_diff_sha256="$({ git -C "$REPO_ROOT" diff --binary HEAD -- . ':!securewave_app/build' ':!static/downloads/*.deb'; git -C "$REPO_ROOT" diff --binary --cached -- . ':!securewave_app/build' ':!static/downloads/*.deb'; } | sha256sum | awk '{print $1}')"
     untracked_files_sha256="$(
       git -C "$REPO_ROOT" ls-files -z --others --exclude-standard -- . ':!securewave_app/build' ':!static/downloads/*.deb' |

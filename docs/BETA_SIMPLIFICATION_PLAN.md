@@ -51,11 +51,11 @@ health observer. Neither can authenticate, route, or gate a tunnel.
 
 ## Target decision
 
-ARM64 is the current Beta 1 target because this clean candidate has a verified
-ARM64 Flutter Linux build, a reproducible ARM64 `.deb`, and ARM64 helper/runtime
-evidence. There is no equivalent x86_64 package/runtime proof in this checkout.
-amd64 remains the next architecture, not a second Beta target during this
-scope reduction.
+Ubuntu 24.04 LTS on ARM64 is the current Beta 1 target because this clean
+candidate has a verified ARM64 Flutter Linux build, a reproducible ARM64
+`.deb`, and matching helper/runtime evidence. There is no equivalent x86_64 or
+other-distribution package/runtime proof in this checkout. amd64 remains the
+next architecture, not a second Beta target during this scope reduction.
 
 ## Branch decision
 

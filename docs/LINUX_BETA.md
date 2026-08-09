@@ -2,9 +2,9 @@
 
 ## Supported target
 
-Beta 1 is ARM64 Linux only. The current candidate has ARM64 Flutter and helper
-evidence; amd64 is future work until it has equivalent build, install, and live
-WireGuard evidence.
+Beta 1 is Ubuntu 24.04 LTS on ARM64 only. The current candidate has ARM64
+Flutter and helper evidence; amd64 and other distributions are future work
+until they have equivalent build, install, and live WireGuard evidence.
 
 ## Real flow
 

@@ -7,7 +7,7 @@ if [[ -z "$package_path" || ! -f "$package_path" ]]; then
   exit 2
 fi
 
-for command in dpkg-deb sha256sum; do
+for command in dpkg-deb dpkg dpkg-query sha256sum tar; do
   command -v "$command" >/dev/null 2>&1 || {
     echo "ERROR: required command not found: $command" >&2
     exit 2
@@ -33,6 +33,12 @@ depends="$(dpkg-deb --field "$package_path" Depends)"
   echo "ERROR: package does not depend on wireguard-tools" >&2
   exit 1
 }
+for required_dependency in libgtk-3-0t64 libsecret-1-0; do
+  [[ "$depends" == *"$required_dependency"* ]] || {
+    echo "ERROR: package does not depend on $required_dependency" >&2
+    exit 1
+  }
+done
 
 if printf '%s\n' "$control" | grep -Eiq '(^|[ ,])((open|strong|ike|network-manager)[^ ,]*)'; then
   echo "ERROR: package contains a retired networking dependency" >&2
@@ -46,12 +52,54 @@ for required_path in \
   ./usr/lib/securewave/packaging/linux/securewave-wg-quick \
   ./usr/share/securewave/packaging/linux/securewave-helper.service \
   ./usr/share/securewave/packaging/linux/securewave-helper.tmpfiles \
-  ./usr/share/securewave/packaging/linux/securewave-wg-quick.contract; do
+  ./usr/share/securewave/packaging/linux/securewave-wg-quick.contract \
+  ./usr/share/securewave/release/app-version \
+  ./usr/share/securewave/release/helper-contract \
+  ./usr/share/securewave/release/package-architecture \
+  ./usr/share/securewave/release/source-sha \
+  ./usr/share/securewave/release/source-tree-state; do
   printf '%s\n' "$contents" | grep -Fq " $required_path" || {
     echo "ERROR: required package path missing: $required_path" >&2
     exit 1
   }
 done
+
+package_member() {
+  dpkg-deb --fsys-tarfile "$package_path" | tar -xOf - "$1"
+}
+
+embedded_version="$(package_member ./usr/share/securewave/release/app-version)"
+embedded_architecture="$(package_member ./usr/share/securewave/release/package-architecture)"
+embedded_contract="$(package_member ./usr/share/securewave/release/helper-contract)"
+embedded_source="$(package_member ./usr/share/securewave/release/source-sha)"
+embedded_tree_state="$(package_member ./usr/share/securewave/release/source-tree-state)"
+
+[[ "$embedded_version" == "$version" ]] || {
+  echo "ERROR: embedded app version does not match package metadata" >&2
+  exit 1
+}
+[[ "$embedded_architecture" == "$architecture" ]] || {
+  echo "ERROR: embedded architecture does not match package metadata" >&2
+  exit 1
+}
+[[ "$embedded_contract" == "13" ]] || {
+  echo "ERROR: embedded helper contract must be 13" >&2
+  exit 1
+}
+[[ "$embedded_source" =~ ^[0-9a-f]{40}$ ]] || {
+  echo "ERROR: embedded source SHA is not a full Git commit" >&2
+  exit 1
+}
+[[ "$embedded_tree_state" == "clean" ]] || {
+  echo "ERROR: release candidate was built from a dirty source tree" >&2
+  exit 1
+}
+
+installed_version="$(dpkg-query -W -f='${Version}' "$package_name" 2>/dev/null || true)"
+if [[ -n "$installed_version" ]] && dpkg --compare-versions "$version" lt "$installed_version"; then
+  echo "ERROR: candidate $version would downgrade installed $installed_version" >&2
+  exit 1
+fi
 
 sha256sum "$package_path"
 if [[ -f "$package_path.sha256" ]]; then
@@ -63,4 +111,5 @@ if [[ -f "$package_path.source-sha256" ]]; then
 fi
 
 echo "OK: $package_name $version ($architecture) is the ARM64 WireGuard beta package."
+echo "OK: embedded source $embedded_source is marked $embedded_tree_state."
 echo "OK: static package verification completed; no package was installed."

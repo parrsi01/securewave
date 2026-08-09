@@ -8,11 +8,11 @@ final authSessionProvider = ChangeNotifierProvider<AuthSession>((ref) {
 });
 
 class AuthSession extends ChangeNotifier {
-  AuthSession() {
+  AuthSession({SecureStorage? storage}) : _storage = storage ?? SecureStorage() {
     _initializeSession();
   }
 
-  final _storage = SecureStorage();
+  final SecureStorage _storage;
 
   bool _isInitialized = false;
   bool _isAuthenticated = false;
@@ -37,6 +37,9 @@ class AuthSession extends ChangeNotifier {
         _accessToken = token;
         _isAuthenticated = true;
       }
+    } catch (_) {
+      _accessToken = null;
+      _isAuthenticated = false;
     } finally {
       _isInitialized = true;
       notifyListeners();

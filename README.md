@@ -8,7 +8,7 @@ The real build uses email/password authentication, one bearer access token, one 
 
 Demo mode is separate and deterministic. Run it with `--dart-define=SECUREWAVE_DEMO_MODE=true`; it never contacts the backend and never calls the native helper.
 
-Beta 1 supports ARM64 Linux only. amd64 remains future work until it has the same package, clean-install, and live WireGuard evidence.
+Beta 1 supports Ubuntu 24.04 LTS on ARM64 only. amd64 and other distributions remain future work until they have the same package, clean-install, and live WireGuard evidence.
 
 ## Local workflow
 
@@ -27,7 +27,7 @@ The real Flutter build has no localhost fallback. Set `SECUREWAVE_API_BASE_URL` 
 ## Boundaries
 
 - One production branch and one deterministic demo branch are the only product branches planned after review; historical refs are retained.
-- The package contains WireGuard tools, iproute2, iptables, systemd, and the contract-13 helper. It has no retired VPN or payment dependencies.
+- The package contains its GTK/secure-storage runtime, WireGuard tools, iproute2, iptables, systemd integration, and the contract-13 helper. It has no retired VPN or payment dependencies.
 - No email delivery, email verification, billing, subscriptions, region picker, server picker, protocol picker, or optimizer is on the Beta 1 runtime path.
 - Do not deploy, publish, push, or merge from local certification commands.
 

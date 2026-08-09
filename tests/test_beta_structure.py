@@ -31,6 +31,10 @@ def test_release_requirements_and_package_are_small() -> None:
     assert "openvpn" not in package_builder
     assert "strongswan" not in package_builder
     assert "wireguard-tools" in package_builder
+    assert "libgtk-3-0t64" in package_builder
+    assert "libsecret-1-0" in package_builder
+    assert "systemctl restart securewave-helper.service" in package_builder
+    assert "usr/share/securewave/release/source-sha" in package_builder
 
 
 def test_linux_helper_is_one_wireguard_contract() -> None:
