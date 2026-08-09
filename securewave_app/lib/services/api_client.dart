@@ -56,6 +56,9 @@ class ApiClient {
                   requestOptions: response.requestOptions,
                   response: response,
                   type: DioExceptionType.badResponse,
+                  // Keep authentication failures diagnosable without copying
+                  // response bodies, tokens, or request data into logs.
+                  message: 'HTTP $status',
                 ),
               );
             }
