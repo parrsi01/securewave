@@ -64,6 +64,8 @@ webapp-logs/
 # Allow app downloads hosted via the website
 !static/downloads/
 !static/downloads/*.zip
+# Keep locally rebuilt beta packages out of source commits; publish explicitly.
+static/downloads/*.deb
 
 # Deployment
 deploy.zip
