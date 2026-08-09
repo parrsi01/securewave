@@ -60,10 +60,11 @@ scope reduction.
 ## Branch decision
 
 `master` remains the canonical MAIN branch until an explicitly authorized
-integration/push. A single local `demo` branch will be created from the
-finished real-beta candidate. Existing remote and local branches are retained
-as historical evidence and are not active product branches; they are not
-deleted automatically.
+integration/push. The finished review candidate is currently held on
+`codex/linux-beta-demo`; that is a handoff ref, not a second product line. A
+single local `demo` branch is created from the same candidate. Existing remote
+and local branches are retained as historical evidence and are not active
+product branches; they are not deleted automatically.
 
 ## Acceptance order
 
