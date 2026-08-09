@@ -5,10 +5,10 @@
   "package": {
     "filename": "securewave-vpn_4.0.0+9_arm64.deb",
     "url": "/downloads/securewave-vpn_4.0.0+9_arm64.deb",
-    "status": "candidate",
-    "published": false,
-    "checksum_sha256": "81a3f51f8c8621169e1f2514340e8cf9f86635f32c4e8d9556d97106a2a551dd",
-    "source_sha": "1a137a64f5b9aea1b2f663662f8cdcedefb82e36"
+    "status": "beta",
+    "published": true,
+    "checksum_sha256": "2dab0e2c57a9406b7b5d65758fe771ac4b2cd00816794c09372501ecad2f2275",
+    "source_sha": "90fe5a7607d91b40ecf2a381f4ae8bab1f6d23e7"
   },
-  "notes": "Ubuntu 24.04 LTS ARM64 is the only documented Beta 1 target. Clean installation, GUI launch, PostgreSQL authentication, deterministic demo UI, and local kernel WireGuard lifecycle acceptance passed. The deployed public API is an older incompatible build; Hetzner egress and publication of this candidate remain blocked. amd64 is future work."
+  "notes": "Ubuntu 24.04 LTS ARM64 is the only documented Beta 1 target. The public beta API, PostgreSQL authentication, real Hetzner WireGuard egress, handshake, RX/TX traffic, disconnect, reconnect, restart-session restoration, and exact package checksum passed. Demo mode is deterministic and offline. amd64 is future work."
 }

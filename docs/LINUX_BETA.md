@@ -2,9 +2,9 @@
 
 ## Supported target
 
-Beta 1 is Ubuntu 24.04 LTS on ARM64 only. The current candidate has ARM64
-Flutter and helper evidence; amd64 and other distributions are future work
-until they have equivalent build, install, and live WireGuard evidence.
+Beta 1 is Ubuntu 24.04 LTS on ARM64 only. The accepted package has matching
+build, install, helper, and live WireGuard evidence; amd64 and other
+distributions are future work until they have equivalent evidence.
 
 ## Real flow
 
@@ -31,11 +31,9 @@ and `wireguard.cleanup`.
 ```
 
 `test_linux_beta.sh` is local and non-destructive. It does not deploy, publish,
-push, merge, or use live credentials. The isolated Ubuntu install and local
-kernel WireGuard lifecycle are recorded in
-[`BETA_ACCEPTANCE_REPORT.md`](BETA_ACCEPTANCE_REPORT.md). Live account,
-Hetzner peer registration, public egress, restart, and publication remain
-explicit release gates.
+push, merge, or use live credentials. The isolated Ubuntu install and the
+live ARM64 account, Hetzner peer, public egress, restart, and publication
+evidence are recorded in [`BETA_ACCEPTANCE_REPORT.md`](BETA_ACCEPTANCE_REPORT.md).
 
 ## Configuration
 

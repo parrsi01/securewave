@@ -2,102 +2,186 @@
 
 Date: 2026-08-09
 
-## Result
+## Final status
 
-- **Demo application:** PASS. The actual Flutter UI completes registration,
-  connect, deterministic usage, disconnect, reconnect, and logout without HTTP,
-  native helper, OS keyring, or production infrastructure.
-- **Portable ARM64 package:** PASS for Ubuntu 24.04 LTS ARM64 in an isolated
-  systemd environment.
-- **Public real-user beta:** BLOCKED. The deployed public API is an older,
-  incompatible build: registration does not issue a token, valid login for a
-  new account is email-verification gated, and `/api/vpn/target` is absent.
-  Therefore no live profile, Hetzner peer, or public-egress proof was possible.
+- **Real Beta:** PASS for Ubuntu 24.04 LTS ARM64.
+- **Demo:** PASS; deterministic and offline.
+- **Publication:** PASS for the exact ARM64 package and manifest.
+- **Remaining internal blockers:** NONE.
 
-This distinction is intentional: a local kernel WireGuard proof is not a
-Hetzner or Internet-egress proof.
+The supported product path is intentionally small: one Linux ARM64 package,
+one authenticated backend, PostgreSQL, one configured Hetzner WireGuard target,
+and helper contract 13. amd64, alternate protocols, billing, email delivery,
+and multi-server behavior remain out of scope.
 
 ## Accepted artifact
 
 - file: `securewave-vpn_4.0.0+9_arm64.deb`
-- SHA-256: `81a3f51f8c8621169e1f2514340e8cf9f86635f32c4e8d9556d97106a2a551dd`
-- embedded source: `1a137a64f5b9aea1b2f663662f8cdcedefb82e36`
+- SHA-256: `2dab0e2c57a9406b7b5d65758fe771ac4b2cd00816794c09372501ecad2f2275`
+- embedded source: `90fe5a7607d91b40ecf2a381f4ae8bab1f6d23e7`
 - embedded source state: `clean`
 - architecture: `arm64`
 - helper contract: `13`
-- publication state: `false`
+- publication: `status=beta`, `published=true`
 
-Two consecutive builds from the embedded source produced the same package
-SHA-256.
+The package was built locally with the public HTTPS API URL, verified without
+installation, installed in a fresh privileged Ubuntu 24.04 ARM64 systemd
+container, and exercised through the live API.
 
-## Evidence
+## Real Beta evidence
 
-| Gate | Result | Evidence |
+| Gate | Result | Sanitized evidence |
 | --- | --- | --- |
-| Focused backend structure/API tests | PASS | 6 tests passed |
-| Flutter analysis and focused tests | PASS | no analysis issues; 6 tests passed, including the complete demo widget journey |
-| Demo network boundary | PASS | Flutter UI registration, profile, connect, deterministic health/usage, disconnect, reconnect, and logout used in-memory demo services and storage |
-| PostgreSQL canonical auth | PASS | fresh PostgreSQL 16 migration; register, normalized email, duplicate rejection, invalid login, login, authenticated request, logout invalidation, relogin, and hashed-password storage passed |
-| Clean package install | PASS | fresh Ubuntu 24.04 ARM64 container with systemd as PID 1 installed `4.0.0+9` without preinstalled GUI or VPN runtime packages |
-| Runtime dependencies | PASS | GTK, libsecret, EGL, GLES, WireGuard, iproute2, iptables, and systemd dependencies resolved from package metadata |
-| Helper installation | PASS | service enabled and active; socket present; packaged and installed helper/wrapper hashes matched; contract probe passed |
-| GUI launch | PASS | packaged Flutter process remained alive for the 8-second headless X11 smoke window |
-| Exact-artifact kernel WireGuard | PASS | `4.0.0+9` completed an authenticated kernel handshake, routed traffic, and reported 476 received / 596 transmitted bytes |
-| Stability and cleanup | PASS | identical helper/wrapper bytes survived connected service restart, restored DNS/routes/firewall, removed a simulated stale runtime, and reconnected successfully |
-| Package remove and purge | PASS | remove stopped and removed the helper/app while retaining Debian config state; purge removed the allowlist, config directory, and runtime group |
-| Deployed public auth | BLOCKED | public registration returned 201 without a token; subsequent valid login returned 403 because the old deployment still requires email verification |
-| Hetzner peer registration and public egress | BLOCKED | authentication stopped before profile issuance; no peer/config/private key was returned |
-| Public download | BLOCKED | securewaveapp.com still serves `4.0.0+4`; the local `4.0.0+9` manifest remains `published: false` |
+| Package build and integrity | PASS | `dpkg-deb` verification passed; exact SHA-256 above; source marker clean |
+| Install and helper startup | PASS | package `4.0.0+9` installed; helper active; socket contract 13; beta user could access the helper |
+| Registration | PASS | generated acceptance account returned HTTP 201; account was deleted after proof |
+| Login and authenticated API | PASS | Flutter login succeeded; target/profile calls succeeded; restart process restored the stored session and `/auth/me` returned authenticated |
+| Connect and handshake | PASS | three independent app processes connected to target `de-nue-1`; handshake present each time |
+| Real traffic | PASS | RX/TX counters were non-zero in every cycle; representative final run: RX 4660/4660/4788 bytes and TX 2116/2116/2116 bytes |
+| Public VPN egress | PASS | baseline `92.105.134.148`; connected egress `138.199.204.139` through the Hetzner target |
+| Disconnect | PASS | clean disconnect in all three cycles; final helper verifier passed |
+| Cold reconnect | PASS | second process connected, transferred traffic, and disconnected |
+| App restart/session continuity | PASS | third process emitted `session_restored=true`, authenticated `/auth/me`, connected, transferred traffic, and disconnected |
+| Logout and cleanup | PASS | logout HTTP 200; generated user rows 0; generated peer rows 0; host WireGuard peer count returned to baseline 86 |
 
-## Current public deployment audit
+The final sanitized live report is the three-cycle run labelled
+`connect-disconnect`, `reconnect-cold-launch`, and `restart-session`.
 
-Read-only checks against the public domains found:
+## Demo evidence
 
-- `api.securewaveapp.com/api/health`: HTTP 200, service name
-  `securewave-vpn-demo`
-- `api.securewaveapp.com/api/ready`: HTTP 200, database connected
-- `api.securewaveapp.com/version`: `4.0.0+4`, production, empty commit
-- `securewaveapp.com/downloads/manifest.json`: public ARM64 package `4.0.0+4`
-- `GET /api/vpn/target`: HTTP 404
-- public registration requires `password_confirm`; it does not return an access
-  token outside demo mode
-- two generated acceptance registrations returned HTTP 201; no credentials were
-  retained, both acceptance attempts stopped before profile issuance, and no
-  WireGuard peer/config was obtained
+The Flutter demo widget journey was run three times. Each run passed:
 
-The public website also still advertises billing, plans, device management, and
-multiple desktop targets. Those claims do not match the simplified Beta 1
-repository.
+1. launch demo mode;
+2. register and log in with deterministic in-memory storage;
+3. connect, observe `Connected`, `Good`, and `12.0 KB transferred`;
+4. disconnect and observe `Disconnected`;
+5. reconnect with the same deterministic counters;
+6. log out and return to `Welcome back`.
 
-## Authentication regression cause
+The demo API boundary test confirms no HTTP request is made, and the demo
+service test confirms fixed RX/TX values and repeatable reconnect behavior.
+Demo mode never invokes the native helper or production infrastructure.
 
-The failing public journey is contract divergence, not bad password hashing:
+## Blockers found and removed
 
-1. Commit `2a46582a` introduced the large email-verification, refresh-token,
-   2FA, and account-gate stack. In production, registration returned a message
-   instead of the bearer token expected by the Linux app.
-2. Commit `de3a2eed` added the required `password_confirm` field.
-3. Commit `4eb7feaf` (PR #26) reinforced the `email_verified` login gate, which
-   is the observed HTTP 403 for a valid newly registered account.
-4. Local candidate commit `420e92c3` replaced that stack with one email/password
-   register/login/token path; it is not deployed publicly.
+### Legacy production schema rejected a valid peer
 
-All listed commits record `SecureWave Team` as both author and committer. No
-repository or PR metadata proves an AI model/tool attribution.
+- **Root cause:** the live database retained a legacy `health_status NOT NULL`
+  column without a default while the simplified peer insert omitted it.
+- **Files/functions:** `models/wireguard_peer.py`,
+  `services/vpn_peer_manager.py`, `routes/vpn.py`, and
+  `database/session.py`.
+- **Classification:** real internal blocker; fixed in backend commit
+  `bf02b71e`.
+- **Fix:** explicit `health_status="unknown"` plus a server default, sanitized
+  `ValueError` handling, and SQLAlchemy parameter hiding. Existing PostgreSQL
+  users and peers were preserved; the pre-deploy dump was verified.
 
-## Isolation and cleanup
+### Helper socket became inaccessible after connect
 
-The install/runtime proofs used disposable privileged ARM64 Ubuntu containers
-with their own network namespaces and nested namespaces for WireGuard peers.
-Canonical auth used a disposable PostgreSQL 16 container. The host-installed
-SecureWave package was not changed. Test packages were removed and purged, and
-all test containers and private temporary files were removed.
+- **Root cause:** `securewave-wg-quick up` recreated `/run/securewave` as
+  `root:root`, defeating the `securewave` group permission on the socket.
+- **Files:** `securewave_app/packaging/linux/securewave-wg-quick`,
+  `securewave_app/packaging/linux/securewave-helper.service`, and
+  `tests/test_beta_structure.py`.
+- **Classification:** real internal runtime/package blocker; fixed in
+  `f2eb5662`.
+- **Fix:** preserve `root:securewave` in the `up` path and repair ownership in
+  the service pre-start. The installed package was retested through all live
+  cycles.
 
-## Release decision
+### Restart proof lacked an authenticated restore check
 
-The repository is a working demo and an installable local beta candidate. It
-must not be described as a completed public VPN beta until an authorized live
-account obtains a profile from the deployed simplified backend, the client
-registers a peer on the intended Hetzner server, public egress changes through
-that tunnel, reconnect and restart succeed, cleanup is verified, and this exact
-artifact is published.
+- **Root cause:** the existing smoke entrypoint always performed a fresh login,
+  so it proved cold reconnect but not session restoration after process exit.
+- **File:** `securewave_app/lib/runtime_vpn_probe.dart`.
+- **Classification:** acceptance coverage gap; fixed in `90fe5a76`.
+- **Fix:** a test-only restore-session mode reads secure storage, verifies the
+  protected current-user endpoint, then uses the normal real WireGuard path.
+  The normal application entrypoint and production mode are unchanged.
+
+### Stale release metadata reported a false blocker
+
+- **Root cause:** the report, manifest, and download page still described the
+  old public API and checksum after the live backend and artifact were fixed.
+- **Files:** this report, `static/downloads/manifest.json`,
+  `static/download.html`, and `docs/LINUX_BETA.md`.
+- **Classification:** documentation/public-artifact blocker; updated with the
+  final evidence and exact checksum.
+
+## Authentication blockers
+
+The active path is one email/password flow:
+
+`email/password -> PostgreSQL user row -> bcrypt verification -> bearer token ->
+secure Linux storage -> Authorization header -> protected endpoint`.
+
+Registration and login do not require WireGuard health, release certification,
+email delivery/verification, payment state, protocol capability, or deployment
+status. A `401` is reserved for an invalid or absent authenticated session;
+profile/runtime failures are separate API errors. The live restart proof
+confirmed that the stored bearer session survives process exit and protects
+`/auth/me` on the next process.
+
+## Configuration reduction
+
+The Beta client requires one release setting: `SECUREWAVE_API_BASE_URL`, which
+must be an HTTPS, non-local URL for a release package. Demo mode is an explicit
+compile-time `SECUREWAVE_DEMO_MODE=true` boundary.
+
+The production backend requires only its active data/control-plane settings:
+`DATABASE_URL`, `ACCESS_TOKEN_SECRET`, `WG_ENCRYPTION_KEY`,
+`WIREGUARD_SERVER_ID`, `WG_SSH_USER`, `WG_SSH_KEY_PATH`,
+`WG_KNOWN_HOSTS_PATH`, and `ENVIRONMENT=production` (with `DB_SSL_MODE=require`
+for the deployed PostgreSQL connection). Payment, SMTP, email verification,
+registry, secondary-architecture, and alternate-protocol variables are not
+startup requirements.
+
+## WireGuard and Flutter blockers
+
+The runtime now has one path from Flutter Connect to the backend profile,
+server peer, contract-13 helper, `sw-wg`, policy routing, handshake, traffic,
+DNS cleanup, and disconnect. Private-key handling, helper authorization,
+configuration permissions, and route/firewall cleanup remain enforced.
+
+The UI exposes login/register without obsolete protocol, region, payment,
+email-verification, or capability gates. Connect is blocked only while the
+user is unauthenticated, the operation is busy, or the real profile/runtime
+operation fails; the UI reports the failure instead of switching to demo mode.
+
+## Package and test blockers
+
+The `.deb` builder requires only Flutter, Debian packaging tools, WireGuard
+tools, and the package's declared runtime dependencies. It does not require a
+registry login, deployment host, release approval variable, payment/email
+provider, OpenVPN, strongSwan, or a second architecture.
+
+No obsolete active tests were removed. The current suite was kept focused on
+password hashing/token behavior, WireGuard lifecycle and cleanup, helper
+privilege safety, package integrity, and demo/real separation; the helper
+ownership regression assertion was added.
+
+## External blockers
+
+None remain for the supported Beta 1 path. amd64 and other distributions are
+future scope, not blockers for the documented ARM64 Beta. No credentials were
+manufactured or bypassed; generated acceptance accounts were deleted after
+each run.
+
+## Files changed
+
+- `securewave_app/packaging/linux/securewave-helper.service`
+- `securewave_app/packaging/linux/securewave-wg-quick`
+- `securewave_app/lib/runtime_vpn_probe.dart`
+- `tests/test_beta_structure.py`
+- `static/downloads/manifest.json`
+- `static/download.html`
+- `docs/LINUX_BETA.md`
+- `docs/BETA_ACCEPTANCE_REPORT.md`
+
+No tracked files were deleted. The ignored package artifact is
+`securewave_app/build/packaging/securewave-vpn_4.0.0+9_arm64.deb`.
+
+## Final decision
+
+ALL BETA/DEMO INTERNAL BLOCKERS REMOVED
