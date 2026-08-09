@@ -40,7 +40,7 @@ jobs:
       - name: Install Linux build dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y clang cmake ninja-build pkg-config libgtk-3-dev libsecret-1-dev wireguard-tools iproute2 iptables ip6tables dpkg-dev
+          sudo apt-get install -y clang cmake ninja-build pkg-config libgtk-3-dev libsecret-1-dev wireguard-tools iproute2 iptables dpkg-dev
 
       - name: Install Python dependencies
         run: python -m pip install -r requirements_dev.txt
