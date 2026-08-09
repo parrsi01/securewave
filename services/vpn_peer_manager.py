@@ -46,15 +46,19 @@ class VPNPeerManager:
             device_type=device_type,
             is_active=True,
             is_revoked=False,
+            health_status="unknown",
             key_version=1,
             next_key_rotation_at=datetime.utcnow() + timedelta(days=90),
         )
         self.db.add(peer)
         try:
             self.db.commit()
-        except IntegrityError as exc:
+        except IntegrityError:
             self.db.rollback()
-            raise ValueError("Unable to create a unique WireGuard device") from exc
+            # Do not retain the SQLAlchemy exception chain: bound parameters
+            # include generated WireGuard material and must never reach an
+            # application-server traceback.
+            raise ValueError("Unable to create a unique WireGuard device") from None
         self.db.refresh(peer)
         return peer
 

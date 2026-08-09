@@ -37,6 +37,10 @@ class WireGuardPeer(Base):
     # Status
     is_active = Column(Boolean, nullable=False, default=True)  # Can be deactivated without deletion
     is_revoked = Column(Boolean, nullable=False, default=False)  # Key has been revoked
+    # The legacy production schema keeps this column NOT NULL. Beta 1 does
+    # not expose health scoring, but it must supply a neutral value when a
+    # real production peer is created.
+    health_status = Column(String, nullable=False, default="unknown", server_default="unknown")
 
     # Key rotation
     key_version = Column(Integer, nullable=False, default=1)  # Increments on rotation

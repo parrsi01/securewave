@@ -114,7 +114,14 @@ async def profile(
     db: Session = Depends(get_db),
 ) -> ProfileResponse:
     server = _target_server(db)
-    peer = _peer_for_user(db, current_user, payload)
+    try:
+        peer = _peer_for_user(db, current_user, payload)
+    except ValueError:
+        logger.warning("WireGuard peer allocation failed user_id=%s", current_user.id)
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="SecureWave could not allocate a WireGuard device.",
+        ) from None
     manager = get_peer_manager(db)
 
     try:

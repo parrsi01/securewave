@@ -66,9 +66,16 @@ def test_beta_auth_target_and_profile_flow() -> None:
         assert profile.status_code == 200
         assert "[Interface]" in profile.json()["wireguard_config"]
         assert "[Peer]" in profile.json()["wireguard_config"]
+        with SessionLocal() as db:
+            peer = db.query(WireGuardPeer).filter(WireGuardPeer.user_id == 1).one()
+            assert peer.health_status == "unknown"
 
         assert client.post("/api/auth/logout", headers=headers).status_code == 200
         assert client.get("/api/auth/me", headers=headers).status_code == 401
+
+
+def test_database_errors_hide_bound_parameters() -> None:
+    assert engine.hide_parameters is True
 
 
 def test_beta_does_not_expose_legacy_api_routes() -> None:

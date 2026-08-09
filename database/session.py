@@ -33,6 +33,9 @@ IS_PRODUCTION = ENVIRONMENT == "production"
 # Engine configuration
 engine_config = {
     "pool_pre_ping": POOL_PRE_PING,
+    # Database exceptions can otherwise include bound passwords, tokens, or
+    # generated WireGuard material in framework and process-manager logs.
+    "hide_parameters": True,
     # SQL echo can include bound request values.  It is opt-in even in local
     # development rather than a default source of credential leakage.
     "echo": os.getenv("SQL_ECHO", "false").lower() == "true" and not IS_PRODUCTION,
