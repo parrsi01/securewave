@@ -11,8 +11,20 @@ it makes databases that followed either path converge without deleting data.
 
 from __future__ import annotations
 
+import sys
+from pathlib import Path
+
 from alembic import context, op
 import sqlalchemy as sa
+
+# Alembic loads revision modules before ``env.py`` executes its project-root
+# bootstrap.  Keep this revision runnable from the normal repository command
+# without requiring callers to mutate PYTHONPATH.
+REVISION_FILE = globals().get("__file__")
+if REVISION_FILE:
+    PROJECT_ROOT = Path(REVISION_FILE).resolve().parents[2]
+    if str(PROJECT_ROOT) not in sys.path:
+        sys.path.insert(0, str(PROJECT_ROOT))
 
 from database.base import Base
 from models import (  # noqa: F401

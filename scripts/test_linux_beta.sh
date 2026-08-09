@@ -17,6 +17,7 @@ command -v flutter >/dev/null 2>&1 || {
 
 cd "$repo_root"
 "$python_bin" -m compileall -q main.py routes services utils models scripts
+"$python_bin" -m alembic heads >/dev/null
 "$python_bin" -m pytest -q tests
 
 cd "$repo_root/securewave_app"
