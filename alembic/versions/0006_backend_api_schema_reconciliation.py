@@ -27,22 +27,10 @@ if REVISION_FILE:
         sys.path.insert(0, str(PROJECT_ROOT))
 
 from database.base import Base
-from models import (  # noqa: F401
-    audit_log,
-    email_log,
-    gdpr,
-    invoice,
-    openvpn_credential,
-    subscription,
-    support_ticket,
-    usage_analytics,
-    user,
-    vpn_connection,
-    vpn_demo_session,
-    vpn_server,
-    vpn_usage_event,
-    wireguard_peer,
-)
+# Only the current ORM is imported here. Revisions 0001-0005 created the
+# historical tables directly; retaining their revision IDs keeps existing
+# databases upgradeable without loading retired runtime models.
+from models import user, vpn_server, wireguard_peer  # noqa: F401
 
 
 # revision identifiers, used by Alembic.
@@ -135,13 +123,16 @@ def upgrade():
     # Critical backfills have stable server defaults, unlike generic legacy
     # fields above.  Keeping these non-null protects token revocation and
     # metering counters on rows created before this revision.
+    inspector = sa.inspect(bind)
+    table_names = set(inspector.get_table_names())
     current_columns = {
-        table_name: {column["name"] for column in sa.inspect(bind).get_columns(table_name)}
+        table_name: {column["name"] for column in inspector.get_columns(table_name)}
         for table_name in ("users", "wireguard_peers", "vpn_connections")
+        if table_name in table_names
     }
-    if "auth_token_version" in current_columns["users"]:
+    if "auth_token_version" in current_columns.get("users", set()):
         op.execute(sa.text("UPDATE users SET auth_token_version = 0 WHERE auth_token_version IS NULL"))
-    if "wg_peer_registered" in current_columns["users"]:
+    if "wg_peer_registered" in current_columns.get("users", set()):
         users = sa.table(
             "users",
             sa.column("wg_peer_registered", sa.Boolean()),
@@ -151,9 +142,9 @@ def upgrade():
             .where(users.c.wg_peer_registered.is_(None))
             .values(wg_peer_registered=False)
         )
-    if "connection_count" in current_columns["wireguard_peers"]:
+    if "connection_count" in current_columns.get("wireguard_peers", set()):
         op.execute(sa.text("UPDATE wireguard_peers SET connection_count = 0 WHERE connection_count IS NULL"))
-    if "last_meter_sequence" in current_columns["vpn_connections"]:
+    if "last_meter_sequence" in current_columns.get("vpn_connections", set()):
         op.execute(sa.text("UPDATE vpn_connections SET last_meter_sequence = 0 WHERE last_meter_sequence IS NULL"))
 
     # `subscriptions.created_at` was nullable in 0001 but is required by the
@@ -193,8 +184,8 @@ def upgrade():
             unique=True,
         )
 
-    connection_indexes = _index_names(sa.inspect(bind), "vpn_connections")
-    if "uq_vpn_connection_active_device" not in connection_indexes:
+    connection_indexes = _index_names(sa.inspect(bind), "vpn_connections") if "vpn_connections" in table_names else set()
+    if "vpn_connections" in table_names and "uq_vpn_connection_active_device" not in connection_indexes:
         # PostgreSQL and SQLite both support this partial index.  It converts
         # reconnect races into a deterministic winner without limiting legacy
         # connection records that predate device attribution.

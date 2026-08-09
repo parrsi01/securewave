@@ -20,11 +20,10 @@ if [[ "$mode" != "600" ]]; then
   exit 2
 fi
 
-exec python3 "$repo_root/scripts/linux_app_vpn_tunnel_proof.py" \
+exec "${PYTHON_BIN:-$repo_root/.venv/bin/python}" "$repo_root/scripts/linux_app_vpn_tunnel_proof.py" \
   --api-base "$api_base" \
   --allow-production \
   --auth-file "$auth_file" \
-  --protocol wireguard \
   --hold-seconds "$hold_seconds" \
   --evidence-timeout "$evidence_timeout" \
   --json

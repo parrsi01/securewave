@@ -1,98 +1,19 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
+  <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="build-timestamp" content="BUILD_TIMESTAMP">
-  <meta name="ui-version" content="UI_VERSION v1.0">
-  <title>Privacy - SecureWave</title>
-  <meta name="description" content="Read SecureWave privacy commitments and service data handling principles." />
-  <link rel="stylesheet" href="/css/web_ui_v1.css?v=20260302">
-  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+  <title>Privacy · SecureWave</title>
+  <link rel="stylesheet" href="/css/web_ui_v1.css">
 </head>
 <body>
-  <div class="page">
-    <header class="navbar navbar-expand-lg">
-      <div class="container navbar-row">
-        <a class="brand navbar-brand" href="/home.html">
-          <img src="/img/logo.svg" alt="SecureWave logo">
-          <span>SecureWave</span>
-        </a>
-        <div class="nav-panel">
-          <nav class="nav-links nav" aria-label="Primary">
-            <a class="nav-link" href="/home.html">Home</a>
-            <a class="nav-link" href="/services.html">Services</a>
-            <a class="nav-link" href="/subscription.html">Plans</a>
-            <a class="nav-link" href="/dashboard.html">Dashboard</a>
-            <a class="nav-link active" href="/privacy.html" aria-current="page">Privacy</a>
-          </nav>
-          <div class="nav-actions">
-            <a class="btn btn-ghost" href="/login.html">Sign in</a>
-            <a class="btn btn-primary" href="/home.html#download">Download app</a>
-          </div>
-        </div>
-        <button class="nav-toggle navbar-toggler" type="button" aria-label="Toggle navigation" data-nav-toggle><span></span></button>
-      </div>
-    </header>
-
-    <main>
-      <section class="section">
-        <div class="container content-stack">
-          <span class="badge">Privacy</span>
-          <h1>Privacy explained in plain language.</h1>
-          <p class="text-measure">SecureWave is designed to keep the account portal focused on essential account data while the app handles the protected network session. That separation reduces unnecessary overlap and keeps the service easier to understand.</p>
-          <div class="legal-grid">
-            <article class="legal-card">
-              <h3>Account data</h3>
-              <p>SecureWave stores the information required to authenticate your account, manage plan status, and support access to the dashboard and downloads.</p>
-            </article>
-            <article class="legal-card">
-              <h3>Service operations</h3>
-              <p>Operational telemetry may be used to keep the service functioning reliably, diagnose failures, and maintain product quality.</p>
-            </article>
-            <article class="legal-card">
-              <h3>Support and recovery</h3>
-              <p>When you request support, diagnostic context may be used to understand the issue and recommend the correct next step.</p>
-            </article>
-            <article class="legal-card">
-              <h3>Browser-local preferences</h3>
-              <p>Website display preferences and cached session cues are stored locally in your browser and do not represent VPN configuration on the device.</p>
-            </article>
-          </div>
-        </div>
-      </section>
-    </main>
-
-    <footer class="footer">
-      <div class="container footer-top">
-        <div class="footer-brand">
-          <strong>SecureWave Privacy</strong>
-          <p>Clear handling rules and simple boundaries between account data and VPN behavior.</p>
-        </div>
-        <div class="footer-columns">
-          <div class="footer-column">
-            <div class="footer-title">Product</div>
-            <a href="/services.html">Services</a>
-            <a href="/subscription.html">Plans</a>
-            <a href="/vpn.html">VPN app</a>
-          </div>
-          <div class="footer-column">
-            <div class="footer-title">Support</div>
-            <a href="/contact.html">Support</a>
-            <a href="/dashboard.html">Dashboard</a>
-            <a href="/settings.html">Settings</a>
-          </div>
-          <div class="footer-column">
-            <div class="footer-title">Legal</div>
-            <a href="/privacy.html">Privacy</a>
-            <a href="/terms.html">Terms</a>
-          </div>
-        </div>
-      </div>
-      <div class="container footer-bottom"><span data-year>2026</span> SecureWave. All rights reserved.</div>
-    </footer>
-  </div>
-  <script src="/js/bootstrap.bundle.min.js" defer></script>
-  <script src="/js/site.js" defer></script>
+  <main class="form-shell"><article class="form-card">
+    <a class="brand navbar-brand" href="/"><img src="/img/logo.svg" alt=""><span>SecureWave</span></a>
+    <span class="badge" style="margin-top: var(--space-6);">Privacy</span>
+    <h1 style="margin-top: var(--space-4);">A small data surface.</h1>
+    <p class="subtitle" style="margin-top: var(--space-4);">Beta accounts store a normalized email address and a one-way password hash. The app stores one access token in Linux secure storage. WireGuard private keys are encrypted at rest on the backend and are not written to application logs.</p>
+    <p class="subtitle" style="margin-top: var(--space-4);">We do not require email verification, payments, or marketing integrations for Beta 1.</p>
+    <a class="btn btn-ghost" style="margin-top: var(--space-6);" href="/">Back to SecureWave</a>
+  </article></main>
 </body>
 </html>

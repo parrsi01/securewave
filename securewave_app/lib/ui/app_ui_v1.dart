@@ -15,6 +15,7 @@ class AppUIv1 {
   static const amberSoft = Color(0xFF34270E);
   static const red = Color(0xFFFF6B6B);
   static const redSoft = Color(0xFF351417);
+  static const green = Color(0xFF5DD39E);
   static const secondary = Color(0xFFFFFFFF);
   static const secondarySoft = Color(0xFF172B43);
 

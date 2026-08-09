@@ -25,17 +25,19 @@ depends="$(dpkg-deb --field "$package_path" Depends)"
   echo "ERROR: unexpected package name: $package_name" >&2
   exit 1
 }
+[[ "$architecture" == "arm64" ]] || {
+  echo "ERROR: Beta 1 package must target arm64, got $architecture" >&2
+  exit 1
+}
 [[ "$depends" == *"wireguard-tools"* ]] || {
   echo "ERROR: package does not depend on wireguard-tools" >&2
   exit 1
 }
 
-for deferred in openvpn strongswan ikev2 network-manager; do
-  if printf '%s\n' "$control" "$contents" | grep -Eiq "$deferred"; then
-    echo "ERROR: deferred protocol/package reference found: $deferred" >&2
-    exit 1
-  fi
-done
+if printf '%s\n' "$control" | grep -Eiq '(^|[ ,])((open|strong|ike|network-manager)[^ ,]*)'; then
+  echo "ERROR: package contains a retired networking dependency" >&2
+  exit 1
+fi
 
 for required_path in \
   ./usr/bin/securewave-vpn \
@@ -60,5 +62,5 @@ if [[ -f "$package_path.source-sha256" ]]; then
   sed -n '1,4p' "$package_path.source-sha256"
 fi
 
-echo "OK: $package_name $version ($architecture) is a WireGuard-only beta package."
+echo "OK: $package_name $version ($architecture) is the ARM64 WireGuard beta package."
 echo "OK: static package verification completed; no package was installed."

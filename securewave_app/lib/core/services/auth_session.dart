@@ -43,13 +43,11 @@ class AuthSession extends ChangeNotifier {
     }
   }
 
-  Future<void> setSession(
-      {required String accessToken, String? refreshToken}) async {
+  Future<void> setSession({required String accessToken}) async {
     await ensureInitialized();
     _accessToken = accessToken;
     _isAuthenticated = true;
-    await _storage.saveTokens(
-        accessToken: accessToken, refreshToken: refreshToken);
+    await _storage.saveToken(accessToken);
     notifyListeners();
   }
 
@@ -57,7 +55,7 @@ class AuthSession extends ChangeNotifier {
     await ensureInitialized();
     _accessToken = null;
     _isAuthenticated = false;
-    await _storage.clearTokens();
+    await _storage.clearToken();
     notifyListeners();
   }
 }

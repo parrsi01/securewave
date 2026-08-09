@@ -26,7 +26,6 @@ const char* kHelperSocketPath = "/run/securewave/helper.sock";
 const char* kHelperDaemonPath = "/usr/local/libexec/securewave-helperd";
 const char* kHelperContractPath = "/usr/local/libexec/securewave-wg-quick.contract";
 const char* kWireGuardConfigFileName = "sw-wg.conf";
-const char* kActiveProtocolFileName = "securewave-active-protocol";
 const char* kBundledHelperScriptRelativePath = "packaging/linux/securewave-wg-quick";
 const char* kBundledHelperDaemonRelativePath = "packaging/linux/securewave-helperd";
 const char* kBundledHelperContractRelativePath = "packaging/linux/securewave-wg-quick.contract";
@@ -40,8 +39,6 @@ using Fields = std::map<std::string, std::string>;
 typedef struct {
   FlMethodChannel* channel;
   gchar* config_path;
-  gchar* active_protocol_path;
-  gchar* active_protocol;
 } VpnChannelState;
 
 typedef struct {
@@ -55,8 +52,6 @@ static void vpn_channel_state_free(VpnChannelState* state) {
   }
   g_clear_object(&state->channel);
   g_clear_pointer(&state->config_path, g_free);
-  g_clear_pointer(&state->active_protocol_path, g_free);
-  g_clear_pointer(&state->active_protocol, g_free);
   g_free(state);
 }
 
@@ -397,9 +392,7 @@ static gboolean helper_daemon_installed() {
 static gboolean linux_native_runtime_available(gchar** detail) {
   HelperResponse response {};
   g_autofree gchar* op_detail = nullptr;
-  Fields args;
-  args["protocol"] = "wireguard";
-  if (helper_operation("probe", args, &response, &op_detail)) {
+  if (helper_operation("probe", {}, &response, &op_detail)) {
     return TRUE;
   }
 
@@ -423,50 +416,14 @@ static gchar* build_state_path(const gchar* filename) {
   return g_build_filename(config_dir, filename, nullptr);
 }
 
-static void persist_active_protocol(VpnChannelState* state, const gchar* protocol) {
-  if (!state->active_protocol_path) {
-    state->active_protocol_path = build_state_path(kActiveProtocolFileName);
-  }
-  if (state->active_protocol_path) {
-    g_file_set_contents(state->active_protocol_path, protocol, -1, nullptr);
-    g_chmod(state->active_protocol_path, 0600);
-  }
-  g_clear_pointer(&state->active_protocol, g_free);
-  state->active_protocol = g_strdup(protocol);
-}
-
-static const gchar* load_active_protocol(VpnChannelState* state) {
-  if (state->active_protocol && *state->active_protocol != '\0') {
-    return state->active_protocol;
-  }
-  if (!state->active_protocol_path) {
-    state->active_protocol_path = build_state_path(kActiveProtocolFileName);
-  }
-  if (!state->active_protocol_path) {
-    return "wireguard";
-  }
-  g_autofree gchar* stored = nullptr;
-  if (!g_file_get_contents(state->active_protocol_path, &stored, nullptr, nullptr) || !stored) {
-    return "wireguard";
-  }
-  g_strstrip(stored);
-  if (g_strcmp0(stored, "wireguard") == 0) {
-    state->active_protocol = g_strdup(stored);
-    return state->active_protocol;
-  }
-  return "wireguard";
-}
-
-static void ensure_protocol_paths(VpnChannelState* state, const gchar* protocol) {
-  (void)protocol;
+static void ensure_config_path(VpnChannelState* state) {
   if (!state->config_path) {
     state->config_path = build_state_path(kWireGuardConfigFileName);
   }
 }
 
-static Fields helper_args_for_protocol(VpnChannelState* state, const gchar* protocol) {
-  (void)protocol;
-  ensure_protocol_paths(state, protocol);
+static Fields helper_args(VpnChannelState* state) {
+  ensure_config_path(state);
   Fields args;
   if (state->config_path) {
     args["config_path"] = state->config_path;
@@ -499,10 +456,8 @@ static void respond_runtime_install_state(FlMethodCall* method_call) {
   g_autofree gchar* probe_detail = nullptr;
   HelperResponse probe_response {};
   g_autofree gchar* op_detail = nullptr;
-  Fields probe_args;
-  probe_args["protocol"] = "wireguard";
   wireguard_helper_probe = helper_operation(
-      "probe", probe_args, &probe_response, &op_detail);
+      "probe", {}, &probe_response, &op_detail);
   service_seen = !field(probe_response.fields, "service_version").empty();
   if (op_detail != nullptr) {
     probe_detail = g_strdup(op_detail);
@@ -590,32 +545,6 @@ static HelperTaskContext* helper_task_context_new(
   return ctx;
 }
 
-static void remove_ephemeral_credentialed_profile(const HelperTaskContext* ctx) {
-  if (!ctx) {
-    return;
-  }
-  const std::string config_path = field(ctx->args, "config_path");
-  if (!config_path.empty()) {
-    g_unlink(config_path.c_str());
-  }
-  if (g_strcmp0(ctx->op, "openvpn.stop") == 0 ||
-      g_strcmp0(ctx->op, "openvpn.start") == 0) {
-    const std::string auth_path = field(ctx->args, "auth_path");
-    if (!auth_path.empty()) {
-      g_unlink(auth_path.c_str());
-    }
-  }
-  if (g_strcmp0(ctx->op, "ikev2.stop") == 0 ||
-      g_strcmp0(ctx->op, "ikev2.start") == 0) {
-    g_autofree gchar* directory = g_path_get_dirname(config_path.c_str());
-    if (directory && *directory) {
-      g_autofree gchar* ca_path =
-          g_build_filename(directory, "securewave-ikev2-ca.pem", nullptr);
-      g_unlink(ca_path);
-    }
-  }
-}
-
 static void helper_operation_worker(GTask* task,
                                     gpointer source_object,
                                     gpointer task_data,
@@ -645,19 +574,8 @@ static void helper_operation_complete(GObject* source_object,
   g_autoptr(GError) error = nullptr;
   const gboolean ok = g_task_propagate_boolean(G_TASK(result), &error);
   if (ok) {
-    if (g_strcmp0(ctx->op, "openvpn.stop") == 0 ||
-        g_strcmp0(ctx->op, "ikev2.stop") == 0) {
-      remove_ephemeral_credentialed_profile(ctx);
-    }
     respond_success(ctx->method_call);
   } else {
-    if (g_strcmp0(ctx->op, "openvpn.start") == 0 ||
-        g_strcmp0(ctx->op, "ikev2.start") == 0) {
-      // The helper has already attempted fail-closed runtime rollback. The
-      // untrusted user-owned config and any copied IKE CA must not outlive a
-      // failed credentialed connection attempt.
-      remove_ephemeral_credentialed_profile(ctx);
-    }
     respond_error(
         ctx->method_call,
         ctx->error_code,
@@ -736,21 +654,15 @@ static gboolean parse_wireguard_transfer(const std::string& output,
 }
 
 static void respond_traffic_stats(FlMethodCall* method_call,
-                                  VpnChannelState* state,
-                                  const gchar* protocol) {
+                                  VpnChannelState* state) {
   HelperResponse response {};
   g_autofree gchar* detail = nullptr;
-  Fields args = helper_args_for_protocol(state, protocol);
+  Fields args = helper_args(state);
   guint64 rx_bytes = 0;
   guint64 tx_bytes = 0;
   gboolean counters_available = FALSE;
-  std::string interface_name =
-      g_strcmp0(protocol, "openvpn") == 0
-          ? "tun-securewave"
-          : (g_strcmp0(protocol, "ikev2") == 0 ? "xfrm" : "sw-wg");
 
-  if (g_strcmp0(protocol, "wireguard") == 0 &&
-      helper_operation("wireguard.counters", args, &response, &detail)) {
+  if (helper_operation("wireguard.counters", args, &response, &detail)) {
     counters_available = parse_wireguard_transfer(
         field(response.fields, "stdout"),
         &rx_bytes,
@@ -758,13 +670,8 @@ static void respond_traffic_stats(FlMethodCall* method_call,
   }
 
   if (!counters_available) {
-    const gchar* op =
-        g_strcmp0(protocol, "openvpn") == 0
-            ? "openvpn.status"
-            : (g_strcmp0(protocol, "ikev2") == 0 ? "ikev2.status" : "wireguard.status");
     g_clear_pointer(&detail, g_free);
-    if (helper_operation(op, args, &response, &detail)) {
-      interface_name = field(response.fields, "interface");
+    if (helper_operation("wireguard.status", args, &response, &detail)) {
       rx_bytes = field_uint64(response.fields, "rx_bytes");
       tx_bytes = field_uint64(response.fields, "tx_bytes");
       counters_available = field(response.fields, "counters_available") == "true";
@@ -772,7 +679,7 @@ static void respond_traffic_stats(FlMethodCall* method_call,
   }
 
   g_autoptr(FlValue) value = fl_value_new_map();
-  fl_value_set_string_take(value, "interface", fl_value_new_string(interface_name.c_str()));
+  fl_value_set_string_take(value, "interface", fl_value_new_string("sw-wg"));
   fl_value_set_string_take(value, "rx_bytes", fl_value_new_int(static_cast<int64_t>(rx_bytes)));
   fl_value_set_string_take(value, "tx_bytes", fl_value_new_int(static_cast<int64_t>(tx_bytes)));
   fl_value_set_string_take(value, "counters_available", fl_value_new_bool(counters_available));
@@ -790,15 +697,10 @@ static void respond_traffic_stats(FlMethodCall* method_call,
 static void respond_runtime_status(
     FlMethodCall* method_call,
     VpnChannelState* state) {
-  const gchar* protocol = load_active_protocol(state);
-  Fields args = helper_args_for_protocol(state, protocol);
-  const gchar* op =
-      g_strcmp0(protocol, "openvpn") == 0
-          ? "openvpn.status"
-          : (g_strcmp0(protocol, "ikev2") == 0 ? "ikev2.status" : "wireguard.status");
+  Fields args = helper_args(state);
   HelperResponse response {};
   g_autofree gchar* detail = nullptr;
-  const gboolean ok = helper_operation(op, args, &response, &detail);
+  const gboolean ok = helper_operation("wireguard.status", args, &response, &detail);
   const std::string status = ok ? field(response.fields, "status") : "disconnected";
 
   g_autoptr(FlValue) value = fl_value_new_map();
@@ -806,32 +708,12 @@ static void respond_runtime_status(
       value,
       "status",
       fl_value_new_string(status == "connected" ? "connected" : "disconnected"));
-  fl_value_set_string_take(value, "protocol", fl_value_new_string(protocol));
   if (!ok && detail != nullptr) {
     fl_value_set_string_take(value, "message", fl_value_new_string(detail));
   }
   g_autoptr(FlMethodResponse) method_response = FL_METHOD_RESPONSE(
       fl_method_success_response_new(value));
   fl_method_call_respond(method_call, method_response, nullptr);
-}
-
-static const gchar* connect_op_for_protocol(const gchar* protocol) {
-  (void)protocol;
-  return "wireguard.up";
-}
-
-static const gchar* disconnect_op_for_protocol(const gchar* protocol) {
-  (void)protocol;
-  return "wireguard.down";
-}
-
-static const gchar* config_file_for_protocol(const gchar* protocol) {
-  (void)protocol;
-  return kWireGuardConfigFileName;
-}
-
-static gboolean supported_protocol(const gchar* protocol) {
-  return g_strcmp0(protocol, "wireguard") == 0;
 }
 
 static void handle_vpn_call(FlMethodChannel* channel,
@@ -851,30 +733,6 @@ static void handle_vpn_call(FlMethodChannel* channel,
           fl_value_new_map());
       return;
     }
-    FlValue* args = fl_method_call_get_args(method_call);
-    const gchar* protocol = get_string_arg(args, "protocol");
-    if (protocol && *protocol != '\0') {
-      if (!supported_protocol(protocol)) {
-        respond_error(
-            method_call,
-            "protocol_unavailable",
-            "Unsupported VPN protocol.",
-            nullptr);
-        return;
-      }
-      Fields probe_args;
-      probe_args["protocol"] = protocol;
-      HelperResponse probe_response {};
-      g_clear_pointer(&detail, g_free);
-      if (!helper_operation("probe", probe_args, &probe_response, &detail)) {
-        respond_error(
-            method_call,
-            "protocol_unavailable",
-            detail ? detail : "Selected VPN protocol is unavailable.",
-            nullptr);
-        return;
-      }
-    }
     g_autoptr(FlMethodResponse) response = FL_METHOD_RESPONSE(
         fl_method_success_response_new(fl_value_new_bool(TRUE)));
     fl_method_call_respond(method_call, response, nullptr);
@@ -887,12 +745,7 @@ static void handle_vpn_call(FlMethodChannel* channel,
   }
 
   if (g_strcmp0(method, "getTrafficStats") == 0) {
-    FlValue* args = fl_method_call_get_args(method_call);
-    const gchar* protocol = get_string_arg(args, "protocol");
-    if (!protocol || *protocol == '\0' || !supported_protocol(protocol)) {
-      protocol = load_active_protocol(state);
-    }
-    respond_traffic_stats(method_call, state, protocol);
+    respond_traffic_stats(method_call, state);
     return;
   }
 
@@ -908,26 +761,6 @@ static void handle_vpn_call(FlMethodChannel* channel,
 
   if (g_strcmp0(method, "connect") == 0) {
     FlValue* args = fl_method_call_get_args(method_call);
-    const gchar* protocol = get_string_arg(args, "protocol");
-    if (!protocol || *protocol == '\0') {
-      protocol = "wireguard";
-    }
-    if (!supported_protocol(protocol)) {
-      respond_error(method_call, "protocol_unavailable", "Unsupported VPN protocol.", nullptr);
-      return;
-    }
-    HelperResponse probe_response {};
-    g_autofree gchar* probe_detail = nullptr;
-    Fields probe_args;
-    probe_args["protocol"] = protocol;
-    if (!helper_operation("probe", probe_args, &probe_response, &probe_detail)) {
-      respond_error(
-          method_call,
-          "protocol_unavailable",
-          probe_detail ? probe_detail : "Selected VPN protocol is not available on this runtime.",
-          nullptr);
-      return;
-    }
     const gchar* config = get_string_arg(args, "config");
     if (!config || *config == '\0') {
       respond_error(method_call, "invalid_config", "Missing VPN configuration.", nullptr);
@@ -935,28 +768,26 @@ static void handle_vpn_call(FlMethodChannel* channel,
     }
 
     g_clear_pointer(&state->config_path, g_free);
-    state->config_path = build_state_path(config_file_for_protocol(protocol));
+    state->config_path = build_state_path(kWireGuardConfigFileName);
     if (!write_config_file(method_call, state->config_path, config)) {
       return;
     }
-    persist_active_protocol(state, protocol);
-    Fields helper_args = helper_args_for_protocol(state, protocol);
+    Fields helper_fields = helper_args(state);
     run_helper_operation_async(
         method_call,
         "vpn_connect_failed",
-        connect_op_for_protocol(protocol),
-        helper_args);
+        "wireguard.up",
+        helper_fields);
     return;
   }
 
   if (g_strcmp0(method, "disconnect") == 0) {
-    const gchar* protocol = load_active_protocol(state);
-    Fields helper_args = helper_args_for_protocol(state, protocol);
+    Fields helper_fields = helper_args(state);
     run_helper_operation_async(
         method_call,
         "vpn_disconnect_failed",
-        disconnect_op_for_protocol(protocol),
-        helper_args);
+        "wireguard.down",
+        helper_fields);
     return;
   }
 

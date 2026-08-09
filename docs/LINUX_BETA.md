@@ -1,60 +1,51 @@
-# SecureWave Linux beta
+# Linux Beta 1
 
-This branch keeps the Linux path intentionally small: email/password account
-authentication, authenticated API requests, WireGuard server/profile retrieval,
-and the native WireGuard helper. OpenVPN, IKEv2, payments, email delivery, and
-release publishing are deferred.
+## Supported target
 
-## Configure and run
+Beta 1 is ARM64 Linux only. The current candidate has ARM64 Flutter and helper
+evidence; amd64 is future work until it has equivalent build, install, and live
+WireGuard evidence.
 
-The release API is `https://api.securewaveapp.com/api`. Override it explicitly
-for a test backend:
+## Real flow
 
-```bash
-export SECUREWAVE_API_BASE_URL=https://api.example.test/api
-./scripts/run_linux_beta.sh flutter
-```
+1. Install the single `.deb` package.
+2. Launch the Flutter Linux app.
+3. Register or sign in with email and password.
+4. Press `CONNECT`.
+5. The API issues one authenticated WireGuard profile for the configured Hetzner target.
+6. The native helper validates `sw-wg.conf`, starts WireGuard, and verifies interface, route, and recent handshake evidence.
+7. Press `DISCONNECT`; the helper removes the interface and owned firewall state.
 
-For a local backend, configure the repository's normal database environment,
-then run:
+The helper socket uses contract 13. Its only operations are `probe`,
+`wireguard.status`, `wireguard.counters`, `wireguard.up`, `wireguard.down`,
+and `wireguard.cleanup`.
+
+## Commands
 
 ```bash
 ./scripts/run_linux_beta.sh backend
-```
-
-The backend defaults to `127.0.0.1:8001`; the Flutter runner uses the live API
-default unless `SECUREWAVE_API_BASE_URL` is set.
-
-## Test and package
-
-```bash
+./scripts/run_linux_beta.sh flutter
 ./scripts/test_linux_beta.sh
 ./scripts/build_linux_deb.sh
 ./scripts/verify_linux_deb.sh securewave_app/build/packaging/securewave-vpn_<version>_<arch>.deb
 ```
 
-The package contains the Flutter release bundle and the root-owned systemd
-WireGuard helper payload. Installation requires a compatible system with
-`wireguard-tools`, `iproute2`, `iptables`, `nftables`, systemd, and
-`systemd-resolved`. Connect/disconnect does not request administrator
-credentials; the package installer performs the one-time privileged setup.
+`test_linux_beta.sh` is local and non-destructive. It does not deploy, publish,
+push, merge, or use live credentials. Live account, clean-device install,
+WireGuard egress, reconnect, restart, and cleanup acceptance remain explicit
+release gates.
 
-The read-only host verifier is:
+## Configuration
 
-```bash
-.venv/bin/python scripts/linux_vpn_runtime_verifier.py --skip-build-checks
-```
+The backend uses PostgreSQL and one `WIREGUARD_SERVER_ID` in production. The
+Flutter build uses one API setting: `SECUREWAVE_API_BASE_URL`. Release builds
+must use HTTPS and reject localhost or placeholder URLs.
 
-An active-tunnel proof additionally needs an authorized account, a real
-WireGuard peer, and an explicit baseline exit-IP file:
+Demo mode is a separate compile-time Flutter boundary:
 
 ```bash
-.venv/bin/python scripts/linux_vpn_runtime_verifier.py \
-  --skip-build-checks \
-  --active-protocol wireguard \
-  --external-probes \
-  --baseline-exit-ip-file /path/to/private/baseline-ip.txt
+flutter run -d linux --dart-define=SECUREWAVE_DEMO_MODE=true
 ```
 
-The verifier never starts or stops a tunnel and never prints secrets or IP
-addresses.
+It is labelled `DEMO MODE · Simulated connection only`, performs no network
+request, and never invokes the native helper.

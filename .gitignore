@@ -164,3 +164,11 @@ securewave-tests/results/*.json
 !securewave_app/lib/
 !securewave_app/lib/**/*
 !securewave_app/pubspec.yaml
+
+# Beta 1 is Linux-only. Flutter may recreate other platform scaffolding while
+# running pub get; keep those generated leftovers out of the candidate.
+securewave_app/android/
+securewave_app/ios/
+securewave_app/macos/
+securewave_app/windows/
+securewave_app/web/

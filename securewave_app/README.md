@@ -1,53 +1,33 @@
-# SecureWave App
+# SecureWave Linux app
 
-SecureWave is a Flutter control-plane app that integrates with the SecureWave API
-and provisions ephemeral VPN profiles for native Linux tunnel providers.
+The real Linux build is a Flutter client with one authenticated WireGuard
+connection. It stores one access token in Linux secure storage, obtains one
+profile from the API, and hands the config to the native helper.
 
-Users should not manually download or manage VPN profiles. The app fetches
-profiles from the backend after login, stores the active profile in secure
-storage, and hands it to the Linux runner.
+The UI has two product states: `CONNECT` and `DISCONNECT`. It also shows
+connection health and local traffic counters. Those observers never turn a
+failed health or usage read into a false connected state.
 
-## What Works Without Xcode
+## Run
 
-- Fresh Flutter UI with Connect, Servers, Account, and Settings tabs
-- Auth + session persistence
-- Server list, account state, and usage gauge
-- WireGuard/OpenVPN profile fetch from API and handoff to native bridge
+```bash
+flutter pub get
+flutter analyze
+flutter test
+flutter run -d linux --dart-define=SECUREWAVE_API_BASE_URL=https://api.example.test/api
+```
 
-## What Requires Xcode (iOS/macOS)
+The release build uses `https://api.securewaveapp.com/api` unless an explicit
+HTTPS `SECUREWAVE_API_BASE_URL` is supplied. It never falls back to localhost.
 
-- Network Extension target configuration
-- Code signing + entitlements
-- WireGuardKit package fetch
+For a deterministic UI-only demo:
 
-## Diagnostics
+```bash
+flutter run -d linux --dart-define=SECUREWAVE_DEMO_MODE=true
+```
 
-- **Connection diagnostics (small):** Home → "Connection diagnostics" (read-only checks: backend, auth, profile, tunnel).
-- **Full diagnostics:** Settings → "Run diagnostics" (includes copyable logs + cache clear).
+Demo mode is visibly labelled and selects the in-process simulated API and
+WireGuard service; it cannot mark the real build connected.
 
-## Quick Start (Linux/macOS with Flutter)
-
-1. Install Flutter SDK and run `flutter doctor`.
-2. From the repository root:
-   - `make flutter-run`
-   - Add `--dart-define=SECUREWAVE_USE_MOCK_API=true` only for isolated demo UI work.
-3. For Linux VPN connect/disconnect, install the privileged runtime once:
-   - `make linux-runtime-install`
-   - rerun `make flutter-run`
-4. `flutter run -d macos` is UI-only; VPN tunneling is unavailable on macOS yet.
-
-## iOS Setup
-
-Follow `IOS_VPN_SETUP.md` to finish the Network Extension configuration in Xcode.
-Always open `securewave_app/ios/Runner.xcworkspace` (never `Runner.xcodeproj`).
-
-## Android Setup
-
-Follow `ANDROID_VPN_SETUP.md` to integrate the WireGuard backend.
-
-## Windows Setup
-
-Follow `WINDOWS_VPN_SETUP.md` to integrate the WireGuard backend.
-
----
-© 2026 SecureWave. All rights reserved.
+The privileged helper is installed once by the Debian package. Connect and
+disconnect do not ask for administrator credentials.

@@ -21,8 +21,9 @@ api_base="${SECUREWAVE_API_BASE_URL:-https://api.securewaveapp.com/api}"
   exit 2
 }
 
-FORCE_FLUTTER_ENV=true bash "$repo_root/scripts/prepare_flutter_env.sh" >/dev/null
 cd "$app_dir"
 flutter pub get
+demo_define="${SECUREWAVE_DEMO_MODE:-false}"
 exec flutter run -d linux \
-  --dart-define="SECUREWAVE_API_BASE_URL=$api_base"
+  --dart-define="SECUREWAVE_API_BASE_URL=$api_base" \
+  --dart-define="SECUREWAVE_DEMO_MODE=$demo_define"

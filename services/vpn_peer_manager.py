@@ -1,278 +1,84 @@
-"""
-SecureWave VPN - Peer Management Service
-Manages WireGuard peers, keys, IP allocation, and configuration generation
-"""
+"""The single-target WireGuard peer lifecycle used by Linux Beta 1."""
 
-import logging
-import os
-import secrets
-import base64
+from __future__ import annotations
+
 from datetime import datetime, timedelta
-from typing import Optional, Tuple, List, Dict
-from io import BytesIO
-from sqlalchemy.orm import Session
+
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy import func
-import qrcode
+from sqlalchemy.orm import Session
 
 from models.user import User
 from models.vpn_server import VPNServer
 from models.wireguard_peer import WireGuardPeer
 from services.wireguard_service import WireGuardService
-from utils.env_validation import demo_mode_enabled, wg_mock_mode_enabled
-
-logger = logging.getLogger(__name__)
-
-# Configuration
-DEFAULT_KEY_ROTATION_DAYS = 90
-IP_POOL_START = "10.8.0"
-IP_POOL_END = 254
 
 
 class VPNPeerManager:
-    """
-    Production-grade VPN peer management service
-    Handles peer lifecycle, key rotation, and config generation
-    """
-
-    def __init__(self, db: Session):
-        """Initialize peer manager"""
+    def __init__(self, db: Session) -> None:
         self.db = db
         self.wg_service = WireGuardService()
 
-    # ===========================
-    # PEER CREATION & MANAGEMENT
-    # ===========================
+    def _next_address(self) -> str:
+        for last_octet in range(10, 250):
+            address = f"10.8.0.{last_octet}/32"
+            if not self.db.query(WireGuardPeer).filter(
+                WireGuardPeer.ipv4_address == address
+            ).first():
+                return address
+        raise ValueError("The WireGuard address pool is full")
 
     def create_peer(
         self,
         user: User,
-        server: Optional[VPNServer] = None,
-        device_name: Optional[str] = None,
-        device_type: Optional[str] = None,
-        max_active_devices: Optional[int] = None,
-        reuse_existing_device: bool = False,
+        server: VPNServer | None = None,
+        device_name: str | None = None,
+        device_type: str | None = None,
+        **_: object,
     ) -> WireGuardPeer:
-        """
-        Create new WireGuard peer for user
-
-        Args:
-            user: User object
-            server: Optional specific server (None = any server)
-            device_name: Optional device name
-            device_type: Optional device type (windows, macos, linux, ios, android)
-
-        Returns:
-            WireGuardPeer object
-        """
+        private_key, public_key = self.wg_service.generate_keypair()
+        peer = WireGuardPeer(
+            user_id=user.id,
+            server_id=server.id if server else None,
+            public_key=public_key,
+            private_key_encrypted=self.wg_service.encrypt_private_key(private_key),
+            ipv4_address=self._next_address(),
+            device_name=device_name,
+            device_type=device_type,
+            is_active=True,
+            is_revoked=False,
+            key_version=1,
+            next_key_rotation_at=datetime.utcnow() + timedelta(days=90),
+        )
+        self.db.add(peer)
         try:
-            # On PostgreSQL this locks the account row, serializing plan-limit
-            # checks for concurrent device retries. SQLite keeps the matching
-            # unique indexes as the final safety net.
-            if max_active_devices is not None:
-                self.db.query(User).filter(User.id == user.id).with_for_update().one()
-                if reuse_existing_device and device_name:
-                    existing = self.db.query(WireGuardPeer).filter(
-                        WireGuardPeer.user_id == user.id,
-                        WireGuardPeer.is_revoked.is_(False),
-                        func.lower(WireGuardPeer.device_name) == device_name.lower(),
-                    ).first()
-                    if existing:
-                        return existing
-                active_count = self.db.query(WireGuardPeer).filter(
-                    WireGuardPeer.user_id == user.id,
-                    WireGuardPeer.is_active.is_(True),
-                    WireGuardPeer.is_revoked.is_(False),
-                ).count()
-                if active_count >= max_active_devices:
-                    raise ValueError("Device limit reached")
-
-            for _ in range(3):
-                private_key, public_key = self.wg_service.generate_keypair()
-                peer = WireGuardPeer(
-                    user_id=user.id,
-                    server_id=server.id if server else None,
-                    public_key=public_key,
-                    private_key_encrypted=self.wg_service.encrypt_private_key(private_key),
-                    ipv4_address=self._allocate_ip_address(user.id),
-                    device_name=device_name,
-                    device_type=device_type,
-                    is_active=True,
-                    is_revoked=False,
-                    key_version=1,
-                    next_key_rotation_at=datetime.utcnow() + timedelta(days=DEFAULT_KEY_ROTATION_DAYS),
-                )
-                self.db.add(peer)
-                try:
-                    self.db.commit()
-                except IntegrityError:
-                    self.db.rollback()
-                    duplicate_name = device_name and self.db.query(WireGuardPeer).filter(
-                        WireGuardPeer.user_id == user.id,
-                        func.lower(WireGuardPeer.device_name) == device_name.lower(),
-                    ).first()
-                    if duplicate_name:
-                        raise ValueError("Device name already exists")
-                    # A concurrent IP allocation lost the unique-index race;
-                    # choose again rather than issuing duplicate addressing.
-                    continue
-                self.db.refresh(peer)
-                logger.info("WireGuard peer created user_id=%s device_id=%s", user.id, peer.id)
-                return peer
-            raise ValueError("Unable to allocate a unique VPN address")
-
-        except Exception as exc:
-            logger.error("Failed to create peer exception_type=%s", type(exc).__name__)
+            self.db.commit()
+        except IntegrityError as exc:
             self.db.rollback()
-            raise
+            raise ValueError("Unable to create a unique WireGuard device") from exc
+        self.db.refresh(peer)
+        return peer
 
     def get_or_create_peer(
         self,
         user: User,
-        server: Optional[VPNServer] = None,
-        device_name: Optional[str] = None
+        server: VPNServer | None = None,
+        device_name: str | None = None,
     ) -> WireGuardPeer:
-        """
-        Get existing peer or create new one
-
-        Args:
-            user: User object
-            server: Optional server
-            device_name: Optional device name
-
-        Returns:
-            WireGuardPeer object
-        """
-        # Try to find existing active peer
         query = self.db.query(WireGuardPeer).filter(
             WireGuardPeer.user_id == user.id,
-            WireGuardPeer.is_active == True,
-            WireGuardPeer.is_revoked == False
+            WireGuardPeer.is_active.is_(True),
+            WireGuardPeer.is_revoked.is_(False),
         )
+        peer = query.order_by(WireGuardPeer.created_at.asc()).first()
+        return peer or self.create_peer(user, server, device_name, "linux")
 
-        if server:
-            query = query.filter(WireGuardPeer.server_id == server.id)
-        else:
-            query = query.filter(WireGuardPeer.server_id == None)
-
-        peer = query.first()
-
-        if peer:
-            logger.info(f"✓ Found existing peer for user {user.id}")
-            return peer
-
-        # Create new peer
-        return self.create_peer(user, server, device_name)
-
-    def list_user_peers(self, user_id: int, include_revoked: bool = False) -> List[WireGuardPeer]:
-        """
-        List all peers for a user
-
-        Args:
-            user_id: User ID
-            include_revoked: Include revoked peers
-
-        Returns:
-            List of WireGuardPeer objects
-        """
-        query = self.db.query(WireGuardPeer).filter(WireGuardPeer.user_id == user_id)
-
-        if not include_revoked:
-            query = query.filter(WireGuardPeer.is_revoked == False)
-
-        return query.order_by(WireGuardPeer.created_at.desc()).all()
-
-    def revoke_peer(self, peer_id: int) -> bool:
-        """
-        Revoke peer (invalidate keys)
-
-        Args:
-            peer_id: Peer ID
-
-        Returns:
-            True if successful
-        """
-        try:
-            peer = self.db.query(WireGuardPeer).filter(WireGuardPeer.id == peer_id).first()
-
-            if not peer:
-                return False
-
-            peer.is_revoked = True
-            peer.is_active = False
-            peer.revoked_at = datetime.utcnow()
-            self.db.commit()
-
-            logger.info(f"✓ Peer {peer_id} revoked")
-            return True
-
-        except Exception as e:
-            logger.error("Failed to revoke peer exception_type=%s", type(e).__name__)
-            self.db.rollback()
-            return False
-
-    def delete_peer(self, peer_id: int) -> bool:
-        """
-        Permanently delete peer
-
-        Args:
-            peer_id: Peer ID
-
-        Returns:
-            True if successful
-        """
-        try:
-            peer = self.db.query(WireGuardPeer).filter(WireGuardPeer.id == peer_id).first()
-
-            if not peer:
-                return False
-
-            self.db.delete(peer)
-            self.db.commit()
-
-            logger.info(f"✓ Peer {peer_id} deleted")
-            return True
-
-        except Exception as e:
-            logger.error("Failed to delete peer exception_type=%s", type(e).__name__)
-            self.db.rollback()
-            return False
-
-    # ===========================
-    # CONFIGURATION GENERATION
-    # ===========================
-
-    def generate_config(
-        self,
-        peer: WireGuardPeer,
-        server: Optional[VPNServer] = None
-    ) -> str:
-        """
-        Generate WireGuard configuration for peer
-
-        Args:
-            peer: WireGuardPeer object
-            server: Optional server (uses peer.server if not provided)
-
-        Returns:
-            Configuration string
-        """
-        if not server and peer.server_id:
+    def generate_config(self, peer: WireGuardPeer, server: VPNServer | None = None) -> str:
+        if server is None and peer.server_id:
             server = self.db.query(VPNServer).filter(VPNServer.id == peer.server_id).first()
-
-        if not server:
-            raise ValueError("No server specified")
-
-        # Decrypt private key
+        if server is None:
+            raise ValueError("No WireGuard target is assigned")
         private_key = self.wg_service.decrypt_private_key(peer.private_key_encrypted)
-
-        # Generate config
-        demo_prefix = ""
-        if demo_mode_enabled() or wg_mock_mode_enabled():
-            demo_prefix = "# SecureWave VPN DEMO CONFIG (testing only)\n"
-
-        config = (
-            demo_prefix +
+        return (
             "[Interface]\n"
             f"PrivateKey = {private_key}\n"
             f"Address = {peer.ipv4_address}\n"
@@ -280,278 +86,32 @@ class VPNPeerManager:
             "[Peer]\n"
             f"PublicKey = {server.wg_public_key}\n"
             f"Endpoint = {server.endpoint}\n"
-            "AllowedIPs = 0.0.0.0/0, ::/0\n"
+            f"AllowedIPs = {server.allowed_ips or '0.0.0.0/0, ::/0'}\n"
             "PersistentKeepalive = 25\n"
         )
 
-        return config
+    def rotate_peer_keys(self, peer_id: int, commit: bool = True) -> WireGuardPeer:
+        peer = self.db.query(WireGuardPeer).filter(WireGuardPeer.id == peer_id).one()
+        private_key, public_key = self.wg_service.generate_keypair()
+        peer.private_key_encrypted = self.wg_service.encrypt_private_key(private_key)
+        peer.public_key = public_key
+        peer.key_version = int(peer.key_version or 0) + 1
+        peer.last_key_rotation_at = datetime.utcnow()
+        if commit:
+            self.db.commit()
+            self.db.refresh(peer)
+        return peer
 
-    def generate_config_qr_code(
-        self,
-        peer: WireGuardPeer,
-        server: Optional[VPNServer] = None
-    ) -> bytes:
-        """
-        Generate QR code for configuration (mobile devices)
-
-        Args:
-            peer: WireGuardPeer object
-            server: Optional server
-
-        Returns:
-            PNG image bytes
-        """
-        config = self.generate_config(peer, server)
-
-        # Generate QR code
-        qr = qrcode.QRCode(
-            version=1,
-            error_correction=qrcode.constants.ERROR_CORRECT_L,
-            box_size=10,
-            border=4,
-        )
-        qr.add_data(config)
-        qr.make(fit=True)
-
-        img = qr.make_image(fill_color="black", back_color="white")
-
-        # Convert to bytes
-        buffer = BytesIO()
-        img.save(buffer, format="PNG")
-        return buffer.getvalue()
-
-    def generate_config_file(
-        self,
-        peer: WireGuardPeer,
-        server: Optional[VPNServer] = None,
-        filename: Optional[str] = None
-    ) -> Tuple[str, str]:
-        """
-        Generate configuration file
-
-        Args:
-            peer: WireGuardPeer object
-            server: Optional server
-            filename: Optional filename
-
-        Returns:
-            Tuple of (filename, config_content)
-        """
-        config = self.generate_config(peer, server)
-
-        if not filename:
-            server_name = server.server_id if server else "default"
-            filename = f"securewave-{server_name}.conf"
-
-        return filename, config
-
-    # ===========================
-    # KEY ROTATION
-    # ===========================
-
-    def rotate_peer_keys(self, peer_id: int, *, commit: bool = True) -> WireGuardPeer:
-        """
-        Rotate WireGuard keys for peer
-
-        Args:
-            peer_id: Peer ID
-
-        Returns:
-            Updated WireGuardPeer object
-        """
-        try:
-            peer = self.db.query(WireGuardPeer).filter(WireGuardPeer.id == peer_id).first()
-
-            if not peer:
-                raise ValueError("Peer not found")
-
-            # Generate new keypair
-            private_key, public_key = self.wg_service.generate_keypair()
-
-            # Encrypt private key
-            private_key_encrypted = self.wg_service.encrypt_private_key(private_key)
-
-            # Update peer
-            peer.private_key_encrypted = private_key_encrypted
-            peer.public_key = public_key
-            peer.key_version += 1
-            peer.last_key_rotation_at = datetime.utcnow()
-            peer.next_key_rotation_at = datetime.utcnow() + timedelta(days=DEFAULT_KEY_ROTATION_DAYS)
-
-            if commit:
-                self.db.commit()
-                self.db.refresh(peer)
-            else:
-                # Surface a duplicate public-key collision before any remote
-                # server mutation, while keeping the transaction reversible.
-                self.db.flush()
-
-            logger.info(f"✓ Keys rotated for peer {peer_id} (version {peer.key_version})")
-            return peer
-
-        except Exception as e:
-            logger.error("Failed to rotate peer keys exception_type=%s", type(e).__name__)
-            self.db.rollback()
-            raise
-
-    def rotate_all_due_keys(self) -> int:
-        """
-        Rotate keys for all peers that are due
-
-        Returns:
-            Number of peers rotated
-        """
-        try:
-            # Assigned peers require asynchronous remote add-before-remove
-            # confirmation. The background task performs that lifecycle; this
-            # synchronous compatibility helper may rotate only unassigned
-            # records without invalidating a live server peer.
-            due_peers = self.db.query(WireGuardPeer).filter(
-                WireGuardPeer.is_active == True,
-                WireGuardPeer.is_revoked == False,
-                WireGuardPeer.server_id.is_(None),
-                WireGuardPeer.next_key_rotation_at <= datetime.utcnow()
-            ).all()
-
-            count = 0
-            for peer in due_peers:
-                try:
-                    self.rotate_peer_keys(peer.id)
-                    count += 1
-                except Exception as e:
-                    logger.error(
-                        "Failed to rotate peer keys peer_id=%s exception_type=%s",
-                        peer.id,
-                        type(e).__name__,
-                    )
-                    continue
-
-            logger.info(f"✓ Rotated keys for {count} peers")
-            return count
-
-        except Exception as e:
-            logger.error("Batch key rotation failed exception_type=%s", type(e).__name__)
-            return 0
-
-    # ===========================
-    # IP ADDRESS MANAGEMENT
-    # ===========================
-
-    def _allocate_ip_address(self, user_id: int) -> str:
-        """
-        Allocate IP address for user
-
-        Args:
-            user_id: User ID
-
-        Returns:
-            IPv4 address (CIDR notation)
-        """
-        # Allocate the first available IP in the pool.
-        used_octets = set()
-        peers = self.db.query(WireGuardPeer).filter(
-            WireGuardPeer.is_revoked == False
-        ).all()
-
-        for peer in peers:
-            if not peer.ipv4_address:
-                continue
-            try:
-                ip_part = peer.ipv4_address.split("/")[0]
-                octet = int(ip_part.split(".")[-1])
-                used_octets.add(octet)
-            except (ValueError, IndexError):
-                continue
-
-        for octet in range(10, IP_POOL_END + 1):
-            if octet not in used_octets:
-                return f"{IP_POOL_START}.{octet}/32"
-
-        raise ValueError("No available IP addresses in pool")
-
-    def get_allocated_ips(self) -> List[str]:
-        """
-        Get list of all allocated IP addresses
-
-        Returns:
-            List of IP addresses
-        """
-        peers = self.db.query(WireGuardPeer).filter(
-            WireGuardPeer.is_active == True,
-            WireGuardPeer.is_revoked == False
-        ).all()
-
-        return [peer.ipv4_address for peer in peers]
-
-    # ===========================
-    # STATISTICS
-    # ===========================
-
-    def get_peer_stats(self, peer_id: int) -> Optional[Dict]:
-        """
-        Get statistics for a peer
-
-        Args:
-            peer_id: Peer ID
-
-        Returns:
-            Statistics dictionary
-        """
+    def revoke_peer(self, peer_id: int) -> bool:
         peer = self.db.query(WireGuardPeer).filter(WireGuardPeer.id == peer_id).first()
-
-        if not peer:
-            return None
-
-        return {
-            "peer_id": peer.id,
-            "user_id": peer.user_id,
-            "is_active": peer.is_active,
-            "is_revoked": peer.is_revoked,
-            "key_version": peer.key_version,
-            "days_since_rotation": peer.days_since_rotation,
-            "needs_rotation": peer.needs_rotation,
-            "is_recently_active": peer.is_recently_active,
-            "total_data_sent_mb": round(peer.total_data_sent / 1024 / 1024, 2),
-            "total_data_received_mb": round(peer.total_data_received / 1024 / 1024, 2),
-            "last_handshake_at": peer.last_handshake_at.isoformat() if peer.last_handshake_at else None,
-        }
-
-    def get_system_peer_stats(self) -> Dict:
-        """
-        Get system-wide peer statistics
-
-        Returns:
-            Statistics dictionary
-        """
-        total_peers = self.db.query(WireGuardPeer).count()
-        active_peers = self.db.query(WireGuardPeer).filter(
-            WireGuardPeer.is_active == True,
-            WireGuardPeer.is_revoked == False
-        ).count()
-
-        revoked_peers = self.db.query(WireGuardPeer).filter(
-            WireGuardPeer.is_revoked == True
-        ).count()
-
-        due_rotation = self.db.query(WireGuardPeer).filter(
-            WireGuardPeer.is_active == True,
-            WireGuardPeer.is_revoked == False,
-            WireGuardPeer.next_key_rotation_at <= datetime.utcnow()
-        ).count()
-
-        return {
-            "total_peers": total_peers,
-            "active_peers": active_peers,
-            "revoked_peers": revoked_peers,
-            "peers_due_rotation": due_rotation,
-            "ip_addresses_allocated": active_peers,
-        }
-
-
-# Singleton instance
-_peer_manager = None
+        if peer is None:
+            return False
+        peer.is_active = False
+        peer.is_revoked = True
+        peer.revoked_at = datetime.utcnow()
+        self.db.commit()
+        return True
 
 
 def get_peer_manager(db: Session) -> VPNPeerManager:
-    """Get peer manager instance"""
     return VPNPeerManager(db)

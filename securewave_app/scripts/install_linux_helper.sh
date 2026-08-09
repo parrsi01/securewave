@@ -20,7 +20,7 @@ die() {
 command -v systemctl >/dev/null 2>&1 || die "systemctl is required"
 [[ -d /run/systemd/system ]] || die "a running systemd system service manager is required"
 
-for required in wg wg-quick ip iptables nft systemctl; do
+for required in wg wg-quick ip iptables ip6tables systemctl; do
   command -v "$required" >/dev/null 2>&1 ||
     die "$required is missing; install the package dependencies before installing the helper"
 done

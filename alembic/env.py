@@ -18,26 +18,9 @@ load_environment_dotenv()
 from database.base import Base  # noqa: E402
 from database.session import DATABASE_URL  # noqa: E402
 
-# Import every ORM module so migration checks/reconciliation use the same
-# metadata as the runtime.  Keeping this explicit avoids a hidden import-time
-# schema creation path.
-from models import (  # noqa: E402,F401
-    audit_log,
-    email_log,
-    gdpr,
-    invoice,
-    ikev2_credential,
-    openvpn_credential,
-    subscription,
-    support_ticket,
-    usage_analytics,
-    user,
-    vpn_connection,
-    vpn_demo_session,
-    vpn_server,
-    vpn_usage_event,
-    wireguard_peer,
-)
+# Only the Beta 1 ORM is active. Historical tables remain represented by the
+# immutable Alembic revisions above the current schema head.
+from models import user, vpn_server, wireguard_peer  # noqa: E402,F401
 
 config = context.config
 fileConfig(config.config_file_name)

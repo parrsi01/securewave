@@ -4,44 +4,20 @@ class SecureStorage {
   static const _storage = FlutterSecureStorage();
 
   static const _accessTokenKey = 'access_token';
-  static const _refreshTokenKey = 'refresh_token';
-  static const selectedServerKey = 'selected_server_id';
-  static const resetSessionDoneKey = 'reset_session_done';
-  static const vpnProtocolKey = 'vpn_protocol';
-  static const deviceInstallIdKey = 'device_install_id';
-  static const deviceNameKey = 'device_name';
   static const vpnDeviceIdKey = 'vpn_device_id';
-  static const vpnProfileConfigKey = 'vpn_profile_wireguard_config';
-  static const vpnProfileExpiresAtKey = 'vpn_profile_expires_at';
 
-  static String vpnProfileConfigKeyFor(String protocol) {
-    return 'vpn_profile_${protocol}_config';
-  }
-
-  Future<void> saveTokens(
-      {required String accessToken, String? refreshToken}) async {
+  Future<void> saveToken(String accessToken) async {
     await _storage.write(key: _accessTokenKey, value: accessToken);
-    if (refreshToken != null) {
-      await _storage.write(key: _refreshTokenKey, value: refreshToken);
-    }
   }
 
   Future<String?> getAccessToken() => _storage.read(key: _accessTokenKey);
 
-  Future<String?> getRefreshToken() => _storage.read(key: _refreshTokenKey);
-
-  Future<void> clearTokens() async {
+  Future<void> clearToken() async {
     await _storage.delete(key: _accessTokenKey);
-    await _storage.delete(key: _refreshTokenKey);
   }
 
   Future<void> clearVpnRuntimeState() async {
-    await _storage.delete(key: selectedServerKey);
     await _storage.delete(key: vpnDeviceIdKey);
-    await _storage.delete(key: vpnProfileExpiresAtKey);
-    await _storage.delete(key: vpnProfileConfigKeyFor('wireguard'));
-    await _storage.delete(key: vpnProfileConfigKeyFor('openvpn'));
-    await _storage.delete(key: vpnProfileConfigKeyFor('ikev2'));
   }
 
   Future<void> saveString(String key, String value) =>

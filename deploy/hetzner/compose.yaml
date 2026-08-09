@@ -14,53 +14,25 @@ services:
       timeout: 5s
       retries: 5
 
-  redis:
-    image: redis:7-alpine
-    restart: unless-stopped
-    command: ["redis-server", "--appendonly", "yes"]
-    volumes:
-      - securewave-redis:/data
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
-  app:
+  api:
     image: ${SECUREWAVE_IMAGE:?SECUREWAVE_IMAGE is required}
     restart: unless-stopped
     env_file:
-      - ${SECUREWAVE_ENV_FILE:-.env}
+      - ${SECUREWAVE_ENV_FILE:-.env.production}
     environment:
       ENVIRONMENT: production
       PORT: "8080"
-      DEMO_MODE: "false"
-      WG_MOCK_MODE: "false"
       DATABASE_URL: postgresql+psycopg2://${POSTGRES_USER:-securewave}:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}@postgres:5432/${POSTGRES_DB:-securewave}
-      REDIS_URL: redis://redis:6379/0
     depends_on:
       postgres:
         condition: service_healthy
-      redis:
-        condition: service_healthy
     ports:
       - "127.0.0.1:8080:8080"
-    volumes:
-      - securewave-data:/app/data
-      - securewave-wg:/wg
     healthcheck:
-      test:
-        [
-          "CMD-SHELL",
-          "curl -fsS http://localhost:8080/api/health >/dev/null && curl -fsS http://localhost:8080/downloads/manifest.json >/dev/null",
-        ]
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8080/api/health', timeout=5)"]
       interval: 30s
       timeout: 10s
-      start_period: 40s
       retries: 3
 
 volumes:
   securewave-postgres:
-  securewave-redis:
-  securewave-data:
-  securewave-wg:

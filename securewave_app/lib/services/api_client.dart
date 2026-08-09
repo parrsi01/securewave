@@ -2,716 +2,110 @@ import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../core/config/app_config.dart';
-import '../core/logging/app_logger.dart';
-import '../core/models/server_region.dart';
 import '../core/models/user_account.dart';
-import '../core/models/user_plan.dart';
-import '../core/services/auth_session.dart';
 import '../core/models/vpn_profile.dart';
-import '../core/models/vpn_protocol.dart';
-import '../core/models/vpn_runtime_policy.dart';
-import '../core/models/protocol_availability.dart';
+import '../core/services/auth_session.dart';
 
 final apiClientProvider = Provider<ApiClient>((ref) {
-  final config = ref.watch(appConfigProvider);
-  final session = ref.watch(authSessionProvider);
-  return ApiClient(config, session: session);
+  return ApiClient(
+    ref.watch(appConfigProvider),
+    session: ref.watch(authSessionProvider),
+  );
 });
 
 class ApiClient {
-  static const openVpnRuntimeContract = 'openvpn-evidence-v2';
-  ApiClient(this._config, {AuthSession? session, Dio? dio}) {
-    _dio = dio ??
-        Dio(
-          BaseOptions(
-            baseUrl: _config.apiBaseUrl,
-            headers: {'Content-Type': 'application/json'},
-          ),
-        );
-    // Handle all HTTP responses in the interceptor below. This guarantees an
-    // expired token cannot leave the shell authenticated just because Dio
-    // converted the 401 into an error before application code sees it.
+  ApiClient(this._config, {required AuthSession session, Dio? dio}) : _session = session {
+    _dio = dio ?? Dio(BaseOptions(baseUrl: _config.apiBaseUrl, headers: const {'Content-Type': 'application/json'}));
     _dio.options.validateStatus = (_) => true;
-    if (session != null) {
-      // Insert first so failures raised by later transport/interceptor layers
-      // still return through this error handler.
-      _dio.interceptors.insert(
-        0,
-        InterceptorsWrapper(
-          onRequest: (options, handler) {
-            final token = session.accessToken;
-            if (token != null && token.isNotEmpty) {
-              options.headers['Authorization'] = 'Bearer $token';
-            }
-            return handler.next(options);
-          },
-          onResponse: (response, handler) async {
-            final status = response.statusCode ?? 0;
-            if (status == 401) {
-              await _expireSession(session);
-            }
-            if (status >= 400) {
-              return handler.reject(
-                DioException(
-                  requestOptions: response.requestOptions,
-                  response: response,
-                  type: DioExceptionType.badResponse,
-                  // Keep authentication failures diagnosable without copying
-                  // response bodies, tokens, or request data into logs.
-                  message: 'HTTP $status',
-                ),
-              );
-            }
-            return handler.next(response);
-          },
-          onError: (error, handler) async {
-            // A restored token only proves that secure storage was readable;
-            // it does not prove that the token is still valid. Without this
-            // recovery path the app keeps rendering the authenticated shell
-            // while every backend-backed provider fails with 401.
-            if (error.response?.statusCode == 401) {
-              await _expireSession(session);
-            }
-            return handler.next(error);
-          },
-        ),
-      );
-    }
+    _dio.interceptors.add(InterceptorsWrapper(
+      onRequest: (options, handler) {
+        final token = _session.accessToken;
+        if (token != null && token.isNotEmpty) options.headers['Authorization'] = 'Bearer $token';
+        handler.next(options);
+      },
+      onResponse: (response, handler) async {
+        if (response.statusCode == 401) await _session.clearSession();
+        if ((response.statusCode ?? 0) >= 400) {
+          handler.reject(DioException(requestOptions: response.requestOptions, response: response, type: DioExceptionType.badResponse, message: 'HTTP ${response.statusCode}'));
+          return;
+        }
+        handler.next(response);
+      },
+    ));
   }
 
   final AppConfig _config;
+  final AuthSession _session;
   late final Dio _dio;
-  List<ServerRegion>? _cachedServers;
-  DateTime? _serversFetchedAt;
-  UserPlan? _cachedPlan;
-  DateTime? _planFetchedAt;
-  bool _mockNoticeLogged = false;
-  Future<void>? _sessionExpiryInFlight;
-
-  static const Duration _serversCacheTtl = Duration(minutes: 5);
-  static const Duration _planCacheTtl = Duration(minutes: 2);
-
-  Future<void> _expireSession(AuthSession session) {
-    return _sessionExpiryInFlight ??= session.clearSession().whenComplete(() {
-      _sessionExpiryInFlight = null;
-    });
-  }
-
-  Future<List<ServerRegion>> fetchServers({bool forceRefresh = false}) async {
-    if (!forceRefresh && _cachedServers != null && _serversFetchedAt != null) {
-      final age = DateTime.now().difference(_serversFetchedAt!);
-      if (age < _serversCacheTtl) {
-        return _cachedServers!;
-      }
-    }
-    if (_config.useMockApi) {
-      _logMockApi();
-      final data = _mockServers();
-      _cachedServers = data;
-      _serversFetchedAt = DateTime.now();
-      return data;
-    }
-    try {
-      final response = await _dio.get<Map<String, dynamic>>('/vpn/servers');
-      final data = response.data ?? <String, dynamic>{};
-      final rawList =
-          data['servers'] is List ? data['servers'] as List : <dynamic>[];
-      final servers = rawList
-          .whereType<Map>()
-          .map((entry) =>
-              ServerRegion.fromJson(Map<String, dynamic>.from(entry)))
-          .toList();
-      _cachedServers = servers;
-      _serversFetchedAt = DateTime.now();
-      return servers;
-    } catch (error, stackTrace) {
-      if (_config.useMockApi) {
-        _logMockApi();
-        AppLogger.warning(
-            'Server list unavailable; using mock regions (mock API mode).');
-        AppLogger.error('Server list error',
-            error: error, stackTrace: stackTrace);
-        final data = _mockServers();
-        _cachedServers = data;
-        _serversFetchedAt = DateTime.now();
-        return data;
-      }
-      AppLogger.error('Server list error',
-          error: error, stackTrace: stackTrace);
-      rethrow;
-    }
-  }
-
-  Future<UserPlan> fetchUserPlan({bool forceRefresh = false}) async {
-    if (!forceRefresh && _cachedPlan != null && _planFetchedAt != null) {
-      final age = DateTime.now().difference(_planFetchedAt!);
-      if (age < _planCacheTtl) {
-        return _cachedPlan!;
-      }
-    }
-    if (_config.useMockApi) {
-      _logMockApi();
-      final plan = _mockPlan();
-      _cachedPlan = plan;
-      _planFetchedAt = DateTime.now();
-      return plan;
-    }
-    try {
-      final response = await _dio.get<Map<String, dynamic>>('/user/plan');
-      final data = response.data ?? <String, dynamic>{};
-      final plan = UserPlan.fromJson(data);
-      _cachedPlan = plan;
-      _planFetchedAt = DateTime.now();
-      return plan;
-    } catch (error, stackTrace) {
-      if (_config.useMockApi) {
-        _logMockApi();
-        AppLogger.warning(
-            'Plan lookup failed; using mock plan (mock API mode).');
-        AppLogger.error('Plan error', error: error, stackTrace: stackTrace);
-        final plan = _mockPlan();
-        _cachedPlan = plan;
-        _planFetchedAt = DateTime.now();
-        return plan;
-      }
-      AppLogger.error('Plan error', error: error, stackTrace: stackTrace);
-      rethrow;
-    }
-  }
 
   Future<UserAccount> fetchCurrentUser() async {
-    if (_config.useMockApi) {
-      _logMockApi();
-      return const UserAccount(
-        id: 0,
-        email: 'demo@securewave.local',
-        isActive: true,
-        emailVerified: true,
-        has2fa: false,
-        subscriptionStatus: 'basic',
-      );
+    if (_config.demoMode) {
+      return const UserAccount(id: 1, email: 'demo@securewave.local', isActive: true);
     }
-    try {
-      final response = await _dio.get<Map<String, dynamic>>('/auth/me');
-      final data = response.data ?? <String, dynamic>{};
-      return UserAccount.fromJson(data);
-    } catch (error, stackTrace) {
-      AppLogger.error('Current user lookup failed',
-          error: error, stackTrace: stackTrace);
-      rethrow;
-    }
+    final response = await _dio.get<Map<String, dynamic>>('/auth/me');
+    return UserAccount.fromJson(response.data ?? const {});
   }
 
-  Future<AuthTokens> login(
-      {required String email, required String password}) async {
-    if (_config.useMockApi) {
-      _logMockApi();
-      return _mockTokens(email);
-    }
-    try {
-      final response =
-          await _dio.post<Map<String, dynamic>>('/auth/login', data: {
-        'email': email,
-        'password': password,
-      });
-      final data = response.data ?? <String, dynamic>{};
-      final accessToken = data['access_token']?.toString();
-      if (accessToken == null || accessToken.isEmpty) {
-        if (data['requires_2fa'] == true) {
-          throw StateError(
-              'Two-factor authentication is required for this account.');
-        }
-        throw StateError('Login response did not include an access token.');
-      }
-      return AuthTokens(
-        accessToken: accessToken,
-        refreshToken: data['refresh_token']?.toString(),
-      );
-    } catch (error, stackTrace) {
-      AppLogger.error('Login error', error: error, stackTrace: stackTrace);
-      rethrow;
-    }
+  Future<SecureWaveTarget> fetchTarget() async {
+    if (_config.demoMode) return const SecureWaveTarget(name: 'SecureWave Beta', location: 'Simulated target', health: 'healthy');
+    final response = await _dio.get<Map<String, dynamic>>('/vpn/target');
+    return SecureWaveTarget.fromJson(response.data ?? const {});
   }
 
-  Future<AuthTokens?> register(
-      {required String email, required String password}) async {
-    if (_config.useMockApi) {
-      _logMockApi();
-      return _mockTokens(email);
-    }
-    try {
-      final response =
-          await _dio.post<Map<String, dynamic>>('/auth/register', data: {
-        'email': email,
-        'password': password,
-        'password_confirm': password,
-      });
-      final data = response.data ?? <String, dynamic>{};
-      final accessToken = data['access_token']?.toString();
-      if (accessToken == null || accessToken.isEmpty) {
-        return null;
-      }
-      return AuthTokens(
-        accessToken: accessToken,
-        refreshToken: data['refresh_token']?.toString(),
-      );
-    } catch (error, stackTrace) {
-      AppLogger.error('Registration error',
-          error: error, stackTrace: stackTrace);
-      rethrow;
-    }
+  Future<AuthTokens> login({required String email, required String password}) async {
+    if (_config.demoMode) return _demoTokens(email);
+    final response = await _dio.post<Map<String, dynamic>>('/auth/login', data: {'email': email, 'password': password});
+    return _tokensFromResponse(response.data);
   }
 
-  Future<Map<VpnProtocol, ProtocolAvailability>> fetchProtocolAvailability({
-    String? deviceType,
-  }) async {
-    if (_config.useMockApi) {
-      _logMockApi();
-      return {
-        VpnProtocol.wireGuard: const ProtocolAvailability(
-          protocol: VpnProtocol.wireGuard,
-          enabled: true,
-          serverEnabled: true,
-          platformSupported: true,
-        ),
-        VpnProtocol.openVpn: const ProtocolAvailability(
-          protocol: VpnProtocol.openVpn,
-          enabled: false,
-          serverEnabled: false,
-          platformSupported: true,
-          reason: 'OpenVPN runtime evidence is not configured in mock mode.',
-        ),
-        VpnProtocol.ikev2: ProtocolAvailability(
-          protocol: VpnProtocol.ikev2,
-          enabled: false,
-          serverEnabled: false,
-          platformSupported: false,
-          reason: VpnRuntimePolicy.unavailableReason(VpnProtocol.ikev2),
-        ),
-      };
-    }
-    try {
-      final response = await _dio.get<Map<String, dynamic>>(
-        '/vpn/protocols',
-        queryParameters: {
-          if (deviceType != null && deviceType.isNotEmpty)
-            'device_type': deviceType,
-        },
-      );
-      final rawProtocols = response.data?['protocols'];
-      if (rawProtocols is! List) {
-        throw StateError('Protocol availability response was malformed.');
-      }
-      final availability = <VpnProtocol, ProtocolAvailability>{};
-      for (final entry in rawProtocols.whereType<Map>()) {
-        final item = ProtocolAvailability.fromJson(
-          Map<String, dynamic>.from(entry),
-        );
-        availability[item.protocol] = item;
-      }
-      final runtimeContract = response.data?['runtime_contract']?.toString();
-      if (runtimeContract != openVpnRuntimeContract) {
-        availability[VpnProtocol.openVpn] = const ProtocolAvailability(
-          protocol: VpnProtocol.openVpn,
-          enabled: false,
-          serverEnabled: false,
-          platformSupported: true,
-          reason: 'OpenVPN backend evidence contract is unavailable or stale.',
-        );
-      }
-      // IKEv2 is never enabled from server metadata or legacy API payloads.
-      availability[VpnProtocol.ikev2] = ProtocolAvailability(
-        protocol: VpnProtocol.ikev2,
-        enabled: false,
-        serverEnabled: false,
-        platformSupported: false,
-        reason: VpnRuntimePolicy.unavailableReason(VpnProtocol.ikev2),
-      );
-      return availability;
-    } catch (error, stackTrace) {
-      AppLogger.error('Protocol availability lookup failed',
-          error: error, stackTrace: stackTrace);
-      rethrow;
-    }
+  Future<AuthTokens> register({required String email, required String password}) async {
+    if (_config.demoMode) return _demoTokens(email);
+    final response = await _dio.post<Map<String, dynamic>>('/auth/register', data: {'email': email, 'password': password});
+    return _tokensFromResponse(response.data);
   }
 
-  AuthTokens _mockTokens(String email) {
-    final handle = email.split('@').first;
-    return AuthTokens(
-        accessToken: 'mock-token-$handle',
-        refreshToken: 'mock-refresh-$handle');
-  }
-
-  List<ServerRegion> _mockServers() {
-    return const [
-      ServerRegion(
-          id: 'us-chi',
-          name: 'Chicago, IL',
-          country: 'United States',
-          latencyMs: 28,
-          status: 'running',
-          healthStatus: 'available',
-          supportedProtocols: ['wireguard']),
-      ServerRegion(
-          id: 'us-nyc',
-          name: 'New York, NY',
-          country: 'United States',
-          latencyMs: 42,
-          status: 'running',
-          healthStatus: 'available',
-          supportedProtocols: ['wireguard']),
-      ServerRegion(
-          id: 'uk-lon',
-          name: 'London',
-          country: 'United Kingdom',
-          latencyMs: 75,
-          status: 'running',
-          healthStatus: 'available',
-          supportedProtocols: ['wireguard']),
-      ServerRegion(
-          id: 'de-fra',
-          name: 'Frankfurt',
-          country: 'Germany',
-          latencyMs: 58,
-          status: 'running',
-          healthStatus: 'available',
-          supportedProtocols: ['wireguard']),
-      ServerRegion(
-          id: 'sg-sin',
-          name: 'Singapore',
-          country: 'Singapore',
-          latencyMs: 91,
-          status: 'running',
-          healthStatus: 'available',
-          supportedProtocols: ['wireguard']),
-    ];
-  }
-
-  UserPlan _mockPlan() {
-    return const UserPlan(
-      name: 'Free',
-      isPremium: false,
-      dataCapGb: 5,
-      usedGb: 1.6,
-    );
-  }
-
-  Future<VpnProfile> fetchVpnProfile({
-    int? deviceId,
-    required String deviceName,
-    required String deviceType,
-    required VpnProtocol protocol,
-    String? serverId,
-    bool forceRotateKeys = false,
-  }) async {
-    if (_config.useMockApi) {
-      _logMockApi();
-      return VpnProfile.fromJson({
-        'device_id': 0,
-        'device_name': deviceName,
-        'device_type': deviceType,
-        'protocol': 'wireguard',
-        'server_id': serverId ?? 'mock',
-        'server_location': 'Mock',
-        'issued_at': DateTime.now().toIso8601String(),
-        'expires_at':
-            DateTime.now().add(const Duration(hours: 1)).toIso8601String(),
-        'wireguard_config': _mockVpnConfig(),
-        'openvpn_config': '',
-        'ikev2_config': '',
-        'dns': {
-          'servers': ['94.140.14.14', '94.140.15.15'],
-          'ad_malware_blocking': 'on',
-          'enforcement': 'config',
-        },
-        'kill_switch': {
-          'mode': 'enabled',
-          'enforcement': 'best effort',
-        },
-        'peer_registered': true,
-        'registration_status': 'mock',
-      });
+  Future<VpnProfile> fetchVpnProfile({required String deviceName, required String deviceType, int? deviceId}) async {
+    if (_config.demoMode) {
+      return const VpnProfile(deviceId: 1, deviceName: 'Demo Linux', deviceType: 'linux', serverId: 'demo', serverLocation: 'Simulated target', wireguardConfig: '# DEMO ONLY\n');
     }
-    try {
-      final profileServerLabel =
-          serverId == null || serverId.isEmpty ? 'auto-select' : serverId;
-      final profileDeviceIdLabel =
-          deviceId != null && deviceId > 0 ? 'present' : 'none';
-      AppLogger.info(
-        'VPN profile request: protocol=${vpnProtocolStorageValue(protocol)} '
-        'device_type=$deviceType '
-        'server=$profileServerLabel '
-        'device_id=$profileDeviceIdLabel '
-        'api_base=${_config.apiBaseUrl}',
-      );
-      final response = await _dio.post<Map<String, dynamic>>(
-        '/vpn/profile',
-        data: {
-          if (deviceId != null && deviceId > 0) 'device_id': deviceId,
-          'device_name': deviceName,
-          'device_type': deviceType,
-          'protocol': vpnProtocolStorageValue(protocol),
-          if (serverId != null && serverId.isNotEmpty) 'server_id': serverId,
-          if (forceRotateKeys) 'force_rotate_keys': true,
-        },
-      );
-      final data = response.data ?? <String, dynamic>{};
-      return VpnProfile.fromJson(data);
-    } catch (error, stackTrace) {
-      AppLogger.error('VPN profile fetch failed',
-          error: error, stackTrace: stackTrace);
-      rethrow;
-    }
-  }
-
-  /// Find the single active device that can safely be reused after an app
-  /// reinstall. Device names are regenerated locally, so matching by name
-  /// alone can incorrectly hit the account's device limit.
-  Future<int?> findReusableDeviceId({required String deviceType}) async {
-    if (_config.useMockApi) return null;
-    try {
-      final response = await _dio.get<Map<String, dynamic>>('/vpn/devices');
-      final rawDevices = response.data?['devices'];
-      if (rawDevices is! List) return null;
-      final active = rawDevices
-          .whereType<Map>()
-          .map((item) => Map<String, dynamic>.from(item))
-          .where((item) {
-            final type = item['device_type']?.toString().toLowerCase();
-            return item['is_active'] == true &&
-                item['is_revoked'] != true &&
-                (type == null || type == deviceType.toLowerCase());
-          })
-          .map((item) => int.tryParse(item['id']?.toString() ?? ''))
-          .whereType<int>()
-          .toList();
-      return active.length == 1 ? active.single : null;
-    } catch (error, stackTrace) {
-      AppLogger.warning(
-        'Reusable VPN device lookup failed.',
-      );
-      AppLogger.error(
-        'Reusable VPN device lookup error',
-        error: error,
-        stackTrace: stackTrace,
-      );
-      return null;
-    }
-  }
-
-  /// Capture a non-identifying pre-connect source observation.
-  ///
-  /// The backend returns an HMAC fingerprint, never the observed public IP.
-  /// It is consumed once by [verifyVpnEgress] after the OpenVPN helper has
-  /// established the tunnel.
-  Future<String> captureVpnEgressBaseline() async {
-    if (_config.useMockApi) {
-      throw StateError('Mock API cannot certify a VPN egress path.');
-    }
-    final response =
-        await _dio.post<Map<String, dynamic>>('/vpn/egress/baseline');
-    final fingerprint = response.data?['fingerprint']?.toString() ?? '';
-    if (!RegExp(r'^[a-f0-9]{64}$').hasMatch(fingerprint)) {
-      throw StateError('VPN egress baseline response was malformed.');
-    }
-    return fingerprint;
-  }
-
-  /// Verify that OpenVPN moved HTTPS egress to its selected server.
-  ///
-  /// This is intentionally an authenticated control-plane request after the
-  /// native tunnel is up. A false result is a failed proof, never a warning.
-  Future<bool> verifyVpnEgress({
-    required String serverId,
-    required int deviceId,
-    required VpnProtocol protocol,
-    required String baselineFingerprint,
-    String? externalBaselineIp,
-    String? externalExitIp,
-  }) async {
-    if (_config.useMockApi) return false;
-    final response = await _dio.post<Map<String, dynamic>>(
-      '/vpn/egress/verify',
-      data: {
-        'server_id': serverId,
-        'device_id': deviceId,
-        'protocol': vpnProtocolStorageValue(protocol),
-        'baseline_fingerprint': baselineFingerprint,
-        if (externalBaselineIp != null)
-          'external_baseline_ip': externalBaselineIp,
-        if (externalExitIp != null) 'external_exit_ip': externalExitIp,
-      },
-    );
-    return response.data?['verified'] == true;
-  }
-
-  /// Observe the public IPv4 address through an independent HTTPS endpoint.
-  ///
-  /// This is the fallback proof for a single-host deployment where the VPN
-  /// endpoint and control-plane API share one IP. That endpoint must remain
-  /// outside the tunnel so the VPN transport can stay alive, which makes an
-  /// API-to-itself egress comparison impossible.
-  Future<String> captureExternalExitIp() async {
-    if (_config.useMockApi) {
-      throw StateError('Mock API cannot certify a VPN egress path.');
-    }
-    final response = await Dio(
-      BaseOptions(
-        connectTimeout: const Duration(seconds: 8),
-        receiveTimeout: const Duration(seconds: 8),
-        responseType: ResponseType.plain,
-      ),
-    ).get<String>('https://api.ipify.org');
-    final address = (response.data ?? '').trim();
-    final octets = address.split('.');
-    final valid = octets.length == 4 &&
-        octets.every((part) {
-          final value = int.tryParse(part);
-          return value != null && value >= 0 && value <= 255;
-        });
-    if (!valid) {
-      throw StateError('External VPN egress response was malformed.');
-    }
-    return address;
-  }
-
-  /// Notify the backend that the VPN tunnel has been established.
-  ///
-  /// In demo/mock mode this triggers the demo VPN session on the server so
-  /// that the dashboard and status endpoints reflect a connected state.
-  Future<void> notifyVpnConnected({
-    String? serverId,
-    VpnProtocol? protocol,
-  }) async {
-    if (_config.useMockApi) {
-      _logMockApi();
-      return;
-    }
-    try {
-      await _dio.post<Map<String, dynamic>>(
-        '/vpn/connect',
-        data: {
-          if (serverId != null && serverId.isNotEmpty) ...{
-            'server_id': serverId,
-            'region': serverId,
-          },
-          if (protocol != null) 'protocol': vpnProtocolStorageValue(protocol),
-        },
-      );
-    } catch (error, stackTrace) {
-      AppLogger.warning('Backend VPN connect notification failed (non-fatal).');
-      AppLogger.error('VPN connect notify error',
-          error: error, stackTrace: stackTrace);
-    }
-  }
-
-  /// Notify the backend that the VPN tunnel has been torn down.
-  Future<void> notifyVpnDisconnected() async {
-    if (_config.useMockApi) {
-      _logMockApi();
-      return;
-    }
-    try {
-      await _dio.post<Map<String, dynamic>>('/vpn/disconnect');
-    } catch (error, stackTrace) {
-      AppLogger.warning(
-          'Backend VPN disconnect notification failed (non-fatal).');
-      AppLogger.error('VPN disconnect notify error',
-          error: error, stackTrace: stackTrace);
-    }
+    final response = await _dio.post<Map<String, dynamic>>('/vpn/profile', data: {
+      'device_name': deviceName,
+      'device_type': deviceType,
+      if (deviceId != null) 'device_id': deviceId,
+    });
+    return VpnProfile.fromJson(response.data ?? const {});
   }
 
   Future<void> logout() async {
-    if (_config.useMockApi) {
-      _logMockApi();
-      return;
-    }
-    try {
-      await _dio.post<Map<String, dynamic>>('/auth/logout');
-    } catch (error, stackTrace) {
-      AppLogger.warning(
-          'Backend logout failed; local session will still clear.');
-      AppLogger.error('Logout error', error: error, stackTrace: stackTrace);
-      rethrow;
-    }
+    if (_config.demoMode) return;
+    await _dio.post<Map<String, dynamic>>('/auth/logout');
   }
 
-  Future<int?> startUsageSession({
-    required int deviceId,
-    required String serverId,
-    required VpnProtocol protocol,
-    required String idempotencyKey,
-  }) async {
-    if (_config.useMockApi) return null;
-    final response = await _dio.post<Map<String, dynamic>>(
-      '/vpn/usage/sessions/start',
-      data: {
-        'device_id': deviceId,
-        'server_id': serverId,
-        'protocol': vpnProtocolStorageValue(protocol),
-        'idempotency_key': idempotencyKey,
-      },
-    );
-    final sessionId = response.data?['session_id'];
-    return sessionId is num ? sessionId.toInt() : int.tryParse('$sessionId');
+  AuthTokens _tokensFromResponse(Map<String, dynamic>? data) {
+    final token = data?['access_token']?.toString();
+    if (token == null || token.isEmpty) throw StateError('Authentication response did not include an access token.');
+    return AuthTokens(accessToken: token);
   }
 
-  Future<void> reportUsage({
-    required int sessionId,
-    required int sequence,
-    required int bytesSent,
-    required int bytesReceived,
-    required String idempotencyKey,
-  }) async {
-    if (_config.useMockApi) return;
-    await _dio.post<Map<String, dynamic>>(
-      '/vpn/usage/sessions/$sessionId/increment',
-      data: {
-        'sequence': sequence,
-        'bytes_sent': bytesSent,
-        'bytes_received': bytesReceived,
-        'idempotency_key': idempotencyKey,
-      },
-    );
-  }
-
-  Future<void> finalizeUsageSession({
-    required int sessionId,
-    required String idempotencyKey,
-    String reason = 'client_disconnect',
-  }) async {
-    if (_config.useMockApi) return;
-    await _dio.post<Map<String, dynamic>>(
-      '/vpn/usage/sessions/$sessionId/disconnect',
-      data: {'idempotency_key': idempotencyKey, 'reason': reason},
-    );
-  }
-
-  void _logMockApi() {
-    if (_mockNoticeLogged) return;
-    _mockNoticeLogged = true;
-    AppLogger.warning(
-        'Mock API enabled: returning demo data instead of live endpoints.');
-  }
-
-  String _mockVpnConfig() {
-    return '''
-[Interface]
-PrivateKey = DEMO_PRIVATE_KEY
-Address = 10.10.0.2/32
-DNS = 1.1.1.1
-
-[Peer]
-PublicKey = DEMO_PUBLIC_KEY
-AllowedIPs = 0.0.0.0/0
-Endpoint = demo.securewave.invalid:51820
-''';
-  }
+  AuthTokens _demoTokens(String email) => AuthTokens(accessToken: 'demo-session-${email.trim().toLowerCase()}');
 }
 
 class AuthTokens {
-  const AuthTokens({required this.accessToken, this.refreshToken});
+  const AuthTokens({required this.accessToken});
 
   final String accessToken;
-  final String? refreshToken;
+}
+
+class SecureWaveTarget {
+  const SecureWaveTarget({required this.name, required this.location, required this.health});
+
+  final String name;
+  final String location;
+  final String health;
+
+  factory SecureWaveTarget.fromJson(Map<String, dynamic> json) => SecureWaveTarget(
+    name: json['name']?.toString() ?? 'SecureWave Beta',
+    location: json['location']?.toString() ?? 'SecureWave Beta',
+    health: json['health']?.toString() ?? 'unknown',
+  );
 }

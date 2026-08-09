@@ -16,6 +16,22 @@ for command in flutter wg wg-quick dpkg-deb dpkg sha256sum; do
   require_command "$command"
 done
 
+# Keep package metadata reproducible. Flutter bundle contents are copied into
+# the staging tree, so normalize every filesystem timestamp before dpkg-deb
+# creates the control/data archives. SOURCE_DATE_EPOCH may be supplied by a
+# release job; local builds use the checked-out commit timestamp.
+source_date_epoch="${SOURCE_DATE_EPOCH:-}"
+if [[ -z "$source_date_epoch" ]]; then
+  source_date_epoch="$(git -C "$REPO_ROOT" show -s --format=%ct HEAD 2>/dev/null || printf '0')"
+fi
+if [[ ! "$source_date_epoch" =~ ^[0-9]+$ ]]; then
+  echo "ERROR: SOURCE_DATE_EPOCH must be an integer Unix timestamp." >&2
+  exit 1
+fi
+export SOURCE_DATE_EPOCH="$source_date_epoch"
+export TZ=UTC
+export LC_ALL=C
+
 api_url="${SECUREWAVE_API_BASE_URL:-https://api.securewaveapp.com/api}"
 if [[ "$api_url" == *"localhost"* || "$api_url" == *"127.0.0.1"* || "$api_url" == *"<"* ]]; then
   echo "ERROR: refuse to package a local or placeholder API URL: $api_url" >&2
@@ -86,7 +102,7 @@ Version: $version
 Section: net
 Priority: optional
 Architecture: $arch
-Depends: wireguard-tools, iproute2, iptables, nftables, systemd, systemd-resolved
+Depends: wireguard-tools, iproute2, iptables, systemd, systemd-resolved
 Maintainer: SecureWave Release <release@securewave.app>
 Description: SecureWave WireGuard Linux beta client
  A small Linux beta client with one authenticated WireGuard runtime.
@@ -256,16 +272,21 @@ POSTRM
 chmod 0755 "$staging_dir/DEBIAN/preinst" "$staging_dir/DEBIAN/postinst" \
   "$staging_dir/DEBIAN/prerm" "$staging_dir/DEBIAN/postrm"
 
+# dpkg-deb preserves mtimes from the staging tree. Normalize files and
+# directories alike so repeated builds from the same source are byte-stable.
+find "$staging_dir" -exec touch -h -d "@$SOURCE_DATE_EPOCH" {} +
+
 mkdir -p "$output_dir"
 dpkg-deb --root-owner-group --build "$staging_dir" "$output_file" >/dev/null
 sha256sum "$output_file" > "$output_file.sha256"
 if git -C "$REPO_ROOT" rev-parse HEAD >/dev/null 2>&1; then
   source_commit="$(git -C "$REPO_ROOT" rev-parse HEAD)"
-  if [[ -n "$(git -C "$REPO_ROOT" status --porcelain --untracked-files=all -- . ':!securewave_app/build')" ]]; then
-    tracked_diff_sha256="$({ git -C "$REPO_ROOT" diff --binary HEAD -- . ':!securewave_app/build'; git -C "$REPO_ROOT" diff --binary --cached -- . ':!securewave_app/build'; } | sha256sum | awk '{print $1}')"
+  if [[ -n "$(git -C "$REPO_ROOT" status --porcelain --untracked-files=all -- . ':!securewave_app/build' ':!static/downloads/*.deb')" ]]; then
+    tracked_diff_sha256="$({ git -C "$REPO_ROOT" diff --binary HEAD -- . ':!securewave_app/build' ':!static/downloads/*.deb'; git -C "$REPO_ROOT" diff --binary --cached -- . ':!securewave_app/build' ':!static/downloads/*.deb'; } | sha256sum | awk '{print $1}')"
     untracked_files_sha256="$(
-      git -C "$REPO_ROOT" ls-files -z --others --exclude-standard -- . ':!securewave_app/build' |
+      git -C "$REPO_ROOT" ls-files -z --others --exclude-standard -- . ':!securewave_app/build' ':!static/downloads/*.deb' |
         while IFS= read -r -d '' path; do
+          [[ -f "$REPO_ROOT/$path" ]] || continue
           printf '%s\0' "$path"
           sha256sum -- "$REPO_ROOT/$path"
         done |

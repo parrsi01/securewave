@@ -1,10 +1,8 @@
-# Development Requirements (includes everything + ML packages)
-# Use this for local development if you want full ML capabilities
+# Development and beta verification requirements.
+# ML packages are intentionally not part of the runtime or test path.
 
 -r requirements.txt
--r requirements_ml.txt
 
-# Testing
 pytest==9.0.3
 pytest-cov==6.0.0
 pytest-asyncio==1.4.0

@@ -15,23 +15,6 @@ variable "server_type" {
   }
 }
 
-variable "node_count" {
-  description = "Number of servers to provision (default: 1)."
-  type        = number
-  default     = 1
-
-  validation {
-    condition     = var.node_count == 1 || var.allow_scale
-    error_message = "node_count > 1 requires allow_scale = true."
-  }
-}
-
-variable "allow_scale" {
-  description = "Manual flag required to scale beyond 1 server."
-  type        = bool
-  default     = false
-}
-
 variable "image" {
   description = "Ubuntu LTS image only."
   type        = string
@@ -44,7 +27,7 @@ variable "image" {
 }
 
 variable "location" {
-  description = "Hetzner location code. Default balances Barbados + Europe latency."
+  description = "The one Hetzner location for the beta target."
   type        = string
   default     = "ash"
 }
@@ -59,10 +42,10 @@ variable "ssh_key_names" {
   }
 }
 
-variable "server_name_prefix" {
-  description = "Prefix for server names."
+variable "server_name" {
+  description = "Name of the one SecureWave WireGuard server."
   type        = string
-  default     = "securewave"
+  default     = "securewave-beta"
 }
 
 variable "firewall_name" {
@@ -80,16 +63,4 @@ variable "ssh_allowed_cidrs" {
     condition     = !contains(var.ssh_allowed_cidrs, "0.0.0.0/0") && !contains(var.ssh_allowed_cidrs, "::/0")
     error_message = "ssh_allowed_cidrs must not allow the entire internet (0.0.0.0/0 or ::/0)."
   }
-}
-
-variable "allow_http_https" {
-  description = "Optional: open 80/443. Defaults to false to deny all else."
-  type        = bool
-  default     = false
-}
-
-variable "tags" {
-  description = "Tags applied to Hetzner resources."
-  type        = list(string)
-  default     = ["securewave"]
 }

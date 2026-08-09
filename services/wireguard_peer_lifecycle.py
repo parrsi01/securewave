@@ -20,9 +20,6 @@ from services.wireguard_server_manager import (
     get_wireguard_server_manager,
     server_connection_from_db,
 )
-from utils.env_validation import demo_mode_enabled, wg_mock_mode_enabled
-
-
 logger = logging.getLogger(__name__)
 
 
@@ -31,12 +28,8 @@ class WireGuardPeerSyncError(RuntimeError):
 
 
 def remote_peer_sync_required() -> bool:
-    """Return whether this process may perform real server peer operations."""
-    return not (
-        os.getenv("TESTING", "").lower() == "true"
-        or demo_mode_enabled()
-        or wg_mock_mode_enabled()
-    )
+    """Skip remote mutation only for explicitly marked local tests."""
+    return os.getenv("TESTING", "").lower() != "true"
 
 
 async def _add_peer(server: VPNServer, public_key: str, allowed_ips: str) -> bool:

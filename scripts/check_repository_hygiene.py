@@ -81,6 +81,8 @@ def check_paths(files: list[str]) -> list[str]:
 def check_json(files: list[str]) -> list[str]:
     failures: list[str] = []
     for name in files:
+        if not (ROOT / name).is_file():
+            continue
         if not name.endswith(".json"):
             continue
         try:
@@ -96,6 +98,8 @@ def check_workflows(files: list[str]) -> list[str]:
         name for name in files if name.startswith(".github/workflows/") and name.endswith((".yml", ".yaml"))
     ]
     for name in workflow_files:
+        if not (ROOT / name).is_file():
+            continue
         lines = (ROOT / name).read_text(encoding="utf-8").splitlines()
         text = "\n".join(lines)
         if "pull_request_target:" in text:
@@ -126,6 +130,8 @@ def check_container_pins(files: list[str]) -> list[str]:
     failures: list[str] = []
     digest = re.compile(r"@sha256:[0-9a-f]{64}(?:\s|$)")
     for name in files:
+        if not (ROOT / name).is_file():
+            continue
         path = PurePosixPath(name)
         if "ThirdParty" in path.parts:
             continue

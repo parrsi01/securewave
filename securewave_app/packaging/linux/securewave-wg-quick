@@ -1,970 +1,155 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-WIREGUARD_ROUTING_TABLE=51820
-WIREGUARD_POLICY_PRIORITY=32764
-WIREGUARD_SUPPRESS_PRIORITY=32765
-WIREGUARD_IPV4_KILL_SWITCH_COMMENT="securewave-wireguard-ipv4-kill-switch-v1"
-WIREGUARD_IPV6_BLOCK_COMMENT="securewave-wireguard-ipv6-block-v1"
-PUBLIC_IPV6_PREFIX="2000::/3"
+readonly INTERFACE="sw-wg"
+readonly ROUTING_TABLE="51820"
+readonly IPV4_COMMENT="securewave-wireguard-ipv4-kill-switch-v1"
+readonly IPV6_COMMENT="securewave-wireguard-ipv6-block-v1"
+readonly RUNTIME_CONFIG="/run/securewave/sw-wg.conf"
 
 usage() {
   cat >&2 <<'EOF'
 Usage:
   securewave-wg-quick probe wireguard
-  securewave-wg-quick <up|down|policy-ensure|policy-clear|policy-clear-link|nm-unmanaged|nm-reset> <config-path|iface>
+  securewave-wg-quick up|down <config-path>
   securewave-wg-quick wireguard-transfer
 EOF
 }
 
-if [[ $# -lt 1 ]]; then
-  usage
-  exit 64
-fi
-
+[[ $# -ge 1 ]] || { usage; exit 64; }
 action="$1"
 shift
 
-is_safe_runtime_path() {
-  local path="$1"
-  case "$path" in
-    /home/*/.config/securewave/*|/root/.config/securewave/*|/run/securewave/*) return 0 ;;
-    *) return 1 ;;
-  esac
+require_interface() {
+  [[ "${1:-}" == "$INTERFACE" ]] || {
+    echo "securewave-wg-quick: refusing an unexpected interface" >&2
+    exit 64
+  }
 }
 
-require_safe_config_path() {
-  local path="$1"
+require_config() {
+  local path="${1:-}"
   case "$path" in
-    /home/*/.config/securewave/*.conf|/root/.config/securewave/*.conf|/run/securewave/*.conf|/etc/wireguard/*.conf)
-      return 0
+    /home/*/.config/securewave/sw-wg.conf|/root/.config/securewave/sw-wg.conf)
+      [[ -f "$path" && ! -L "$path" ]] || {
+        echo "securewave-wg-quick: WireGuard configuration is missing" >&2
+        exit 64
+      }
       ;;
     *)
-      echo "securewave-wg-quick: refusing unsafe config path '$path'" >&2
+      echo "securewave-wg-quick: refusing an unexpected configuration path" >&2
       exit 64
       ;;
   esac
-}
-
-require_safe_runtime_file() {
-  local path="$1"
-  local label="$2"
-  if ! is_safe_runtime_path "$path"; then
-    echo "securewave-wg-quick: refusing unsafe ${label} path '$path'" >&2
+  if grep -Eiq '^[[:space:]]*(PreUp|PostUp|PreDown|PostDown|Table|SaveConfig)[[:space:]]*=' "$path"; then
+    echo "securewave-wg-quick: configuration contains an unsupported privileged directive" >&2
     exit 64
   fi
 }
 
-prepare_owned_runtime_file() {
-  local path="$1"
-  local label="$2"
-  local owner_ref="$3"
-  local owner_group
-  local owner
-  local group
-  local dir
-  local tmp
-
-  owner_group="$(stat -c '%u:%g' "$owner_ref" 2>/dev/null)" || {
-    echo "securewave-wg-quick: unable to stat ${label} owner reference '$owner_ref'" >&2
-    exit 64
-  }
-  owner="${owner_group%%:*}"
-  group="${owner_group##*:}"
-  dir="$(dirname "$path")"
-  if [[ ! -d "$dir" ]]; then
-    echo "securewave-wg-quick: ${label} directory '$dir' not found" >&2
-    exit 64
-  fi
-
-  tmp="$(mktemp "${dir}/.${label}.XXXXXX")" || {
-    echo "securewave-wg-quick: unable to create ${label} file" >&2
-    exit 64
-  }
-  chown "$owner:$group" "$tmp" || {
-    rm -f "$tmp"
-    echo "securewave-wg-quick: unable to set ${label} ownership" >&2
-    exit 64
-  }
-  chmod 0600 "$tmp" || {
-    rm -f "$tmp"
-    echo "securewave-wg-quick: unable to set ${label} permissions" >&2
-    exit 64
-  }
-  mv -fT "$tmp" "$path" || {
-    rm -f "$tmp"
-    echo "securewave-wg-quick: unable to install ${label} file" >&2
-    exit 64
-  }
+clear_rule() {
+  local command="$1"
+  shift
+  "$command" -D "$@" >/dev/null 2>&1 || true
 }
 
-require_sw_wg_iface() {
-  local iface="$1"
-  if [[ "$iface" != "sw-wg" ]]; then
-    echo "securewave-wg-quick: refusing unsafe interface '$iface'" >&2
-    exit 64
+clear_firewall() {
+  clear_rule iptables OUTPUT ! -o "$INTERFACE" -m mark ! --mark "$ROUTING_TABLE" \
+    -m addrtype ! --dst-type LOCAL -m comment --comment "$IPV4_COMMENT" -j REJECT
+  clear_rule ip6tables OUTPUT -d 2000::/3 -m mark ! --mark "$ROUTING_TABLE" \
+    -m comment --comment "$IPV6_COMMENT" -j REJECT --reject-with icmp6-adm-prohibited
+}
+
+ensure_firewall() {
+  if ! iptables -C OUTPUT ! -o "$INTERFACE" -m mark ! --mark "$ROUTING_TABLE" \
+      -m addrtype ! --dst-type LOCAL -m comment --comment "$IPV4_COMMENT" -j REJECT \
+      >/dev/null 2>&1; then
+    iptables -I OUTPUT 1 ! -o "$INTERFACE" -m mark ! --mark "$ROUTING_TABLE" \
+      -m addrtype ! --dst-type LOCAL -m comment --comment "$IPV4_COMMENT" -j REJECT
+  fi
+  if ! ip6tables -C OUTPUT -d 2000::/3 -m mark ! --mark "$ROUTING_TABLE" \
+      -m comment --comment "$IPV6_COMMENT" -j REJECT --reject-with icmp6-adm-prohibited \
+      >/dev/null 2>&1; then
+    ip6tables -I OUTPUT 1 -d 2000::/3 -m mark ! --mark "$ROUTING_TABLE" \
+      -m comment --comment "$IPV6_COMMENT" -j REJECT --reject-with icmp6-adm-prohibited
   fi
 }
 
-require_nonempty_single_line() {
-  local value="$1"
-  local label="$2"
-  if [[ -z "$value" || "$value" == *$'\n'* || "$value" == *$'\r'* ]]; then
-    echo "securewave-wg-quick: refusing invalid ${label}" >&2
-    exit 64
-  fi
+prepare_runtime_config() {
+  local source="$1"
+  local temporary="${RUNTIME_CONFIG}.tmp.$$"
+  install -d -o root -g root -m 0750 /run/securewave
+  umask 077
+  awk 'tolower($1) != "dns" { print }' "$source" > "$temporary"
+  chmod 0600 "$temporary"
+  mv -fT "$temporary" "$RUNTIME_CONFIG"
 }
 
-require_ikev2_endpoint() {
-  local value="$1"
-  if [[ ! "$value" =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}$ &&
-        ! "$value" =~ ^[0-9A-Fa-f:]+$ ]]; then
-    echo "securewave-wg-quick: refusing non-numeric IKEv2 endpoint" >&2
-    exit 64
-  fi
+apply_dns() {
+  local source="$1"
+  local dns_line
+  local dns_values=()
+  dns_line="$(awk -F= 'tolower($1) ~ /^[[:space:]]*dns[[:space:]]*$/ { print $2; exit }' "$source" | xargs)"
+  [[ -n "$dns_line" ]] || return 0
+  [[ -x "$(command -v resolvectl 2>/dev/null || true)" ]] || return 0
+  read -ra dns_values <<< "${dns_line//,/ }"
+  resolvectl dns "$INTERFACE" "${dns_values[@]}" >/dev/null 2>&1 || return 0
+  resolvectl domain "$INTERFACE" '~.' >/dev/null 2>&1 || true
 }
 
-require_ikev2_eap_username() {
-  local value="$1"
-  if [[ ! "$value" =~ ^swikev2-[a-f0-9]{32}$ ]]; then
-    echo "securewave-wg-quick: refusing invalid IKEv2 EAP username" >&2
-    exit 64
+clear_dns() {
+  if command -v resolvectl >/dev/null 2>&1; then
+    resolvectl revert "$INTERFACE" >/dev/null 2>&1 || true
   fi
-}
-
-require_ikev2_eap_secret() {
-  local value="$1"
-  if [[ ! "$value" =~ ^[A-Za-z0-9_-]{32,128}$ ]]; then
-    echo "securewave-wg-quick: refusing invalid IKEv2 EAP secret" >&2
-    exit 64
-  fi
-}
-
-require_ikev2_remote_identity() {
-  local value="$1"
-  if [[ ! "$value" =~ ^[A-Za-z0-9][A-Za-z0-9._:@-]{0,252}$ ]]; then
-    echo "securewave-wg-quick: refusing invalid IKEv2 remote identity" >&2
-    exit 64
-  fi
-}
-
-require_tagged_dns_args() {
-  local tagged
-  local family
-  local address
-
-  if [[ $# -lt 1 || $# -gt "$MAX_DNS_SERVERS" ]]; then
-    echo "securewave-wg-quick: refusing missing or excessive DNS addresses" >&2
-    exit 64
-  fi
-  for tagged in "$@"; do
-    family="${tagged%%:*}"
-    address="${tagged#*:}"
-    case "$family" in
-      4)
-        if [[ ! "$address" =~ ^[0-9.]+$ || "$address" != *.* ]]; then
-          echo "securewave-wg-quick: refusing invalid IPv4 DNS address" >&2
-          exit 64
-        fi
-        ;;
-      6)
-        if [[ ! "$address" =~ ^[0-9A-Fa-f:]+$ || "$address" != *:* ]]; then
-          echo "securewave-wg-quick: refusing invalid IPv6 DNS address" >&2
-          exit 64
-        fi
-        ;;
-      *)
-        echo "securewave-wg-quick: refusing untagged DNS address" >&2
-        exit 64
-        ;;
-    esac
-  done
 }
 
 case "$action" in
   probe)
-    if [[ $# -ne 1 ]]; then
-      usage
-      exit 64
-    fi
-    case "$1" in
-      wireguard)
-        command -v wg-quick >/dev/null 2>&1
-        command -v nft >/dev/null 2>&1
-        command -v iptables-save >/dev/null 2>&1
-        command -v iptables-restore >/dev/null 2>&1
-        command -v ip6tables-save >/dev/null 2>&1
-        command -v ip6tables-restore >/dev/null 2>&1
-        ;;
-      *)
-        echo "securewave-wg-quick: only WireGuard is supported by this Linux beta" >&2
-        exit 64
-        ;;
-    esac
+    [[ $# -eq 1 && "$1" == wireguard ]] || { usage; exit 64; }
+    command -v wg >/dev/null 2>&1
+    command -v wg-quick >/dev/null 2>&1
+    command -v ip >/dev/null 2>&1
+    command -v iptables >/dev/null 2>&1
+    command -v ip6tables >/dev/null 2>&1
     exit 0
     ;;
-  up|down)
-    if [[ $# -ne 1 ]]; then
-      usage
-      exit 64
-    fi
+  up)
+    [[ $# -eq 1 ]] || { usage; exit 64; }
     config="$1"
-    require_safe_config_path "$config"
-    ;;
-  policy-ensure|policy-clear|policy-clear-link|nm-unmanaged|nm-reset)
-    if [[ $# -ne 1 ]]; then
-      usage
-      exit 64
-    fi
-    iface="$1"
-    require_sw_wg_iface "$iface"
-    ;;
-  wireguard-transfer)
-    if [[ $# -ne 0 ]]; then
-      usage
-      exit 64
-    fi
-    ;;
-  openvpn-*|ikev2-*|xfrm-state)
-    echo "securewave-wg-quick: OpenVPN and IKEv2 are deferred from this Linux beta" >&2
-    exit 64
-    ;;
-  *)
-    echo "securewave-wg-quick: invalid action '$action'" >&2
-    exit 64
-    ;;
- esac
-
-policy_rule_count() {
-  local family="$1"
-  ip "$family" -N rule show | awk \
-    -v table="$WIREGUARD_ROUTING_TABLE" '
-      $0 ~ /(^| )not( |$)/ &&
-      $0 ~ /(^| )fwmark (0xca6c|0xca6c\/0xffffffff|51820)( |$)/ &&
-      $0 ~ ("(^| )(lookup|table) " table "( |$)") { count++ }
-      END { print count + 0 }
-    '
-}
-
-main_suppress_count() {
-  local family="$1"
-  ip "$family" -N rule show | awk '
-      $0 ~ /(^| )(lookup|table) main( |$)/ &&
-      $0 ~ /(^| )suppress_prefixlength 0( |$)/ { count++ }
-      END { print count + 0 }
-    '
-}
-
-table_route_count() {
-  local family="$1"
-  local routes
-  if ! routes="$(
-    ip "$family" -N route show table "$WIREGUARD_ROUTING_TABLE" 2>&1
-  )"; then
-    if [[ "$routes" == *"FIB table does not exist"* ]]; then
-      routes=""
-    else
-      echo "securewave-wg-quick: unable to inspect ${family} WireGuard routes" >&2
-      return 1
-    fi
-  fi
-  printf '%s\n' "$routes" | awk \
-    -v interface="$iface" '
-      $1 == "default" {
-        for (i = 1; i < NF; i++) {
-          if ($i == "dev" && $(i + 1) == interface) {
-            count++
-          }
-        }
-      }
-      END { print count + 0 }
-    '
-}
-
-flush_wireguard_route_table() {
-  local family="$1"
-  local diagnostic
-  if diagnostic="$(
-    ip "$family" route flush table "$WIREGUARD_ROUTING_TABLE" 2>&1
-  )"; then
-    return 0
-  fi
-  if [[ "$diagnostic" == *"FIB table does not exist"* ]]; then
-    return 0
-  fi
-  echo "securewave-wg-quick: unable to clear ${family} WireGuard routes" >&2
-  return 1
-}
-
-clear_ikev2_unqualified_rule_family() {
-  local family="$1"
-  local rules
-  local unsafe_count
-  local other_pref_count
-  local remaining_count
-
-  if ! rules="$(ip "$family" -N rule show 2>/dev/null)"; then
-    echo "securewave-wg-quick: unable to inspect ${family} policy rules" >&2
-    return 1
-  fi
-
-  unsafe_count="$(
-    printf '%s\n' "$rules" |
-      awk -v priority="${IKEV2_ROUTING_PRIORITY}:" -v table="$IKEV2_ROUTING_TABLE" '
-        $1 == priority && $2 == "from" && $3 == "all" &&
-          $4 == "lookup" && $5 == table && NF == 5 { count++ }
-        END { print count + 0 }
-      '
-  )"
-  (( unsafe_count > 0 )) || return 0
-
-  other_pref_count="$(
-    printf '%s\n' "$rules" |
-      awk -v priority="${IKEV2_ROUTING_PRIORITY}:" -v table="$IKEV2_ROUTING_TABLE" '
-        $1 == priority && $0 ~ ("lookup " table) &&
-          !($2 == "from" && $3 == "all" && $4 == "lookup" &&
-            $5 == table && NF == 5) { count++ }
-        END { print count + 0 }
-      '
-  )"
-  if (( other_pref_count > 0 )); then
-    echo "securewave-wg-quick: refusing to alter mixed ${family} charon-nm policy rules" >&2
-    return 1
-  fi
-
-  while (( unsafe_count > 0 )); do
-    ip "$family" rule del pref "$IKEV2_ROUTING_PRIORITY" from all table "$IKEV2_ROUTING_TABLE"
-    rules="$(ip "$family" -N rule show)"
-    remaining_count="$(
-      printf '%s\n' "$rules" |
-        awk -v priority="${IKEV2_ROUTING_PRIORITY}:" -v table="$IKEV2_ROUTING_TABLE" '
-          $1 == priority && $2 == "from" && $3 == "all" &&
-            $4 == "lookup" && $5 == table && NF == 5 { count++ }
-          END { print count + 0 }
-        '
-    )"
-    if (( remaining_count >= unsafe_count )); then
-      echo "securewave-wg-quick: ${family} charon-nm rule reconciliation made no progress" >&2
-      return 1
-    fi
-    unsafe_count="$remaining_count"
-  done
-}
-
-clear_ikev2_unqualified_rules() {
-  clear_ikev2_unqualified_rule_family -4
-  clear_ikev2_unqualified_rule_family -6
-}
-
-reject_ikev2_legacy_routing_loop_family() {
-  local family="$1"
-  local rules
-
-  if ! rules="$(ip "$family" -N rule show 2>/dev/null)"; then
-    echo "securewave-wg-quick: unable to inspect ${family} legacy policy rules" >&2
-    return 1
-  fi
-  if printf '%s\n' "$rules" | awk \
-      -v priority="${IKEV2_LEGACY_ROUTING_PRIORITY}:" \
-      -v table="$IKEV2_LEGACY_ROUTING_TABLE" '
-        $1 == priority && $2 == "from" && $3 == "all" &&
-          ($4 == "lookup" || $4 == "table") && $5 == table && NF == 5 {
-            found = 1
-          }
-        END { exit found ? 0 : 1 }
-      '; then
-    # This exact historic rule can belong to a non-SecureWave system charon
-    # deployment. Never delete it implicitly; refuse a SecureWave start so we
-    # neither reintroduce the routing loop nor damage unrelated IPsec state.
-    echo "securewave-wg-quick: refusing IKEv2 start while unqualified pref-220 lookup-220 routing is present" >&2
-    return 1
-  fi
-  return 0
-}
-
-reject_ikev2_legacy_routing_loop() {
-  reject_ikev2_legacy_routing_loop_family -4
-  reject_ikev2_legacy_routing_loop_family -6
-}
-
-clear_ikev2_route_state() {
-  clear_ikev2_unqualified_rules
-  ip route flush cache >/dev/null 2>&1 || true
-}
-
-inspect_ikev2_connection() {
-  local connections
-
-  if ! connections="$(nmcli -t -f NAME,TYPE connection show 2>/dev/null)"; then
-    return 2
-  fi
-  if grep -Fqx "${CONNECTION_NAME}:vpn" <<< "$connections"; then
-    return 0
-  fi
-  return 1
-}
-
-inspect_ikev2_active_connection() {
-  local connections
-
-  if ! connections="$(nmcli -t -f NAME,TYPE connection show --active 2>/dev/null)"; then
-    return 2
-  fi
-  if grep -Fqx "${CONNECTION_NAME}:vpn" <<< "$connections"; then
-    return 0
-  fi
-  return 1
-}
-
-ensure_ikev2_inactive() {
-  local connection_status
-
-  if inspect_ikev2_active_connection; then
-    connection_status=0
-  else
-    connection_status=$?
-  fi
-  if [[ "$connection_status" == "2" ]]; then
-    echo "securewave-wg-quick: unable to inspect active IKEv2 NetworkManager profiles" >&2
-    return 1
-  fi
-  if [[ "$connection_status" == "0" ]]; then
-    if ! nmcli connection down id "$CONNECTION_NAME" >/dev/null; then
-      echo "securewave-wg-quick: unable to deactivate the IKEv2 connection" >&2
-      return 1
-    fi
-  fi
-  if inspect_ikev2_active_connection; then
-    echo "securewave-wg-quick: IKEv2 connection remains active" >&2
-    return 1
-  else
-    connection_status=$?
-  fi
-  if [[ "$connection_status" == "2" ]]; then
-    echo "securewave-wg-quick: unable to verify IKEv2 deactivation" >&2
-    return 1
-  fi
-  return 0
-}
-
-clear_wg_quick_nftables() {
-  local tables
-  local table_keyword
-  local family
-  local name
-  local extra
-
-  if ! tables="$(nft list tables 2>/dev/null)"; then
-    echo "securewave-wg-quick: unable to inspect WireGuard nftables state" >&2
-    return 1
-  fi
-  while read -r table_keyword family name extra; do
-    [[ "$table_keyword" == "table" && -z "${extra:-}" ]] || continue
-    [[ "$name" == "wg-quick-sw-wg" ]] || continue
-    case "$family" in
-      ip|ip6|inet)
-        if ! nft delete table "$family" "$name"; then
-          echo "securewave-wg-quick: unable to remove owned ${family} ${name} table" >&2
-          return 1
-        fi
-        ;;
-    esac
-  done <<< "$tables"
-}
-
-clear_wg_quick_iptables_family() {
-  local tool="$1"
-  local save_command="${tool}-save"
-  local restore_command="${tool}-restore"
-  local rules
-  local restore=""
-  local line
-  local found=0
-  local marker='-m comment --comment "wg-quick(8) rule for sw-wg"'
-
-  if ! rules="$("$save_command" 2>/dev/null)"; then
-    echo "securewave-wg-quick: unable to inspect ${tool} WireGuard state" >&2
-    return 1
-  fi
-  while IFS= read -r line; do
-    if [[ "$line" == \** || "$line" == "COMMIT" ]]; then
-      restore+="${line}"$'\n'
-      continue
-    fi
-    if [[ "$line" == "-A "* && "$line" == *"$marker"* ]]; then
-      restore+="${line/#-A/-D}"$'\n'
-      found=1
-    fi
-  done <<< "$rules"
-  if [[ "$found" == "1" ]]; then
-    printf '%s' "$restore" | "$restore_command" -n
-  fi
-}
-
-clear_owned_iptables_comment_rules() {
-  local tool="$1"
-  local comment="$2"
-  local save_command="${tool}-save"
-  local restore_command="${tool}-restore"
-  local rules
-  local restore=""
-  local line
-  local found=0
-
-  if ! rules="$("$save_command" 2>/dev/null)"; then
-    echo "securewave-wg-quick: unable to inspect ${tool} owned firewall state" >&2
-    return 1
-  fi
-  while IFS= read -r line; do
-    if [[ "$line" == \** || "$line" == "COMMIT" ]]; then
-      restore+="${line}"$'\n'
-      continue
-    fi
-    if [[ "$line" == "-A "* ]] &&
-       { [[ "$line" == *"--comment \"${comment}\""* ]] ||
-         [[ "$line" == *"--comment ${comment} "* ]] ||
-         [[ "$line" == *"--comment ${comment}" ]]; }; then
-      restore+="${line/#-A/-D}"$'\n'
-      found=1
-    fi
-  done <<< "$rules"
-  if [[ "$found" == "1" ]]; then
-    printf '%s' "$restore" | "$restore_command" -n
-  fi
-}
-
-ikev2_ipv6_block_line_is_exact() {
-  local line="$1"
-  local expected_quoted
-  local expected_unquoted
-  expected_quoted="-A OUTPUT -d ${PUBLIC_IPV6_PREFIX} -m mark ! --mark ${IKEV2_OUTER_MARK} -m comment --comment \"${IKEV2_IPV6_BLOCK_COMMENT}\" -j REJECT --reject-with icmp6-adm-prohibited"
-  expected_unquoted="-A OUTPUT -d ${PUBLIC_IPV6_PREFIX} -m mark ! --mark ${IKEV2_OUTER_MARK} -m comment --comment ${IKEV2_IPV6_BLOCK_COMMENT} -j REJECT --reject-with icmp6-adm-prohibited"
-  [[ "$line" == "$expected_quoted" || "$line" == "$expected_unquoted" ]]
-}
-
-ikev2_ipv6_block_counts() {
-  local rules
-  local line
-  local marker_count=0
-  local exact_count=0
-
-  if ! rules="$(ip6tables-save 2>/dev/null)"; then
-    echo "securewave-wg-quick: unable to inspect IKEv2 IPv6 block state" >&2
-    return 1
-  fi
-  while IFS= read -r line; do
-    if [[ "$line" == "-A "* ]] &&
-       { [[ "$line" == *"--comment \"${IKEV2_IPV6_BLOCK_COMMENT}\""* ]] ||
-         [[ "$line" == *"--comment ${IKEV2_IPV6_BLOCK_COMMENT} "* ]] ||
-         [[ "$line" == *"--comment ${IKEV2_IPV6_BLOCK_COMMENT}" ]]; }; then
-      marker_count=$((marker_count + 1))
-      if ikev2_ipv6_block_line_is_exact "$line"; then
-        exact_count=$((exact_count + 1))
-      fi
-    fi
-  done <<< "$rules"
-  printf '%s %s\n' "$marker_count" "$exact_count"
-}
-
-ensure_ikev2_ipv6_block() {
-  local counts
-  local marker_count
-  local exact_count
-
-  counts="$(ikev2_ipv6_block_counts)" || return 1
-  read -r marker_count exact_count <<< "$counts"
-  if (( marker_count != exact_count || exact_count > 1 )); then
-    echo "securewave-wg-quick: refusing ambiguous IKEv2 IPv6 block state" >&2
-    return 1
-  fi
-  if (( exact_count == 0 )); then
-    ip6tables -I OUTPUT 1 \
-      -d "$PUBLIC_IPV6_PREFIX" \
-      -m mark '!' --mark "$IKEV2_OUTER_MARK" \
-      -m comment --comment "$IKEV2_IPV6_BLOCK_COMMENT" \
-      -j REJECT --reject-with icmp6-adm-prohibited
-  fi
-  counts="$(ikev2_ipv6_block_counts)" || return 1
-  read -r marker_count exact_count <<< "$counts"
-  if (( marker_count != 1 || exact_count != 1 )); then
-    echo "securewave-wg-quick: unable to verify IKEv2 IPv6 block state" >&2
-    return 1
-  fi
-}
-
-clear_ikev2_ipv6_block() {
-  local counts
-  local marker_count
-  local exact_count
-
-  counts="$(ikev2_ipv6_block_counts)" || return 1
-  read -r marker_count exact_count <<< "$counts"
-  if (( marker_count != exact_count )); then
-    echo "securewave-wg-quick: refusing ambiguous IKEv2 IPv6 block cleanup" >&2
-    return 1
-  fi
-  if (( exact_count > 0 )); then
-    clear_owned_iptables_comment_rules \
-      ip6tables "$IKEV2_IPV6_BLOCK_COMMENT" || return 1
-  fi
-  counts="$(ikev2_ipv6_block_counts)" || return 1
-  read -r marker_count exact_count <<< "$counts"
-  if (( marker_count != 0 || exact_count != 0 )); then
-    echo "securewave-wg-quick: IKEv2 IPv6 block residue remains" >&2
-    return 1
-  fi
-}
-
-clear_wg_quick_firewall() {
-  local failed=0
-
-  clear_wg_quick_nftables || failed=1
-  clear_wg_quick_iptables_family iptables || failed=1
-  clear_wg_quick_iptables_family ip6tables || failed=1
-  clear_owned_iptables_comment_rules \
-    iptables "$WIREGUARD_IPV4_KILL_SWITCH_COMMENT" || failed=1
-  clear_owned_iptables_comment_rules \
-    ip6tables "$WIREGUARD_IPV6_BLOCK_COMMENT" || failed=1
-  return "$failed"
-}
-
-ensure_wireguard_firewall() {
-  local failed=0
-
-  # Keep the tunnel fail-closed while allowing WireGuard's marked transport
-  # packets and local-destination traffic through.  These rules are owned by
-  # SecureWave (and are removed by clear_wg_quick_firewall), so profiles do
-  # not need to execute backend-supplied PostUp/PostDown shell commands.
-  if ! iptables -C OUTPUT ! -o sw-wg -m mark ! --mark 51820 \
-      -m addrtype ! --dst-type LOCAL -m comment \
-      --comment "$WIREGUARD_IPV4_KILL_SWITCH_COMMENT" -j REJECT \
-      >/dev/null 2>&1; then
-    iptables -I OUTPUT 1 ! -o sw-wg -m mark ! --mark 51820 \
-      -m addrtype ! --dst-type LOCAL -m comment \
-      --comment "$WIREGUARD_IPV4_KILL_SWITCH_COMMENT" -j REJECT || failed=1
-  fi
-  if ! ip6tables -C OUTPUT -d "$PUBLIC_IPV6_PREFIX" -m mark ! --mark 51820 \
-      -m comment --comment "$WIREGUARD_IPV6_BLOCK_COMMENT" -j REJECT \
-      --reject-with icmp6-adm-prohibited >/dev/null 2>&1; then
-    ip6tables -I OUTPUT 1 -d "$PUBLIC_IPV6_PREFIX" -m mark ! --mark 51820 \
-      -m comment --comment "$WIREGUARD_IPV6_BLOCK_COMMENT" -j REJECT \
-      --reject-with icmp6-adm-prohibited || failed=1
-  fi
-  return "$failed"
-}
-
-clear_policy_state() {
-  local remove_link="${1:-0}"
-  local remove_firewall="${2:-1}"
-  local family
-  local count
-  local index
-  local failed=0
-  if [[ "$remove_firewall" == "1" ]]; then
-    clear_wg_quick_firewall || failed=1
-  fi
-  for family in -4 -6; do
-    if count="$(policy_rule_count "$family")"; then
-      for ((index = 0; index < count; index++)); do
-        ip "$family" rule del not fwmark "$WIREGUARD_ROUTING_TABLE" \
-          table "$WIREGUARD_ROUTING_TABLE" >/dev/null 2>&1 || {
-            failed=1
-            break
-          }
-      done
-    else
-      failed=1
-    fi
-    if count="$(main_suppress_count "$family")"; then
-      for ((index = 0; index < count; index++)); do
-        ip "$family" rule del table main suppress_prefixlength 0 \
-          >/dev/null 2>&1 || {
-            failed=1
-            break
-          }
-      done
-    else
-      failed=1
-    fi
-    flush_wireguard_route_table "$family" || failed=1
-  done
-  if [[ "$remove_link" == "1" ]]; then
-    ip link delete "$iface" >/dev/null 2>&1 || true
-  fi
-  ip -4 route flush cache >/dev/null 2>&1 || true
-  ip -6 route flush cache >/dev/null 2>&1 || true
-  return "$failed"
-}
-
-ensure_policy_state() {
-  local family
-  local policy_count
-  local suppress_count
-  local route_count
-  local reset_required=0
-
-  wg set "$iface" fwmark "$WIREGUARD_ROUTING_TABLE"
-  for family in -4 -6; do
-    policy_count="$(policy_rule_count "$family")"
-    suppress_count="$(main_suppress_count "$family")"
-    route_count="$(table_route_count "$family")"
-    if (( policy_count > 1 || suppress_count > 1 || route_count > 1 )); then
-      reset_required=1
-    fi
-  done
-  if [[ "$reset_required" == "1" ]]; then
-    clear_policy_state 0 0
-  fi
-  for family in -4 -6; do
-    route_count="$(table_route_count "$family")"
-    if (( route_count == 0 )); then
-      ip "$family" route replace default dev "$iface" \
-        table "$WIREGUARD_ROUTING_TABLE"
-    fi
-    policy_count="$(policy_rule_count "$family")"
-    if (( policy_count == 0 )); then
-      ip "$family" rule add not fwmark "$WIREGUARD_ROUTING_TABLE" \
-        table "$WIREGUARD_ROUTING_TABLE" \
-        priority "$WIREGUARD_POLICY_PRIORITY"
-    fi
-    suppress_count="$(main_suppress_count "$family")"
-    if (( suppress_count == 0 )); then
-      ip "$family" rule add table main suppress_prefixlength 0 \
-        priority "$WIREGUARD_SUPPRESS_PRIORITY"
-    fi
-  done
-  ip -4 route flush cache >/dev/null 2>&1 || true
-  ip -6 route flush cache >/dev/null 2>&1 || true
-}
-
-if [[ "$action" == "up" ]]; then
-  wg-quick down "$config" >/dev/null 2>&1 || true
-  iface="sw-wg"
-  clear_policy_state 1
-  wg-quick up "$config"
-  nmcli device set "$iface" managed no >/dev/null 2>&1 || true
-  ensure_policy_state
-  ensure_wireguard_firewall
-  exit 0
-fi
-
-if [[ "$action" == "down" ]]; then
-  iface="sw-wg"
-  wg-quick down "$config" >/dev/null 2>&1 || true
-  clear_policy_state 1
-  exit 0
-fi
-
-if [[ "$action" == "openvpn-start" ]]; then
-  prepare_owned_runtime_file "$pid_file" "pid" "$config"
-  prepare_owned_runtime_file "$log_file" "log" "$config"
-  [[ -n "${auth_file:-}" ]] || {
-    echo "securewave-wg-quick: refusing missing OpenVPN credential file" >&2
-    exit 64
-  }
-  [[ -f "$auth_file" && ! -L "$auth_file" ]] || {
-    echo "securewave-wg-quick: refusing invalid OpenVPN credential file" >&2
-    exit 64
-  }
-  auth_mode="$(stat -c '%a' "$auth_file")"
-  [[ "$auth_mode" == "600" ]] || {
-    echo "securewave-wg-quick: refusing OpenVPN credential file permissions" >&2
-    exit 64
-  }
-  argv=(openvpn --config "$config" --writepid "$pid_file" --daemon --log "$log_file" --dev "$OPENVPN_INTERFACE" --auth-user-pass "$auth_file")
-  exec "${argv[@]}"
-fi
-
-if [[ "$action" == "openvpn-stop" ]]; then
-  kill -TERM "$pid" >/dev/null 2>&1 || true
-  exit 0
-fi
-
-if [[ "$action" == "openvpn-dns-apply" ]]; then
-  dns_addresses=()
-  for tagged in "$@"; do
-    dns_addresses+=("${tagged#*:}")
-  done
-  resolvectl dns "$OPENVPN_INTERFACE" "${dns_addresses[@]}"
-  if ! resolvectl domain "$OPENVPN_INTERFACE" '~.'; then
-    resolvectl revert "$OPENVPN_INTERFACE" >/dev/null 2>&1 || true
-    exit 1
-  fi
-  exit 0
-fi
-
-if [[ "$action" == "openvpn-dns-revert" ]]; then
-  if ! ip link show dev "$OPENVPN_INTERFACE" >/dev/null 2>&1; then
-    # systemd-resolved removes per-link DNS state when the dedicated TUN link
-    # disappears.  Avoid asking resolvectl about an already absent interface:
-    # it is a clean idempotent state, not a package-upgrade failure.
-    exit 0
-  fi
-  resolvectl revert "$OPENVPN_INTERFACE"
-  exit 0
-fi
-
-if [[ "$action" == "wireguard-transfer" ]]; then
-  exec wg show sw-wg transfer
-fi
-
-if [[ "$action" == "xfrm-state" ]]; then
-  exec ip -s xfrm state
-fi
-
-if [[ "$action" == "policy-ensure" ]]; then
-  ensure_policy_state
-  exit 0
-fi
-
-if [[ "$action" == "policy-clear" ]]; then
-  clear_policy_state 0
-  exit 0
-fi
-
-if [[ "$action" == "policy-clear-link" ]]; then
-  clear_policy_state 1
-  exit 0
-fi
-
-if [[ "$action" == "nm-unmanaged" ]]; then
-  nmcli device set "$iface" managed no
-  exit 0
-fi
-
-if [[ "$action" == "nm-reset" ]]; then
-  systemctl restart NetworkManager >/dev/null 2>&1 || nmcli general reload >/dev/null 2>&1 || true
-  nmcli device set "$iface" managed no >/dev/null 2>&1 || true
-  exit 0
-fi
-
-if [[ "$action" == "ikev2-add-eap" ]]; then
-  vpn_data="address=${server},user=${username},method=eap,virtual=yes,encap=no,ipcomp=no"
-  if [[ -n "${remote_id:-}" ]]; then
-    vpn_data="${vpn_data},remote-identity=${remote_id}"
-  fi
-  if [[ -n "${ca_cert:-}" ]]; then
-    vpn_data="${vpn_data},certificate=${ca_cert},cert-source=file"
-  fi
-  vpn_secrets="password=${password}"
-  exec nmcli connection add type vpn ifname "$IKEV2_INTERFACE" con-name "$CONNECTION_NAME" \
-    vpn-type strongswan vpn.data "$vpn_data" vpn.secrets "$vpn_secrets"
-fi
-
-if [[ "$action" == "ikev2-set-dns" ]]; then
-  nmcli connection modify id "$CONNECTION_NAME" \
-    ipv4.ignore-auto-dns yes \
-    ipv6.ignore-auto-dns yes \
-    ipv4.dns "" \
-    ipv6.dns "" \
-    ipv4.dns-search "" \
-    ipv6.dns-search ""
-
-  ipv4_configured=0
-  ipv6_configured=0
-  for tagged in "$@"; do
-    family="${tagged%%:*}"
-    address="${tagged#*:}"
-    if [[ "$family" == "4" ]]; then
-      nmcli connection modify id "$CONNECTION_NAME" +ipv4.dns "$address"
-      ipv4_configured=1
-    else
-      nmcli connection modify id "$CONNECTION_NAME" +ipv6.dns "$address"
-      ipv6_configured=1
-    fi
-  done
-  if [[ "$ipv4_configured" == "1" ]]; then
-    nmcli connection modify id "$CONNECTION_NAME" \
-      ipv4.dns-priority -50 \
-      +ipv4.dns-search '~.'
-  fi
-  if [[ "$ipv6_configured" == "1" ]]; then
-    nmcli connection modify id "$CONNECTION_NAME" \
-      ipv6.dns-priority -50 \
-      +ipv6.dns-search '~.'
-  fi
-  exit 0
-fi
-
-if [[ "$action" == "ikev2-up" ]]; then
-  clear_ikev2_route_state
-  reject_ikev2_legacy_routing_loop
-  ensure_ikev2_ipv6_block
-  if nmcli connection up id "$CONNECTION_NAME"; then
-    status=0
-  else
-    status=$?
-  fi
-  if [[ "$status" == "0" ]] &&
-     { ! clear_ikev2_unqualified_rules || ! reject_ikev2_legacy_routing_loop; }; then
-    status=1
-  fi
-  ip route flush cache >/dev/null 2>&1 || true
-  if [[ "$status" != "0" ]]; then
-    cleanup_safe=0
-    if ensure_ikev2_inactive && clear_ikev2_route_state; then
-      cleanup_safe=1
-    fi
-    if [[ "$cleanup_safe" == "1" ]]; then
-      if ! clear_ikev2_ipv6_block; then
-        echo "securewave-wg-quick: failed IKEv2 activation left IPv6 block residue" >&2
-      fi
-    else
-      echo "securewave-wg-quick: failed IKEv2 activation left the IPv6 block in place" >&2
-    fi
-  fi
-  exit "$status"
-fi
-
-if [[ "$action" == "ikev2-down" ]]; then
-  ensure_ikev2_inactive
-  clear_ikev2_route_state
-  clear_ikev2_ipv6_block
-  exit 0
-fi
-
-if [[ "$action" == "ikev2-delete" ]]; then
-  if inspect_ikev2_connection; then
-    connection_status=0
-  else
-    connection_status=$?
-  fi
-  if [[ "$connection_status" == "2" ]]; then
-    echo "securewave-wg-quick: unable to inspect IKEv2 NetworkManager profile" >&2
-    exit 1
-  fi
-  if [[ "$connection_status" == "0" ]]; then
-    if ! nmcli connection delete id "$CONNECTION_NAME" >/dev/null; then
-      echo "securewave-wg-quick: unable to delete the IKEv2 NetworkManager profile" >&2
+    require_config "$config"
+    clear_dns
+    wg-quick down "$RUNTIME_CONFIG" >/dev/null 2>&1 || true
+    prepare_runtime_config "$config"
+    wg-quick up "$RUNTIME_CONFIG"
+    if ! ip link show dev "$INTERFACE" >/dev/null 2>&1; then
+      wg-quick down "$config" >/dev/null 2>&1 || true
       exit 1
     fi
-  fi
-  if inspect_ikev2_connection; then
-    connection_status=0
-  else
-    connection_status=$?
-  fi
-  if [[ "$connection_status" == "2" ]]; then
-    echo "securewave-wg-quick: unable to verify IKEv2 NetworkManager profile deletion" >&2
-    exit 1
-  fi
-  if [[ "$connection_status" == "0" ]]; then
-    echo "securewave-wg-quick: IKEv2 NetworkManager profile remains after deletion" >&2
-    exit 1
-  fi
-  if inspect_ikev2_active_connection; then
-    echo "securewave-wg-quick: IKEv2 connection remains active after profile deletion" >&2
-    exit 1
-  else
-    connection_status=$?
-  fi
-  if [[ "$connection_status" == "2" ]]; then
-    echo "securewave-wg-quick: unable to verify IKEv2 deactivation after profile deletion" >&2
-    exit 1
-  fi
-  clear_ikev2_route_state
-  clear_ikev2_ipv6_block
-  exit 0
-fi
-
-exec wg-quick "$action" "$config"
+    if ! ensure_firewall; then
+      wg-quick down "$RUNTIME_CONFIG" >/dev/null 2>&1 || true
+      clear_firewall
+      clear_dns
+      rm -f "$RUNTIME_CONFIG"
+      exit 1
+    fi
+    apply_dns "$config"
+    ;;
+  down)
+    [[ $# -eq 1 ]] || { usage; exit 64; }
+    config="$1"
+    require_config "$config"
+    clear_dns
+    wg-quick down "$RUNTIME_CONFIG" >/dev/null 2>&1 || true
+    wg-quick down "$config" >/dev/null 2>&1 || true
+    clear_firewall
+    rm -f "$RUNTIME_CONFIG"
+    ;;
+  wireguard-transfer)
+    [[ $# -eq 0 ]] || { usage; exit 64; }
+    exec wg show "$INTERFACE" transfer
+    ;;
+  *)
+    usage
+    exit 64
+    ;;
+esac

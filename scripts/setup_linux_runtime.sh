@@ -29,7 +29,6 @@ command -v flutter >/dev/null 2>&1 || {
   exit 2
 }
 
-FORCE_FLUTTER_ENV=true bash "$repo_root/scripts/prepare_flutter_env.sh" >/dev/null
 cd "$app_dir"
 flutter pub get
 flutter build linux --release
