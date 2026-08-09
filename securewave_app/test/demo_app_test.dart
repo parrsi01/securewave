@@ -39,33 +39,53 @@ void main() {
     expect(find.text('A deterministic simulated WireGuard experience.'),
         findsOneWidget);
     expect(find.text('Disconnected'), findsOneWidget);
-    expect(find.text('Connect'), findsOneWidget);
+    expect(
+      find.descendant(
+        of: find.byKey(const ValueKey('connection-action')),
+        matching: find.text('Connect'),
+      ),
+      findsOneWidget,
+    );
 
-    await tester.tap(find.text('Connect'));
+    await tester.tap(find.byKey(const ValueKey('connection-action')));
     await tester.pump();
-    expect(find.text('Connecting'), findsOneWidget);
+    expect(
+      find.descendant(
+        of: find.byKey(const ValueKey('vpn-status-chip')),
+        matching: find.text('Connecting'),
+      ),
+      findsOneWidget,
+    );
     await tester.pump(const Duration(milliseconds: 300));
     await tester.pump();
     expect(find.text('Connected'), findsOneWidget);
     expect(find.text('12.0 KB transferred'), findsOneWidget);
 
-    await tester.tap(find.text('Disconnect'));
+    await tester.tap(find.byKey(const ValueKey('connection-action')));
     await tester.pump();
-    expect(find.text('Disconnecting'), findsOneWidget);
+    expect(
+      find.descendant(
+        of: find.byKey(const ValueKey('vpn-status-chip')),
+        matching: find.text('Disconnecting'),
+      ),
+      findsOneWidget,
+    );
     await tester.pump(const Duration(milliseconds: 180));
     await tester.pump();
     expect(find.text('Disconnected'), findsOneWidget);
 
-    await tester.tap(find.text('Connect'));
+    await tester.tap(find.byKey(const ValueKey('connection-action')));
     await tester.pump(const Duration(milliseconds: 300));
     await tester.pump();
     expect(find.text('Connected'), findsOneWidget);
     expect(find.text('12.0 KB transferred'), findsOneWidget);
 
-    await tester.tap(find.text('Disconnect'));
+    await tester.tap(find.byKey(const ValueKey('connection-action')));
     await tester.pump(const Duration(milliseconds: 180));
     await tester.pump();
-    await tester.tap(find.byTooltip('Sign out'));
+    await tester.tap(find.byKey(const ValueKey('desktop-nav-settings')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Sign out'));
     await tester.pumpAndSettle();
 
     expect(find.text('Welcome back'), findsOneWidget);
