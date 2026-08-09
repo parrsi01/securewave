@@ -47,7 +47,7 @@ jobs:
 
       - name: Run beta suite
         env:
-          PYTHON_BIN: python
+          PYTHON_BIN: ${{ env.pythonLocation }}/bin/python
         run: ./scripts/test_linux_beta.sh
 
       - name: Build and verify ARM64 package
