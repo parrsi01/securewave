@@ -88,7 +88,7 @@ void main() {
 
     service.releaseAvailabilityChecks();
     await first;
-    expect(service.refreshedProtocols, VpnProtocol.values);
+    expect(service.refreshedProtocols, [VpnProtocol.wireGuard]);
   });
 
   test('VpnStateNotifier allows auto-select server', () async {
@@ -147,103 +147,6 @@ void main() {
     final state = container.read(vpnStateProvider);
     expect(state.status, VpnStatus.error);
     expect(state.lastTunnelStartOk, isFalse);
-  });
-
-  test('OpenVPN rolls back when authenticated egress proof fails', () async {
-    final service = _NativeSuccessVpnService();
-    final api = _CredentialedEgressApiClient(
-      protocol: VpnProtocol.openVpn,
-      egressVerified: false,
-    );
-    final container = ProviderContainer(
-      overrides: [
-        vpnServiceProvider.overrideWithValue(service),
-        apiClientProvider.overrideWithValue(api),
-      ],
-    );
-    addTearDown(container.dispose);
-
-    final notifier = container.read(vpnStateProvider.notifier);
-    await notifier.ensureInitialized();
-    await notifier.selectProtocol(VpnProtocol.openVpn);
-    await notifier.connect();
-
-    final state = container.read(vpnStateProvider);
-    expect(api.baselineCalls, 1);
-    expect(api.verifyCalls, 2);
-    expect(service.disconnectCalls, 1);
-    expect(state.status, VpnStatus.error);
-    expect(state.lastTunnelStartOk, isFalse);
-  });
-
-  test('OpenVPN accepts independent HTTPS movement on a co-hosted API',
-      () async {
-    final service = _NativeSuccessVpnService();
-    final api = _CredentialedEgressApiClient(
-      protocol: VpnProtocol.openVpn,
-      egressVerified: false,
-      externalExitIps: ['192.0.2.10', '198.51.100.20'],
-    );
-    final container = ProviderContainer(
-      overrides: [
-        vpnServiceProvider.overrideWithValue(service),
-        apiClientProvider.overrideWithValue(api),
-      ],
-    );
-    addTearDown(container.dispose);
-
-    final notifier = container.read(vpnStateProvider.notifier);
-    await notifier.ensureInitialized();
-    await notifier.selectProtocol(VpnProtocol.openVpn);
-    await notifier.connect();
-
-    expect(api.baselineCalls, 1);
-    expect(api.verifyCalls, 2);
-    expect(api.externalExitCalls, 2);
-    expect(service.disconnectCalls, 0);
-    expect(container.read(vpnStateProvider).status, VpnStatus.connected);
-  });
-
-  test('IKEv2 is rejected before profile or egress activity', () async {
-    final service = _NativeSuccessVpnService();
-    final api = _CredentialedEgressApiClient(
-      protocol: VpnProtocol.ikev2,
-      egressVerified: false,
-    );
-    final container = ProviderContainer(
-      overrides: [
-        vpnServiceProvider.overrideWithValue(service),
-        apiClientProvider.overrideWithValue(api),
-      ],
-    );
-    addTearDown(container.dispose);
-
-    final notifier = container.read(vpnStateProvider.notifier);
-    await notifier.ensureInitialized();
-    await notifier.selectProtocol(VpnProtocol.ikev2);
-    await notifier.connect();
-
-    final state = container.read(vpnStateProvider);
-    expect(api.baselineCalls, 0);
-    expect(api.verifyCalls, 0);
-    expect(service.disconnectCalls, 0);
-    expect(state.status, VpnStatus.error);
-    expect(state.lastTunnelStartOk, isFalse);
-    expect(state.errorKind, VpnErrorKind.protocolUnavailable);
-  });
-
-  test('IKEv2 runtime restoration disconnects without a fresh egress baseline',
-      () async {
-    final service = _RestoredCredentialedVpnService(VpnProtocol.ikev2);
-    final container = ProviderContainer(
-      overrides: [vpnServiceProvider.overrideWithValue(service)],
-    );
-    addTearDown(container.dispose);
-
-    await container.read(vpnStateProvider.notifier).ensureInitialized();
-
-    expect(service.disconnectCalls, 1);
-    expect(container.read(vpnStateProvider).status, VpnStatus.disconnected);
   });
 
   test('stale stored VPN device id is cleared and profile fetch retries',
@@ -547,18 +450,6 @@ class _NativeSuccessVpnService extends VpnService {
   VpnStatus getStatus() => _status;
 }
 
-class _RestoredCredentialedVpnService extends _NativeSuccessVpnService {
-  _RestoredCredentialedVpnService(this.restoredProtocol);
-
-  final VpnProtocol restoredProtocol;
-
-  @override
-  Future<VpnRuntimeStatus> refreshRuntimeStatus() async => VpnRuntimeStatus(
-        status: VpnStatus.connected,
-        protocol: restoredProtocol,
-      );
-}
-
 class _ReferenceRecoveryApiClient extends ApiClient {
   _ReferenceRecoveryApiClient({required this.failFirstDetail})
       : super(AppConfig.defaults());
@@ -726,112 +617,6 @@ class _DeviceLimitRecoveryApiClient extends ApiClient {
         'servers': ['94.140.14.14']
       },
       'peer_registered': true,
-    });
-  }
-
-  @override
-  Future<void> notifyVpnConnected({
-    String? serverId,
-    VpnProtocol? protocol,
-  }) async {}
-
-  @override
-  Future<void> notifyVpnDisconnected() async {}
-}
-
-class _CredentialedEgressApiClient extends ApiClient {
-  _CredentialedEgressApiClient({
-    required this.protocol,
-    required this.egressVerified,
-    this.externalExitIps = const ['192.0.2.10', '192.0.2.10'],
-  }) : super(AppConfig.defaults());
-
-  final VpnProtocol protocol;
-  final bool egressVerified;
-  final List<String> externalExitIps;
-  int baselineCalls = 0;
-  int verifyCalls = 0;
-  int externalExitCalls = 0;
-
-  @override
-  Future<Map<VpnProtocol, ProtocolAvailability>> fetchProtocolAvailability({
-    String? deviceType,
-  }) async =>
-      _allProtocolsAvailable();
-
-  @override
-  Future<String> captureVpnEgressBaseline() async {
-    baselineCalls += 1;
-    return 'a' * 64;
-  }
-
-  @override
-  Future<bool> verifyVpnEgress({
-    required String serverId,
-    required int deviceId,
-    required VpnProtocol protocol,
-    required String baselineFingerprint,
-    String? externalBaselineIp,
-    String? externalExitIp,
-  }) async {
-    verifyCalls += 1;
-    expect(serverId, 'de-nue-1');
-    expect(deviceId, 321);
-    expect(protocol, this.protocol);
-    expect(baselineFingerprint, 'a' * 64);
-    if (externalExitIp != null) {
-      return externalExitIp != externalBaselineIp;
-    }
-    return egressVerified;
-  }
-
-  @override
-  Future<String> captureExternalExitIp() async {
-    final index = externalExitCalls;
-    externalExitCalls += 1;
-    return externalExitIps[index.clamp(0, externalExitIps.length - 1)];
-  }
-
-  @override
-  Future<VpnProfile> fetchVpnProfile({
-    int? deviceId,
-    required String deviceName,
-    required String deviceType,
-    required VpnProtocol protocol,
-    String? serverId,
-    bool forceRotateKeys = false,
-  }) async {
-    return VpnProfile.fromJson({
-      'device_id': 321,
-      'device_name': deviceName,
-      'device_type': deviceType,
-      'protocol': this.protocol == VpnProtocol.openVpn ? 'openvpn' : 'ikev2',
-      'server_id': 'de-nue-1',
-      'server_location': 'Nuremberg, Germany',
-      'issued_at': DateTime.now().toIso8601String(),
-      'expires_at':
-          DateTime.now().add(const Duration(hours: 1)).toIso8601String(),
-      'openvpn_config':
-          this.protocol == VpnProtocol.openVpn ? 'client\ndev tun\n' : '',
-      'openvpn_username': this.protocol == VpnProtocol.openVpn
-          ? 'swovpn-0123456789abcdef0123456789abcdef'
-          : null,
-      'openvpn_password': this.protocol == VpnProtocol.openVpn
-          ? 'fresh-openvpn-password-012345'
-          : null,
-      'ikev2_config': this.protocol == VpnProtocol.ikev2
-          ? 'connections { securewave {} }\n# endpoint_ip = 192.0.2.10\n'
-          : '',
-      'dns': {
-        'servers': ['94.140.14.14'],
-        'enforcement': 'config',
-      },
-      'kill_switch': {
-        'mode': 'enabled',
-        'enforcement': 'best effort',
-      },
-      'peer_registered': true,
-      'registration_status': 'test',
     });
   }
 

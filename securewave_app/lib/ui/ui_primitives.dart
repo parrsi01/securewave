@@ -150,7 +150,6 @@ class _SelectableRow extends StatelessWidget {
     required this.title,
     required this.subtitle,
     this.leading,
-    this.trailing,
     this.onTap,
   });
 
@@ -159,7 +158,6 @@ class _SelectableRow extends StatelessWidget {
   final String title;
   final String subtitle;
   final Widget? leading;
-  final Widget? trailing;
   final VoidCallback? onTap;
 
   @override
@@ -214,7 +212,6 @@ class _SelectableRow extends StatelessWidget {
                   ),
                 ),
               ),
-              if (trailing != null) ...[const SizedBox(width: 10), trailing!],
             ],
           ),
         ),

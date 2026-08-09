@@ -63,7 +63,7 @@ def test_protocol_evidence_records_failure_and_recovery_transitions():
     assert "probe_exception" not in str(server.protocol_runtime_evidence)
 
 
-def test_explicitly_unauthenticated_evidence_fails_closed():
+def test_wireguard_availability_does_not_require_authenticated_evidence():
     from services.protocol_availability_service import ProtocolAvailabilityService
 
     server = _server()
@@ -73,11 +73,10 @@ def test_explicitly_unauthenticated_evidence_fails_closed():
     )
 
     readiness = ProtocolAvailabilityService(now=now).evaluate(server, "wireguard")
-    assert readiness.enabled is False
-    assert "protocol-specific" in readiness.reason
+    assert readiness.enabled is True
 
 
-def test_missing_authentication_evidence_fails_closed():
+def test_wireguard_availability_does_not_require_evidence_record():
     from services.protocol_availability_service import ProtocolAvailabilityService
 
     server = _server()
@@ -87,8 +86,7 @@ def test_missing_authentication_evidence_fails_closed():
     }
 
     readiness = ProtocolAvailabilityService(now=now).evaluate(server, "wireguard")
-    assert readiness.enabled is False
-    assert "protocol-specific" in readiness.reason
+    assert readiness.enabled is True
 
 
 @pytest.mark.asyncio

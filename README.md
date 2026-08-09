@@ -2,11 +2,12 @@
 
 SecureWave is a full-stack VPN platform repository that combines a Python/FastAPI backend, a Flutter client app, VPN provisioning logic, payment flows, and infrastructure automation.
 
-Current app truth is Linux desktop first. WireGuard, OpenVPN, and IKEv2 share
-the contract-13 Linux helper boundary, but each protocol remains unavailable
-until its local runtime, backend evidence, and live data-plane checks pass.
-The Flutter client must never mark a VPN as connected unless the native
-runtime reports success.
+The `codex/linux-beta-demo` branch narrows the supported Linux path to a small,
+real WireGuard beta: email/password authentication, authenticated API calls,
+server/profile retrieval, and the contract-13 native helper. The Flutter client
+must never mark a VPN as connected unless the native runtime reports success.
+OpenVPN, IKEv2, payments, email delivery, and release publishing remain outside
+this beta path.
 
 Apple/iOS work currently means signed archive preparation and App Store review
 support, not a public mobile release. The iOS target uses NetworkExtension
@@ -113,6 +114,22 @@ allowlisted root helper and systemd unit, and never elevates at connect time.
 Use `make linux-runtime-check` to inspect helper, package, and residue gates.
 
 See `securewave_app/README.md` for platform-specific notes.
+
+### Linux beta workflow
+
+From the beta branch, the short reproducible workflow is:
+
+```bash
+./scripts/run_linux_beta.sh backend   # optional local API on 127.0.0.1:8001
+./scripts/run_linux_beta.sh flutter
+./scripts/test_linux_beta.sh
+./scripts/build_linux_deb.sh
+./scripts/verify_linux_deb.sh securewave_app/build/packaging/securewave-vpn_<version>_<arch>.deb
+```
+
+See [`docs/LINUX_BETA.md`](docs/LINUX_BETA.md) for the API override, helper
+installation prerequisites, and read-only runtime verifier. The package build
+is local only; website publication and deployment are separate, explicit steps.
 
 The Linux app uses one GTK application instance. Launching it again should
 present the existing window rather than creating a second Flutter engine.

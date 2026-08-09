@@ -11,13 +11,8 @@ class _ConnectScreen extends ConsumerWidget {
     final servers = ref.watch(serversProvider);
     final config = ref.watch(appConfigProvider);
     final vpnService = ref.watch(vpnServiceProvider);
-    final backendAvailability = ref.watch(protocolAvailabilityProvider);
-    final availability = _protocolAvailability(
-      protocol: vpn.protocol,
-      service: vpnService,
-      backendAvailability: backendAvailability,
-      servers: servers,
-      selectedServerId: vpn.selectedServerId,
+    final runtimeAvailable = vpnService.canConnectProtocol(
+      VpnProtocol.wireGuard,
     );
 
     final serverList = servers.maybeWhen(
@@ -45,7 +40,7 @@ class _ConnectScreen extends ConsumerWidget {
                 builder: (context, constraints) {
                   final compact = constraints.maxWidth < 430;
                   final connectButton = FilledButton.icon(
-                    onPressed: busy || (!connected && !availability.canConnect)
+                    onPressed: busy || (!connected && !runtimeAvailable)
                         ? null
                         : () {
                             final notifier = ref.read(
@@ -104,22 +99,15 @@ class _ConnectScreen extends ConsumerWidget {
                           ),
                 ),
               ],
-              if (!availability.canConnect && !connected) ...[
+              if (!runtimeAvailable && !connected) ...[
                 const SizedBox(height: 12),
                 _InlineMessage(
-                  icon: availability.backendEvidencePending
-                      ? Icons.sync_rounded
-                      : Icons.block_rounded,
-                  message: availability.message,
-                  tone: availability.backendEvidencePending
-                      ? _Tone.info
-                      : _Tone.warning,
-                  actionLabel: availability.backendEvidencePending
-                      ? null
-                      : 'Refresh servers',
-                  onAction: availability.backendEvidencePending
-                      ? null
-                      : () => ref.invalidate(serversProvider),
+                  icon: Icons.block_rounded,
+                  message: vpnService.protocolUnavailableReason(
+                        VpnProtocol.wireGuard,
+                      ) ??
+                      'WireGuard is unavailable on this Linux runtime.',
+                  tone: _Tone.warning,
                 ),
               ],
               if (config.useMockApi) ...[
@@ -174,17 +162,13 @@ class _ConnectScreen extends ConsumerWidget {
           ),
         ),
         const SizedBox(height: 14),
-        _PlainPanel(
+        const _PlainPanel(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const _SectionTitle('Protocol'),
-              const SizedBox(height: 12),
-              _ProtocolPicker(
-                selected: vpn.protocol,
-                servers: servers,
-                selectedServerId: vpn.selectedServerId,
-              ),
+              _SectionTitle('Protocol'),
+              SizedBox(height: 12),
+              _WireGuardInfo(),
             ],
           ),
         ),

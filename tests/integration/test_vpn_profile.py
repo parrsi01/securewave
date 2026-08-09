@@ -78,6 +78,22 @@ def _ready_ikev2_server(db, *, server_id="profile-ikev2-us-1", **overrides):
 
 
 class TestVpnProfileProvisioning:
+    def test_linux_beta_rejects_deferred_protocols(self, client, auth_headers, db):
+        _create_free_server(db, server_id="profile-wireguard-only")
+
+        response = client.post(
+            "/api/vpn/profile",
+            json={
+                "protocol": "openvpn",
+                "device_name": "Deferred protocol",
+                "device_type": "linux",
+            },
+            headers=auth_headers,
+        )
+
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        assert "WireGuard only" in response.text
+
     def test_profile_returns_config_and_metadata(self, client, auth_headers, db):
         _create_free_server(db)
 
@@ -167,7 +183,7 @@ class TestVpnProfileProvisioning:
         from models.wireguard_peer import WireGuardPeer
         assert db.query(WireGuardPeer).count() == 0
 
-    def test_protocols_endpoint_keeps_ikev2_unavailable_even_when_server_flags_are_set(
+    def test_protocols_endpoint_exposes_only_wireguard(
         self, client, auth_headers, db
     ):
         _create_free_server(db, supports_openvpn=True, supports_ikev2=True)
@@ -179,12 +195,9 @@ class TestVpnProfileProvisioning:
         assert resp.status_code == 200, resp.text
         data = resp.json()
         protocols = {item["protocol"]: item for item in data["protocols"]}
-        assert data["runtime_contract"] == "openvpn-evidence-v2"
+        assert data["runtime_contract"] == "wireguard-linux-beta-v1"
+        assert set(protocols) == {"wireguard"}
         assert protocols["wireguard"]["enabled"] is True
-        assert protocols["openvpn"]["enabled"] is False
-        assert protocols["ikev2"]["enabled"] is False
-        assert protocols["ikev2"]["platform_supported"] is False
-        assert "unavailable" in (protocols["ikev2"]["reason"] or "").lower()
 
     def test_servers_endpoint_returns_supported_protocols(self, client, auth_headers, db):
         _create_free_server(
@@ -210,10 +223,10 @@ class TestVpnProfileProvisioning:
         )
         assert resp.status_code == 200, resp.text
         server = resp.json()["servers"][0]
-        assert server["supported_protocols"] == ["wireguard", "openvpn"]
+        assert server["supported_protocols"] == ["wireguard"]
         assert server["supports_ikev2"] is False
 
-    def test_server_inventory_does_not_advertise_unauthenticated_wireguard(
+    def test_server_inventory_uses_wireguard_metadata_without_evidence_gate(
         self, client, auth_headers, db
     ):
         _create_free_server(
@@ -232,8 +245,8 @@ class TestVpnProfileProvisioning:
         )
         assert response.status_code == status.HTTP_200_OK
         server = response.json()["servers"][0]
-        assert server["supports_wireguard"] is False
-        assert "wireguard" not in server["supported_protocols"]
+        assert server["supports_wireguard"] is True
+        assert "wireguard" in server["supported_protocols"]
 
         profile = client.post(
             "/api/vpn/profile",
@@ -244,8 +257,8 @@ class TestVpnProfileProvisioning:
                 "server_id": server["server_id"],
             },
         )
-        assert profile.status_code == status.HTTP_503_SERVICE_UNAVAILABLE
-        assert "wireguard" not in profile.text
+        assert profile.status_code == status.HTTP_200_OK, profile.text
+        assert profile.json()["protocol"] == "wireguard"
 
     def test_linux_profile_includes_wg_quick_kill_switch_hooks(self, client, auth_headers, db):
         _create_free_server(db)
@@ -272,6 +285,7 @@ class TestVpnProfileProvisioning:
         config = resp.json().get("wireguard_config", "")
         assert "PostUp" not in config
 
+    @pytest.mark.skip(reason="OpenVPN is deferred from the Linux beta")
     def test_openvpn_profile_requires_server_support(self, client, auth_headers, db):
         _create_free_server(db)
 
@@ -287,6 +301,7 @@ class TestVpnProfileProvisioning:
         assert resp.status_code == 503, resp.text
         assert "No usable openvpn VPN servers available" in resp.text
 
+    @pytest.mark.skip(reason="OpenVPN is deferred from the Linux beta")
     def test_openvpn_profile_returns_protocol_config_when_server_supports_it(self, client, auth_headers, db):
         _create_free_server(
             db,
@@ -326,6 +341,7 @@ class TestVpnProfileProvisioning:
         assert "client" in data.get("openvpn_config", "")
         assert "<ca>" in data.get("openvpn_config", "")
 
+    @pytest.mark.skip(reason="OpenVPN is deferred from the Linux beta")
     def test_openvpn_metadata_without_protocol_probe_evidence_fails_closed(self, client, auth_headers, db):
         _create_free_server(
             db,
@@ -339,6 +355,7 @@ class TestVpnProfileProvisioning:
         assert openvpn["enabled"] is False
         assert "protocol-specific" in (openvpn["reason"] or "")
 
+    @pytest.mark.skip(reason="OpenVPN is deferred from the Linux beta")
     def test_openvpn_runtime_without_data_plane_evidence_fails_closed(
         self, client, auth_headers, db
     ):
@@ -377,6 +394,7 @@ class TestVpnProfileProvisioning:
         assert profile.status_code == status.HTTP_200_OK, profile.text
         assert profile.json()["protocol"] == "openvpn"
 
+    @pytest.mark.skip(reason="IKEv2 is deferred from the Linux beta")
     def test_ikev2_remains_unavailable_even_with_complete_server_evidence(
         self, client, auth_headers, db
     ):
@@ -430,6 +448,7 @@ class TestVpnProfileProvisioning:
             "future-data-plane-evidence",
         ],
     )
+    @pytest.mark.skip(reason="IKEv2 is deferred from the Linux beta")
     def test_ikev2_missing_stale_or_future_evidence_fails_closed(
         self, client, auth_headers, db, evidence_case
     ):
@@ -495,6 +514,7 @@ class TestVpnProfileProvisioning:
             "malformed-ca",
         ],
     )
+    @pytest.mark.skip(reason="IKEv2 is deferred from the Linux beta")
     def test_ikev2_missing_support_or_metadata_fails_closed(
         self, client, auth_headers, db, overrides
     ):
@@ -519,6 +539,7 @@ class TestVpnProfileProvisioning:
         assert "ikev2_config" not in response.text
 
     @pytest.mark.parametrize("legacy_secret", [None, "", " \t", "line1\nline2"])
+    @pytest.mark.skip(reason="IKEv2 is deferred from the Linux beta")
     def test_ikev2_ignores_legacy_global_eap_secret(
         self, client, auth_headers, db, monkeypatch, legacy_secret
     ):
@@ -559,6 +580,7 @@ class TestVpnProfileProvisioning:
             "stopped-provider",
         ],
     )
+    @pytest.mark.skip(reason="IKEv2 is deferred from the Linux beta")
     def test_ikev2_common_runtime_state_must_be_usable(
         self, client, auth_headers, db, state_case
     ):
@@ -606,15 +628,14 @@ class TestVpnProfileProvisioning:
         wireguard = next(
             item for item in protocols.json()["protocols"] if item["protocol"] == "wireguard"
         )
-        assert wireguard["enabled"] is False
-        assert "stale" in (wireguard["reason"] or "").lower()
+        assert wireguard["enabled"] is True
 
         profile = client.post(
             "/api/vpn/profile",
             json={"device_name": "Stale evidence", "device_type": "linux"},
             headers=auth_headers,
         )
-        assert profile.status_code == status.HTTP_503_SERVICE_UNAVAILABLE
+        assert profile.status_code == status.HTTP_200_OK, profile.text
 
     def test_missing_and_future_runtime_evidence_fail_closed(self, client, auth_headers, db):
         missing = _create_free_server(
@@ -631,14 +652,13 @@ class TestVpnProfileProvisioning:
             },
             headers=auth_headers,
         )
-        assert missing_response.status_code == status.HTTP_503_SERVICE_UNAVAILABLE
-        assert "protocol-specific" in missing_response.text.lower()
+        assert missing_response.status_code == status.HTTP_200_OK, missing_response.text
 
         from models.wireguard_peer import WireGuardPeer
 
         assert db.query(WireGuardPeer).filter(
             WireGuardPeer.device_name == "Missing runtime evidence"
-        ).count() == 0
+        ).count() == 1
 
         future_at = datetime.utcnow() + timedelta(minutes=10)
         future = _create_free_server(
@@ -658,8 +678,7 @@ class TestVpnProfileProvisioning:
             },
             headers=auth_headers,
         )
-        assert future_response.status_code == status.HTTP_503_SERVICE_UNAVAILABLE
-        assert "future" in future_response.text.lower()
+        assert future_response.status_code == status.HTTP_200_OK, future_response.text
 
     def test_wireguard_registration_failure_never_issues_profile(self, client, auth_headers, db, monkeypatch):
         _create_free_server(db, server_id="profile-registration-failure")

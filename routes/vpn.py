@@ -31,7 +31,6 @@ from models.ikev2_credential import Ikev2Credential
 from models.openvpn_credential import OpenVpnCredential
 from services.jwt_service import get_current_user
 from utils.env_validation import demo_mode_enabled, wg_mock_mode_enabled
-from services.subscription_access import require_active_subscription
 from services.vpn_peer_manager import get_peer_manager
 from services.wireguard_service import WireGuardService
 from services.vpn_server_service import VPNServerService
@@ -188,7 +187,7 @@ class VpnProtocolsResponse(BaseModel):
     user_tier: str
     device_type: Optional[str] = None
     protocols: List[VpnProtocolAvailability]
-    runtime_contract: str = ProtocolAvailabilityService.OPENVPN_RUNTIME_CONTRACT
+    runtime_contract: str = ProtocolAvailabilityService.WIREGUARD_RUNTIME_CONTRACT
 
 class VpnProfileRequest(BaseModel):
     """Provision an app-consumable VPN tunnel profile (no downloadable files)."""
@@ -476,21 +475,16 @@ def _normalize_profile_protocol(raw: Optional[str]) -> str:
 
 
 def _platform_supported_protocols(device_type: Optional[str]) -> set[str]:
-    normalized = (device_type or "").lower().strip()
-    if normalized == "linux":
-        # IKEv2 remains out of the release surface until its dedicated
-        # gateway has a separately certified runtime and data plane.
-        return {"wireguard", "openvpn"}
-    return {"wireguard", "openvpn"}
+    # The beta has one client/runtime contract. Keep the protocol argument for
+    # compatibility with older callers, but never advertise unfinished
+    # OpenVPN or IKEv2 paths from the beta API.
+    del device_type
+    return {"wireguard"}
 
 
 def _server_supported_protocols(server: VPNServer) -> list[str]:
     availability = ProtocolAvailabilityService()
-    return [
-        protocol
-        for protocol in ("wireguard", "openvpn", "ikev2")
-        if availability.supports(server, protocol)
-    ]
+    return ["wireguard"] if availability.supports(server, "wireguard") else []
 
 
 def _server_supports_protocol(server: VPNServer, protocol: str) -> bool:
@@ -906,18 +900,14 @@ async def list_protocols(
 
     protocol_rows: list[VpnProtocolAvailability] = []
     availability = ProtocolAvailabilityService()
-    for protocol in ("wireguard", "openvpn", "ikev2"):
+    for protocol in ("wireguard",):
         platform_supported = protocol in platform_protocols
         readiness = [availability.evaluate(server, protocol) for server in servers]
         server_enabled = any(result.enabled for result in readiness)
         enabled = platform_supported and server_enabled
         reason = None
         if not platform_supported:
-            reason = (
-                "IKEv2 is unavailable pending dedicated gateway certification."
-                if protocol == "ikev2"
-                else f"{protocol} is not release-ready for Linux."
-            )
+            reason = f"{protocol} is not released for this Linux beta."
         elif not server_enabled:
             reason = next(
                 (result.reason for result in readiness if result.reason),
@@ -1047,25 +1037,12 @@ async def provision_profile(
     - Selects an allowed server by tier (or uses device/server preference)
     - Returns a WireGuard config blob + metadata (no downloadable files)
     """
-    await require_active_subscription(db, current_user)
-
     protocol = _normalize_profile_protocol(payload.protocol)
     device_type = (payload.device_type or "").lower().strip() or None
-    if protocol not in _platform_supported_protocols(device_type):
+    if protocol != "wireguard":
         raise HTTPException(
-            status_code=(
-                status.HTTP_503_SERVICE_UNAVAILABLE
-                if protocol == "ikev2"
-                else status.HTTP_400_BAD_REQUEST
-            ),
-            detail=(
-                "IKEv2 is unavailable pending dedicated gateway certification."
-                if protocol == "ikev2"
-                else (
-                    f"{protocol} is not release-ready for Linux. "
-                    "Use WireGuard or OpenVPN on the Linux release path."
-                )
-            ),
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="The Linux beta supports WireGuard only.",
         )
 
     user_tier = get_user_tier(current_user, db)
@@ -1395,7 +1372,6 @@ async def download_config(
 
     Returns the .conf file as a downloadable attachment.
     """
-    await require_active_subscription(db, current_user)
     _, server, config_content = await _confirmed_legacy_wireguard_config(db, current_user, server_id)
     safe_location = server.city.replace(" ", "-").lower()
     filename = f"securewave-{safe_location}.conf"
@@ -1420,7 +1396,6 @@ async def get_qr_code(
 
     Returns a base64-encoded PNG image of the QR code.
     """
-    await require_active_subscription(db, current_user)
     wg_service = WireGuardService()
     _, _, config_content = await _confirmed_legacy_wireguard_config(db, current_user, server_id)
 
@@ -1601,7 +1576,6 @@ async def get_vpn_config(
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="VPN not connected")
         return {"mode": "demo", "config": build_demo_config(session)}
 
-    await require_active_subscription(db, current_user)
     peer = db.query(WireGuardPeer).filter(
         WireGuardPeer.user_id == current_user.id,
         WireGuardPeer.server_id.isnot(None),
@@ -1622,7 +1596,6 @@ async def list_my_configs(
     """
     List all VPN configurations allocated to the current user.
     """
-    await require_active_subscription(db, current_user)
     peers = db.query(WireGuardPeer).filter(
         WireGuardPeer.user_id == current_user.id,
         WireGuardPeer.server_id.isnot(None),
@@ -1658,7 +1631,6 @@ async def create_device(
     db: Session = Depends(get_db),
 ):
     """Compatibility endpoint to create a device."""
-    await require_active_subscription(db, current_user)
     peer_manager = get_peer_manager(db)
 
     # Enforce device limits
@@ -1757,7 +1729,6 @@ async def download_config_alias(
     db: Session = Depends(get_db),
 ):
     """Compatibility endpoint to download a device config."""
-    await require_active_subscription(db, current_user)
     if device_id:
         peer = db.query(WireGuardPeer).filter(
             WireGuardPeer.id == device_id,
@@ -1815,7 +1786,6 @@ async def start_usage_session(
     db: Session = Depends(get_db),
 ):
     """Record client metering state; this does not assert tunnel establishment."""
-    await require_active_subscription(db, current_user)
     protocol = _normalize_profile_protocol(payload.protocol)
     server = VPNServerService.get_server_by_id(db, payload.server_id)
     if server is None:
@@ -1888,7 +1858,6 @@ async def get_usage(
     db: Session = Depends(get_db),
 ):
     """Return usage stats for a device or aggregated across all devices."""
-    await require_active_subscription(db, current_user)
     user_tier = get_user_tier(current_user, db)
 
     query = db.query(WireGuardPeer).filter(

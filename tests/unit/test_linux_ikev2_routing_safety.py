@@ -2,9 +2,16 @@ import os
 import subprocess
 from pathlib import Path
 
+import pytest
+
 
 ROOT = Path(__file__).resolve().parents[2]
 HELPER = ROOT / "securewave_app/packaging/linux/securewave-wg-quick"
+
+
+pytestmark = pytest.mark.skip(
+    reason="IKEv2 routing safety is deferred from the Linux WireGuard beta"
+)
 
 
 def _install_fake_network_tools(tmp_path: Path) -> tuple[Path, Path, Path, Path]:

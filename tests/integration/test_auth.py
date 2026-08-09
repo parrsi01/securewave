@@ -5,6 +5,8 @@ Authentication tests
 import pytest
 from fastapi import status
 
+from models.user import User
+
 
 class TestRegistration:
     """Test user registration"""
@@ -22,6 +24,31 @@ class TestRegistration:
         assert response.status_code == status.HTTP_201_CREATED
         data = response.json()
         assert "access_token" in data
+
+    def test_register_without_email_workflow_returns_canonical_authenticated_session(
+        self, client, db
+    ):
+        response = client.post(
+            "/api/auth/register",
+            json={
+                "email": "beta-session@example.com",
+                "password": "SecurePass123!",
+            },
+        )
+
+        assert response.status_code == status.HTTP_201_CREATED
+        data = response.json()
+        assert data["access_token"]
+        user = db.query(User).filter(User.email == "beta-session@example.com").one()
+        assert user.email_verified is True
+        assert user.hashed_password != "SecurePass123!"
+
+        me = client.get(
+            "/api/auth/me",
+            headers={"Authorization": f"Bearer {data['access_token']}"},
+        )
+        assert me.status_code == status.HTTP_200_OK
+        assert me.json()["email"] == "beta-session@example.com"
 
     def test_register_duplicate_email(self, client, test_user):
         """Test registration with duplicate email"""

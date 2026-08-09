@@ -100,107 +100,23 @@ class _UsageSummary extends StatelessWidget {
   }
 }
 
-class _ProtocolPicker extends ConsumerWidget {
-  const _ProtocolPicker({
-    required this.selected,
-    required this.servers,
-    required this.selectedServerId,
-  });
-
-  final VpnProtocol selected;
-  final AsyncValue<List<ServerRegion>> servers;
-  final String? selectedServerId;
+class _WireGuardInfo extends StatelessWidget {
+  const _WireGuardInfo();
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final vpnService = ref.watch(vpnServiceProvider);
-    final backendAvailability = ref.watch(protocolAvailabilityProvider);
-    final protocols = [
-      (
-        protocol: VpnProtocol.wireGuard,
-        title: 'WireGuard',
-        detail: 'Primary Linux runtime path.',
-      ),
-      (
-        protocol: VpnProtocol.openVpn,
-        title: 'OpenVPN',
-        detail: 'Requires a backend-issued OpenVPN profile.',
-      ),
-      (
-        protocol: VpnProtocol.ikev2,
-        title: 'IKEv2/IPSec',
-        detail: 'Requires a backend-issued IKEv2 profile and strongSwan.',
-      ),
-    ];
-
-    return Column(
+  Widget build(BuildContext context) {
+    return Row(
       children: [
-        for (var i = 0; i < protocols.length; i++) ...[
-          Builder(
-            builder: (context) {
-              final item = protocols[i];
-              final availability = _protocolAvailability(
-                protocol: item.protocol,
-                service: vpnService,
-                backendAvailability: backendAvailability,
-                servers: servers,
-                selectedServerId: selectedServerId,
-              );
-              return _ProtocolTile(
-                protocol: item.protocol,
-                selected: selected == item.protocol,
-                title: item.title,
-                detail: availability.canConnect
-                    ? item.detail
-                    : availability.message,
-                enabled: availability.canConnect,
-                pending: availability.backendEvidencePending,
-              );
-            },
+        const Icon(Icons.shield_outlined),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Text(
+            'WireGuard is the only protocol included in this Linux beta.',
+            style: Theme.of(context).textTheme.bodyMedium,
           ),
-          if (i < protocols.length - 1) const SizedBox(height: 8),
-        ],
+        ),
+        const _StatusChip(label: 'Selected', tone: _Tone.info),
       ],
-    );
-  }
-}
-
-class _ProtocolTile extends ConsumerWidget {
-  const _ProtocolTile({
-    required this.protocol,
-    required this.selected,
-    required this.title,
-    required this.detail,
-    required this.enabled,
-    required this.pending,
-  });
-
-  final VpnProtocol protocol;
-  final bool selected;
-  final String title;
-  final String detail;
-  final bool enabled;
-  final bool pending;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    return _SelectableRow(
-      selected: selected,
-      enabled: enabled,
-      title: title,
-      subtitle: detail,
-      trailing: pending
-          ? const SizedBox(
-              width: 16,
-              height: 16,
-              child: CircularProgressIndicator(strokeWidth: 2),
-            )
-          : enabled
-              ? null
-              : const _StatusChip(label: 'Unavailable', tone: _Tone.warning),
-      onTap: enabled
-          ? () => ref.read(vpnStateProvider.notifier).selectProtocol(protocol)
-          : null,
     );
   }
 }

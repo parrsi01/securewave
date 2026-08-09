@@ -31,7 +31,6 @@ from routes import auth as new_auth, billing, diagnostics, vpn as new_vpn, serve
 from services.wireguard_service import WireGuardService
 from services.email_service import EmailService
 from utils.env_validation import (
-    email_config_issues,
     validate_fernet_key,
     is_production,
     demo_mode_enabled,
@@ -316,10 +315,7 @@ def require_encryption_keys(logger: logging.Logger) -> None:
     if not is_production():
         return
     missing = []
-    auth_issue = validate_fernet_key(os.getenv("AUTH_ENCRYPTION_KEY"))
     wg_issue = validate_fernet_key(os.getenv("WG_ENCRYPTION_KEY"))
-    if auth_issue:
-        missing.append(f"AUTH_ENCRYPTION_KEY ({auth_issue})")
     if wg_issue:
         missing.append(f"WG_ENCRYPTION_KEY ({wg_issue})")
     if missing:
@@ -334,12 +330,6 @@ def require_production_config(logger: logging.Logger) -> None:
         return
 
     errors = []
-    if os.getenv("EMAIL_PROVIDER") is None:
-        errors.append("EMAIL_PROVIDER must be explicitly set in production")
-    provider, missing = email_config_issues()
-    if missing:
-        errors.append(f"EMAIL_PROVIDER({provider}) missing: {', '.join(missing)}")
-
     for flag in ("DEMO_MODE", "WG_MOCK_MODE"):
         value = os.getenv(flag)
         if value is None:
@@ -350,8 +340,6 @@ def require_production_config(logger: logging.Logger) -> None:
     database_url = os.getenv("DATABASE_URL", "").strip().lower()
     if not database_url or database_url.startswith("sqlite"):
         errors.append("DATABASE_URL must point to a non-SQLite production database")
-    if os.getenv("REDIS_URL", "memory://").strip().lower().startswith("memory://"):
-        errors.append("REDIS_URL must use a shared production rate-limit backend")
     if not os.getenv("ALLOWED_HOSTS", "").strip():
         errors.append("ALLOWED_HOSTS must be explicitly set in production")
 

@@ -3,10 +3,16 @@
 from datetime import datetime
 
 from fastapi import status
+import pytest
 
 from models.vpn_server import VPNServer
 from models.wireguard_peer import WireGuardPeer
 from models.ikev2_credential import Ikev2Credential
+
+
+pytestmark = pytest.mark.skip(
+    reason="IKEv2 credential lifecycle is deferred from the Linux WireGuard beta"
+)
 
 
 def _complete_ikev2_server(db, *, server_id: str = "ikev2-unavailable-1"):

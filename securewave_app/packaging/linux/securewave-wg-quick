@@ -1,37 +1,19 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-CONNECTION_NAME="SecureWave-IKEv2"
-IKEV2_INTERFACE="nm-xfrm-sw"
-OPENVPN_INTERFACE="tun-securewave"
-MAX_DNS_SERVERS=8
-IKEV2_ROUTING_TABLE=210
-IKEV2_ROUTING_PRIORITY=210
-IKEV2_LEGACY_ROUTING_TABLE=220
-IKEV2_LEGACY_ROUTING_PRIORITY=220
 WIREGUARD_ROUTING_TABLE=51820
 WIREGUARD_POLICY_PRIORITY=32764
 WIREGUARD_SUPPRESS_PRIORITY=32765
 WIREGUARD_IPV4_KILL_SWITCH_COMMENT="securewave-wireguard-ipv4-kill-switch-v1"
 WIREGUARD_IPV6_BLOCK_COMMENT="securewave-wireguard-ipv6-block-v1"
-IKEV2_IPV6_BLOCK_COMMENT="securewave-ikev2-ipv6-block-v1"
 PUBLIC_IPV6_PREFIX="2000::/3"
-IKEV2_OUTER_MARK="0xdc/0xffffffff"
 
 usage() {
   cat >&2 <<'EOF'
 Usage:
-  securewave-wg-quick probe <wireguard|openvpn|ikev2>
+  securewave-wg-quick probe wireguard
   securewave-wg-quick <up|down|policy-ensure|policy-clear|policy-clear-link|nm-unmanaged|nm-reset> <config-path|iface>
-  securewave-wg-quick openvpn-start <config-path> <pid-path> <log-path> [auth-path]
-  securewave-wg-quick openvpn-stop <pid>
-  securewave-wg-quick openvpn-dns-apply <4:address|6:address> [...]
-  securewave-wg-quick openvpn-dns-revert
   securewave-wg-quick wireguard-transfer
-  securewave-wg-quick xfrm-state
-  securewave-wg-quick <ikev2-up|ikev2-down|ikev2-delete>
-  securewave-wg-quick ikev2-add-eap <server> <username> <password> [remote-id] [ca-cert-path]
-  securewave-wg-quick ikev2-set-dns <4:address|6:address> [...]
 EOF
 }
 
@@ -54,7 +36,7 @@ is_safe_runtime_path() {
 require_safe_config_path() {
   local path="$1"
   case "$path" in
-    /home/*/.config/securewave/*.conf|/root/.config/securewave/*.conf|/run/securewave/*.conf|/etc/wireguard/*.conf|/home/*/.config/securewave/*.ovpn|/root/.config/securewave/*.ovpn|/run/securewave/*.ovpn)
+    /home/*/.config/securewave/*.conf|/root/.config/securewave/*.conf|/run/securewave/*.conf|/etc/wireguard/*.conf)
       return 0
       ;;
     *)
@@ -214,21 +196,8 @@ case "$action" in
         command -v ip6tables-save >/dev/null 2>&1
         command -v ip6tables-restore >/dev/null 2>&1
         ;;
-      openvpn)
-        command -v openvpn >/dev/null 2>&1
-        command -v resolvectl >/dev/null 2>&1
-        ;;
-      ikev2)
-        command -v nmcli >/dev/null 2>&1
-        command -v ip6tables >/dev/null 2>&1
-        command -v ip6tables-save >/dev/null 2>&1
-        command -v ip6tables-restore >/dev/null 2>&1
-        [[ -x /usr/lib/ipsec/charon-nm ]]
-        [[ -r /usr/lib/NetworkManager/VPN/nm-strongswan-service.name ]]
-        [[ -r /usr/lib/ipsec/plugins/libstrongswan-eap-mschapv2.so ]]
-        ;;
       *)
-        echo "securewave-wg-quick: invalid probe target '$1'" >&2
+        echo "securewave-wg-quick: only WireGuard is supported by this Linux beta" >&2
         exit 64
         ;;
     esac
@@ -250,77 +219,15 @@ case "$action" in
     iface="$1"
     require_sw_wg_iface "$iface"
     ;;
-  openvpn-start)
-    if [[ $# -lt 3 || $# -gt 4 ]]; then
-      usage
-      exit 64
-    fi
-    config="$1"
-    pid_file="$2"
-    log_file="$3"
-    auth_file="${4:-}"
-    require_safe_config_path "$config"
-    require_safe_runtime_file "$pid_file" "pid"
-    require_safe_runtime_file "$log_file" "log"
-    if [[ -n "$auth_file" ]]; then
-      require_safe_runtime_file "$auth_file" "auth"
-    fi
-    ;;
-  openvpn-stop)
-    if [[ $# -ne 1 ]]; then
-      usage
-      exit 64
-    fi
-    pid="$1"
-    [[ "$pid" =~ ^[0-9]+$ ]] || {
-      echo "securewave-wg-quick: refusing invalid pid '$pid'" >&2
-      exit 64
-    }
-    ;;
-  openvpn-dns-apply|ikev2-set-dns)
-    require_tagged_dns_args "$@"
-    ;;
-  openvpn-dns-revert)
+  wireguard-transfer)
     if [[ $# -ne 0 ]]; then
       usage
       exit 64
     fi
     ;;
-  wireguard-transfer|xfrm-state)
-    if [[ $# -ne 0 ]]; then
-      usage
-      exit 64
-    fi
-    ;;
-  ikev2-add-eap)
-    if [[ $# -lt 3 || $# -gt 5 ]]; then
-      usage
-      exit 64
-    fi
-    server="$1"
-    username="$2"
-    password="$3"
-    remote_id="${4:-}"
-    ca_cert="${5:-}"
-    require_ikev2_endpoint "$server"
-    require_ikev2_eap_username "$username"
-    require_ikev2_eap_secret "$password"
-    if [[ -n "$remote_id" ]]; then
-      require_ikev2_remote_identity "$remote_id"
-    fi
-    if [[ -n "$ca_cert" ]]; then
-      require_safe_runtime_file "$ca_cert" "ca certificate"
-      if [[ ! -f "$ca_cert" ]]; then
-        echo "securewave-wg-quick: CA certificate file '$ca_cert' not found" >&2
-        exit 64
-      fi
-    fi
-    ;;
-  ikev2-up|ikev2-down|ikev2-delete)
-    if [[ $# -ne 0 ]]; then
-      usage
-      exit 64
-    fi
+  openvpn-*|ikev2-*|xfrm-state)
+    echo "securewave-wg-quick: OpenVPN and IKEv2 are deferred from this Linux beta" >&2
+    exit 64
     ;;
   *)
     echo "securewave-wg-quick: invalid action '$action'" >&2

@@ -39,7 +39,6 @@ from services.ikev2_credential_manager import (
     Ikev2CredentialError,
     Ikev2CredentialManager,
 )
-from services.subscription_access import require_active_subscription
 from services.wireguard_peer_lifecycle import (
     WireGuardPeerSyncError,
     confirm_peer_assignment,
@@ -233,7 +232,6 @@ async def add_device(
     Generates WireGuard keys and allocates an IP address.
     Subject to device limits based on subscription tier.
     """
-    await require_active_subscription(db, current_user)
     peer_manager = get_peer_manager(db)
     device_name = request.name.strip()
 
@@ -402,8 +400,6 @@ async def set_device_server_preference(
     - ``server_id``: WireGuard server identifier (e.g. "us-east-1-001")
     - null: auto-select the best server
     """
-    await require_active_subscription(db, current_user)
-
     peer = db.query(WireGuardPeer).filter(
         WireGuardPeer.id == device_id,
         WireGuardPeer.user_id == current_user.id,
@@ -518,7 +514,6 @@ async def get_device_config(
 
     Returns the .conf file content and QR code for mobile setup.
     """
-    await require_active_subscription(db, current_user)
     peer = db.query(WireGuardPeer).filter(
         WireGuardPeer.id == device_id,
         WireGuardPeer.user_id == current_user.id
@@ -599,7 +594,6 @@ async def download_device_config(
     db: Session = Depends(get_db)
 ):
     """Download WireGuard configuration file."""
-    await require_active_subscription(db, current_user)
     peer = db.query(WireGuardPeer).filter(
         WireGuardPeer.id == device_id,
         WireGuardPeer.user_id == current_user.id,
@@ -697,7 +691,6 @@ async def rotate_device_keys(
     Generates new keypair and invalidates old configuration.
     The SecureWave app will fetch a fresh tunnel profile automatically on the next connect.
     """
-    await require_active_subscription(db, current_user)
     peer = db.query(WireGuardPeer).filter(
         WireGuardPeer.id == device_id,
         WireGuardPeer.user_id == current_user.id,

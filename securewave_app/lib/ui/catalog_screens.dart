@@ -7,15 +7,6 @@ class _ServersScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final servers = ref.watch(serversProvider);
     final vpn = ref.watch(vpnStateProvider);
-    final service = ref.watch(vpnServiceProvider);
-    final backendAvailability = ref.watch(protocolAvailabilityProvider);
-    final availability = _protocolAvailability(
-      protocol: vpn.protocol,
-      service: service,
-      backendAvailability: backendAvailability,
-      servers: servers,
-      selectedServerId: vpn.selectedServerId,
-    );
 
     return servers.when(
       loading: () => const _CenteredState(
@@ -44,65 +35,42 @@ class _ServersScreen extends ConsumerWidget {
           );
         }
 
-        final evidencedItems = items
-            .where(
-              (server) => server.hasProtocolEvidenceFor(
-                vpnProtocolStorageValue(vpn.protocol),
-              ),
-            )
+        final wireGuardItems = items
+            .where((server) => server.supportsProtocol('wireguard'))
             .toList(growable: false);
 
         return ListView(
           children: [
-            if (!availability.canConnect) ...[
-              _InlineMessage(
-                icon: Icons.info_outline_rounded,
-                message: availability.message,
-                tone: _Tone.warning,
-                actionLabel: 'Refresh',
-                onAction: () => ref.invalidate(serversProvider),
-              ),
-              const SizedBox(height: 10),
-            ],
             _PlainPanel(
               child: _ServerTile(
                 title: 'Auto-select',
-                subtitle: evidencedItems.isEmpty
-                    ? 'Waiting for usable backend protocol evidence.'
-                    : 'Choose the best region at connect time.',
+                subtitle: wireGuardItems.isEmpty
+                    ? 'No WireGuard regions are currently listed.'
+                    : 'Choose the best WireGuard region at connect time.',
                 selected: vpn.selectedServerId == null,
                 icon: Icons.auto_awesome_rounded,
-                enabled: evidencedItems.isNotEmpty,
-                onTap: evidencedItems.isEmpty
+                enabled: wireGuardItems.isNotEmpty,
+                onTap: wireGuardItems.isEmpty
                     ? null
                     : () =>
                         ref.read(vpnStateProvider.notifier).selectServer(null),
               ),
             ),
             const SizedBox(height: 10),
-            for (final server in items) ...[
-              Builder(
-                builder: (context) {
-                  final supported = server.hasProtocolEvidenceFor(
-                    vpnProtocolStorageValue(vpn.protocol),
-                  );
-                  return _PlainPanel(
-                    child: _ServerTile(
-                      title: server.name,
-                      subtitle: supported
-                          ? _serverSubtitle(server)
-                          : '${vpnProtocolLabel(vpn.protocol)} is not listed by the backend for this region.',
-                      selected: vpn.selectedServerId == server.id,
-                      icon: Icons.public_rounded,
-                      enabled: supported,
-                      onTap: supported
-                          ? () => ref
-                              .read(vpnStateProvider.notifier)
-                              .selectServer(server.id)
-                          : null,
-                    ),
-                  );
-                },
+            for (final server in wireGuardItems) ...[
+              _PlainPanel(
+                child: _ServerTile(
+                  title: server.name,
+                  subtitle: _serverSubtitle(server),
+                  selected: vpn.selectedServerId == server.id,
+                  icon: Icons.public_rounded,
+                  enabled: server.supportsProtocol('wireguard'),
+                  onTap: server.supportsProtocol('wireguard')
+                      ? () => ref
+                          .read(vpnStateProvider.notifier)
+                          .selectServer(server.id)
+                      : null,
+                ),
               ),
               const SizedBox(height: 10),
             ],

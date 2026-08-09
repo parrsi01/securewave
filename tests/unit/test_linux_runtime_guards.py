@@ -26,12 +26,12 @@ def _read(path: Path) -> str:
     return path.read_text(encoding="utf-8")
 
 
-def test_linux_runner_accepts_only_bounded_openvpn_username_contracts():
+def test_linux_runner_accepts_only_wireguard_protocol_contracts():
     runner = _read(RUNNER)
 
-    assert 'g_str_has_prefix(value, "swovpn-") && length == 38' in runner
-    assert 'g_str_has_prefix(value, "sw-ovpn-")' in runner
-    assert "length < 9 || length > 64" in runner
+    assert 'return g_strcmp0(protocol, "wireguard") == 0;' in runner
+    assert 'return "wireguard.up";' in runner
+    assert 'return "wireguard.down";' in runner
 
 
 def test_helper_contract_version_matches_daemon():
@@ -154,22 +154,13 @@ def test_helper_daemon_rolls_back_a_started_tunnel_without_handshake_proof():
 def test_privileged_helper_script_restricts_inputs_and_protocol_actions():
     helper = _read(HELPER)
 
+    assert "securewave-wg-quick probe wireguard" in helper
     assert "require_safe_config_path" in helper
     assert "require_safe_runtime_file" in helper
     assert "require_sw_wg_iface" in helper
     assert 'if [[ "$iface" != "sw-wg" ]]' in helper
     assert "wireguard-transfer" in helper
-    assert "xfrm-state" in helper
-    assert "openvpn-start <config-path> <pid-path> <log-path> [auth-path]" in helper
-    assert (
-        "ikev2-add-eap <server> <username> <password> [remote-id] [ca-cert-path]"
-        in helper
-    )
-    assert "openvpn-dns-apply <4:address|6:address> [...]" in helper
-    assert "ikev2-set-dns <4:address|6:address> [...]" in helper
-    assert 'OPENVPN_INTERFACE="tun-securewave"' in helper
-    assert "require_tagged_dns_args" in helper
-    assert "cert-source=file" in helper
+    assert "openvpn-*|ikev2-*|xfrm-state" in helper
 
 
 def test_systemd_and_tmpfiles_define_no_prompt_helper_socket_model():
@@ -200,20 +191,20 @@ def test_strongswan_routing_dropin_pairs_marks_for_both_daemons():
     assert "charon-nm {" in routing
 
 
-def test_install_helper_script_installs_payload_and_removes_old_polkit_rule():
+def test_install_helper_script_installs_wireguard_payload_without_polkit():
     installer = _read(INSTALLER)
 
     assert 'HELPER_DIR="/usr/local/libexec"' in installer
     assert 'SERVICE_FILE="/etc/systemd/system/securewave-helper.service"' in installer
     assert 'TMPFILES_FILE="/usr/lib/tmpfiles.d/securewave-helper.conf"' in installer
     assert 'AUTH_FILE="$AUTH_DIR/helper-users"' in installer
-    assert 'OLD_POLKIT_RULE="/etc/polkit-1/rules.d/50-securewave-wg.rules"' in installer
     assert 'groupadd --system "$RUNTIME_GROUP"' in installer
-    assert 'usermod -a -G "$RUNTIME_GROUP" "$user"' in installer
+    assert 'usermod -a -G "$RUNTIME_GROUP" "$allowed_user"' in installer
     assert "done < /etc/passwd" not in installer
-    assert 'rm -f "$OLD_POLKIT_RULE"' in installer
+    assert "50-securewave-wg.rules" not in installer
     assert "systemctl daemon-reload" in installer
     assert "systemctl enable --now securewave-helper.service" in installer
-    assert "find_strongswan_fwmark_conflict" in installer
-    assert "charon_nm_running" in installer
+    assert "openvpn" not in installer.lower()
+    assert "strongswan" not in installer.lower()
+    assert "ikev2" not in installer.lower()
     assert "systemctl try-restart strongswan-starter.service" not in installer

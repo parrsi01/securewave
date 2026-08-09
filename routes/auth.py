@@ -21,7 +21,6 @@ from database.session import get_db, SessionLocal
 from models.user import User
 from services.hashing_service import hash_password, verify_password
 from utils.password_policy import validate_password_strength
-from utils.env_validation import demo_mode_enabled
 from services.jwt_service import (
     ACCESS_EXPIRE_MINUTES,
     REFRESH_EXPIRE_MINUTES,
@@ -39,7 +38,6 @@ from slowapi.util import get_remote_address
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/auth", tags=["Authentication"])
-DEMO_MODE = demo_mode_enabled()
 COOKIE_SAMESITE = os.getenv("COOKIE_SAMESITE", "lax")
 
 
@@ -145,7 +143,7 @@ def optional_current_user(request: Request, db: Session) -> Optional[User]:
 class RegisterRequest(BaseModel):
     email: EmailStr
     password: str
-    password_confirm: str
+    password_confirm: Optional[str] = None
 
 
 class LoginRequest(BaseModel):
@@ -234,7 +232,7 @@ async def register(
                 detail=password_error
             )
 
-        if payload.password != payload.password_confirm:
+        if payload.password_confirm is not None and payload.password != payload.password_confirm:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Passwords do not match"
@@ -246,41 +244,27 @@ async def register(
             hashed_password=hash_password(payload.password),
             created_at=datetime.utcnow(),
             subscription_status="basic",
-            email_verified=DEMO_MODE,  # Demo: mark verified immediately
+            # Email delivery is not part of the Linux beta. Registration is
+            # complete once the password hash is stored successfully.
+            email_verified=True,
         )
         db.add(user)
         db.commit()
         db.refresh(user)
 
-        # Send verification email (demo skips)
-        email_sent = False
-        if not DEMO_MODE:
-            auth_service = AuthService(db)
-            email_sent = auth_service.send_verification_email(user)
-
-            if not email_sent:
-                logger.warning("Verification email enqueue failed user_id=%s", user.id)
-
-        logger.info("User registered user_id=%s verification_required=%s", user.id, not DEMO_MODE)
-
-        if DEMO_MODE:
-            access_token = create_access_token(user)
-            refresh_token = create_refresh_token(user)
-            csrf_token = secrets.token_urlsafe(32)
-            _set_auth_cookies(response, access_token, refresh_token, csrf_token)
-            return {
-                "message": "Registration successful (demo mode).",
-                "access_token": access_token,
-                "refresh_token": refresh_token,
-                "token_type": "bearer",
-                "csrf_token": csrf_token,
-            }
-
+        access_token = create_access_token(user)
+        refresh_token = create_refresh_token(user)
+        csrf_token = secrets.token_urlsafe(32)
+        _set_auth_cookies(response, access_token, refresh_token, csrf_token)
+        logger.info("User registered user_id=%s", user.id)
         return {
-            "message": "Registration successful. Please check your email to verify your account.",
+            "message": "Registration successful.",
             "email": user.email,
-            "email_sent": email_sent,
-            "user_id": user.id
+            "user_id": user.id,
+            "access_token": access_token,
+            "refresh_token": refresh_token,
+            "token_type": "bearer",
+            "csrf_token": csrf_token,
         }
 
     except HTTPException:
@@ -353,12 +337,6 @@ async def login(
             raise HTTPException(
                 status_code=status.HTTP_423_LOCKED,
                 detail=f"Account locked due to too many failed login attempts. Try again later."
-            )
-
-        if not user.email_verified:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Please verify your email before logging in",
             )
 
         # Check 2FA
@@ -607,14 +585,10 @@ async def update_email(
             )
 
         current_user.email = new_email
-        current_user.email_verified = DEMO_MODE
+        current_user.email_verified = True
         _invalidate_auth_tokens(current_user)
         db.commit()
         db.refresh(current_user)
-
-        if not DEMO_MODE:
-            auth_service = AuthService(db)
-            auth_service.send_verification_email(current_user)
 
         access_token = create_access_token(current_user)
         refresh_token = create_refresh_token(current_user)

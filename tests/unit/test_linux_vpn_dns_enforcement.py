@@ -4,9 +4,16 @@ import os
 import subprocess  # nosec B404
 from pathlib import Path
 
+import pytest
+
 
 ROOT = Path(__file__).resolve().parents[2]
 HELPER = ROOT / "securewave_app/packaging/linux/securewave-wg-quick"
+
+
+pytestmark = pytest.mark.skip(
+    reason="OpenVPN/IKEv2 DNS enforcement is deferred from the Linux WireGuard beta"
+)
 
 
 def _write_fake(binary: Path, body: str) -> None:

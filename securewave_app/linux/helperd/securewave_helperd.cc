@@ -353,7 +353,6 @@ static const char* AllowlistedExecutablePath(const std::string& executable) {
       {"nft", "/usr/sbin/nft"},
       {"nmcli", "/usr/bin/nmcli"},
       {"resolvectl", "/usr/bin/resolvectl"},
-      {"setfacl", "/usr/bin/setfacl"},
       {"wg", "/usr/bin/wg"},
   };
   const auto it = kExecutables.find(executable);
@@ -467,14 +466,6 @@ static CommandResult RunHelper(const std::vector<std::string>& helper_args) {
   return RunCommand(argv);
 }
 
-static void ApplyAllowedUserAcls() {
-  for (const uid_t uid : ReadAllowedUids()) {
-    const std::string entry_prefix = std::string("u:") + std::to_string(static_cast<unsigned long>(uid));
-    RunCommand({"setfacl", "-m", entry_prefix + ":rx", kRuntimeDir});
-    RunCommand({"setfacl", "-m", entry_prefix + ":rw", kSocketPath});
-  }
-}
-
 static bool HasUnsafePathComponent(const std::string& path) {
   if (path.empty() || path[0] != '/' || path.size() > 4096) {
     return true;
@@ -567,7 +558,7 @@ static bool ValidateRuntimeFilePath(const std::string& path, const std::string& 
 }
 
 static bool ValidateProtocol(const std::string& protocol) {
-  return protocol == "wireguard" || protocol == "openvpn" || protocol == "ikev2";
+  return protocol == "wireguard";
 }
 
 static std::string Lower(std::string value) {
@@ -3252,6 +3243,11 @@ static Fields OpenVpnStatus(const Fields& request, uid_t peer_uid) {
 }
 
 static Fields HandleOpenVpn(const std::string& op, const Fields& request, uid_t peer_uid) {
+  (void)op;
+  (void)request;
+  (void)peer_uid;
+  return Error("protocol_unavailable", "This Linux beta supports WireGuard only.");
+
   Fields contract_error;
   if (!ContractOk(&contract_error)) {
     return contract_error;
@@ -3632,6 +3628,11 @@ static bool StopIkev2Runtime(std::string* message) {
 }
 
 static Fields HandleIkev2(const std::string& op, const Fields& request, uid_t peer_uid) {
+  (void)op;
+  (void)request;
+  (void)peer_uid;
+  return Error("protocol_unavailable", "This Linux beta supports WireGuard only.");
+
   Fields contract_error;
   if (!ContractOk(&contract_error)) {
     return contract_error;
@@ -3894,7 +3895,6 @@ static int CreateSocket() {
   } else {
     chmod(kSocketPath, 0600);
   }
-  ApplyAllowedUserAcls();
   if (listen(fd, 16) != 0) {
     close(fd);
     unlink(kSocketPath);

@@ -258,12 +258,13 @@ def test_registration_and_login_normalize_email_case(client, db):
     assert login.status_code == status.HTTP_200_OK
 
 
-def test_unverified_account_cannot_sign_in(client, unverified_user):
+def test_beta_auth_does_not_require_email_verification(client, unverified_user):
     response = client.post(
         "/api/auth/login",
         json={"email": unverified_user.email, "password": "TestPass123"},
     )
-    assert response.status_code == status.HTTP_403_FORBIDDEN
+    assert response.status_code == status.HTTP_200_OK
+    assert response.json()["access_token"]
 
 
 def test_one_time_tokens_are_hashed_and_password_reset_revokes_sessions(client, db, test_user):

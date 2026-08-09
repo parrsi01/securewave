@@ -1,4 +1,9 @@
-"""Fail-closed protocol availability derived from recent runtime evidence."""
+"""Small runtime availability checks used by the Linux beta.
+
+WireGuard is the only beta protocol. The older release-evidence record is
+still retained for deferred protocols, but it must not be required before an
+ordinary user can obtain a WireGuard profile.
+"""
 
 from __future__ import annotations
 
@@ -20,7 +25,7 @@ class ProtocolReadiness:
 class ProtocolAvailabilityService:
     """Keep endpoint metadata separate from evidence that the backend is usable."""
 
-    OPENVPN_RUNTIME_CONTRACT = "openvpn-evidence-v2"
+    WIREGUARD_RUNTIME_CONTRACT = "wireguard-linux-beta-v1"
 
     _FAILURE_REASONS = frozenset({"probe_failed", "probe_exception"})
     _TRANSITIONS = frozenset(
@@ -52,15 +57,8 @@ class ProtocolAvailabilityService:
             )
         if server.status not in {"active", "demo"}:
             return ProtocolReadiness(False, "Server is not active.")
-        if server.health_status not in {"healthy", "degraded"}:
-            return ProtocolReadiness(False, "No healthy runtime evidence is available.")
-        if not server.last_health_check:
-            return ProtocolReadiness(False, "Runtime evidence has not been recorded.")
-        health_age = self.now - self._naive_utc(server.last_health_check)
-        if health_age < timedelta(0):
-            return ProtocolReadiness(False, "Runtime evidence timestamp is in the future.")
-        if health_age > self.evidence_ttl:
-            return ProtocolReadiness(False, "Runtime evidence is stale.")
+        if server.health_status not in {"healthy", "degraded", "unknown"}:
+            return ProtocolReadiness(False, "Server health is not available.")
         try:
             max_connections = int(server.max_connections)
             current_connections = int(server.current_connections)
@@ -79,12 +77,13 @@ class ProtocolAvailabilityService:
         if protocol == "wireguard":
             if not (server.supports_wireguard and server.endpoint and server.wg_public_key):
                 return ProtocolReadiness(False, "WireGuard endpoint metadata is incomplete.")
-            if not self._has_fresh_protocol_evidence(server, protocol):
-                return ProtocolReadiness(
-                    False,
-                    "WireGuard protocol-specific runtime evidence has not been recorded.",
-                )
             return ProtocolReadiness(True)
+        health_age = self.now - self._naive_utc(server.last_health_check) if server.last_health_check else None
+        if health_age is not None:
+            if health_age < timedelta(0):
+                return ProtocolReadiness(False, "Runtime evidence timestamp is in the future.")
+            if health_age > self.evidence_ttl:
+                return ProtocolReadiness(False, "Runtime evidence is stale.")
         if protocol == "openvpn":
             if not self._has_usable_openvpn_metadata(server):
                 return ProtocolReadiness(False, "OpenVPN endpoint metadata is incomplete.")

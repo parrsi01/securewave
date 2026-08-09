@@ -4,11 +4,17 @@ from datetime import datetime, timedelta
 
 from fastapi import status
 from fastapi.testclient import TestClient
+import pytest
 
 from database.session import get_db
 from models.openvpn_credential import OpenVpnCredential
 from models.vpn_server import VPNServer
 from models.wireguard_peer import WireGuardPeer
+
+
+pytestmark = pytest.mark.skip(
+    reason="OpenVPN credential lifecycle is deferred from the Linux WireGuard beta"
+)
 
 
 def _ready_openvpn_server(db, *, server_id: str = "openvpn-lifecycle-1"):

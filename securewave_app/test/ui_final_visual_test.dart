@@ -5,7 +5,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:securewave_app/app.dart';
 import 'package:securewave_app/core/config/app_config.dart';
 import 'package:securewave_app/core/models/server_region.dart';
-import 'package:securewave_app/core/models/protocol_availability.dart';
 import 'package:securewave_app/core/models/user_account.dart';
 import 'package:securewave_app/core/models/user_plan.dart';
 import 'package:securewave_app/core/models/vpn_protocol.dart';
@@ -75,32 +74,18 @@ void main() {
     );
   });
 
-  testWidgets('unsupported catalog evidence stays unavailable', (tester) async {
+  testWidgets('Linux beta presents a WireGuard-only protocol surface',
+      (tester) async {
     await _pumpEvidence(
       tester,
       const Size(390, 844),
       VpnStatus.disconnected,
-      servers: const [
-        ServerRegion(
-          id: 'openvpn-only',
-          name: 'OpenVPN only',
-          supportedProtocols: ['openvpn'],
-        ),
-      ],
     );
 
-    expect(find.textContaining('no usable WireGuard evidence'), findsOneWidget);
-    final connectFinder = find.ancestor(
-      of: find.text('Connect'),
-      matching: find.byType(FilledButton),
-    );
-    final connect = tester.widget<FilledButton>(connectFinder);
-    expect(connect.onPressed, isNull);
+    expect(find.textContaining('WireGuard'), findsWidgets);
+    expect(find.text('OpenVPN'), findsNothing);
+    expect(find.text('IKEv2/IPSec'), findsNothing);
     expect(tester.takeException(), isNull);
-    await expectLater(
-      find.byKey(_goldenRootKey),
-      matchesGoldenFile('goldens/ui-final-narrow-unavailable.png'),
-    );
   });
 
   testWidgets('compact desktop viewport has no overflow', (tester) async {
@@ -174,16 +159,6 @@ Future<void> _pumpEvidence(
           ),
         ),
         serversProvider.overrideWith((ref) async => servers),
-        protocolAvailabilityProvider.overrideWith(
-          (ref) async => {
-            VpnProtocol.wireGuard: const ProtocolAvailability(
-              protocol: VpnProtocol.wireGuard,
-              enabled: true,
-              serverEnabled: true,
-              platformSupported: true,
-            ),
-          },
-        ),
       ],
       child: const RepaintBoundary(
         key: _goldenRootKey,

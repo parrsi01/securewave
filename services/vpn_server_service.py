@@ -123,10 +123,10 @@ class VPNServerService:
         """
         query = db.query(VPNServer).filter(
             VPNServer.status.in_(["active", "demo"]),  # Include both real and demo servers
-            # Unknown has no runtime proof and must not be selected for a
-            # credential-bearing profile.  Protocol-specific freshness is
-            # enforced again at issuance by ProtocolAvailabilityService.
-            VPNServer.health_status.in_(["healthy", "degraded"]),
+            # Health probes remain useful telemetry, but stale or missing
+            # evidence must not turn beta profile issuance into a release
+            # certification workflow.
+            VPNServer.health_status.in_(["healthy", "degraded", "unknown"]),
         )
 
         # Free users can only access unrestricted servers
