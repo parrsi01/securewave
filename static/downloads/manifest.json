@@ -3,11 +3,12 @@
   "architecture": "arm64",
   "protocol": "wireguard",
   "package": {
-    "filename": "securewave-vpn_4.0.0+3_arm64.deb",
-    "url": "/downloads/securewave-vpn_4.0.0+3_arm64.deb",
+    "filename": "securewave-vpn_4.0.0+8_arm64.deb",
+    "url": "/downloads/securewave-vpn_4.0.0+8_arm64.deb",
     "status": "candidate",
     "published": false,
-    "checksum_sha256": "bf797948e25d422719f1f1caac0957899a90a4459d61d0163b32f1948b7c8c9f"
+    "checksum_sha256": "f818a1423b1e93635135373e59578eebcf609652ca858164310ab83098c3835f",
+    "source_sha": "3bf69de36530d5d6c7da694da84854b8cfdc82e4"
   },
-  "notes": "ARM64 is the only documented Beta 1 architecture. Publish this exact package only after clean-device installation and live WireGuard egress acceptance. amd64 is future work."
+  "notes": "Ubuntu 24.04 LTS ARM64 is the only documented Beta 1 target. Clean isolated installation and kernel WireGuard lifecycle acceptance passed. Public backend authentication, Hetzner egress, and publication remain external release gates. amd64 is future work."
 }

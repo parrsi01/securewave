@@ -31,9 +31,11 @@ and `wireguard.cleanup`.
 ```
 
 `test_linux_beta.sh` is local and non-destructive. It does not deploy, publish,
-push, merge, or use live credentials. Live account, clean-device install,
-WireGuard egress, reconnect, restart, and cleanup acceptance remain explicit
-release gates.
+push, merge, or use live credentials. The isolated Ubuntu install and local
+kernel WireGuard lifecycle are recorded in
+[`BETA_ACCEPTANCE_REPORT.md`](BETA_ACCEPTANCE_REPORT.md). Live account,
+Hetzner peer registration, public egress, restart, and publication remain
+explicit release gates.
 
 ## Configuration
 

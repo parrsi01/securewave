@@ -31,4 +31,4 @@ The real Flutter build has no localhost fallback. Set `SECUREWAVE_API_BASE_URL` 
 - No email delivery, email verification, billing, subscriptions, region picker, server picker, protocol picker, or optimizer is on the Beta 1 runtime path.
 - Do not deploy, publish, push, or merge from local certification commands.
 
-See [`docs/BETA_SIMPLIFICATION_PLAN.md`](docs/BETA_SIMPLIFICATION_PLAN.md), [`docs/LINUX_BETA.md`](docs/LINUX_BETA.md), and [`docs/HETZNER_RUNBOOK.md`](docs/HETZNER_RUNBOOK.md).
+See [`docs/BETA_ACCEPTANCE_REPORT.md`](docs/BETA_ACCEPTANCE_REPORT.md), [`docs/BETA_SIMPLIFICATION_PLAN.md`](docs/BETA_SIMPLIFICATION_PLAN.md), [`docs/LINUX_BETA.md`](docs/LINUX_BETA.md), and [`docs/HETZNER_RUNBOOK.md`](docs/HETZNER_RUNBOOK.md).

@@ -71,6 +71,7 @@ product branches; they are not deleted automatically.
 1. compile and focused auth/WireGuard/helper tests
 2. deterministic demo flow
 3. reproducible package and fresh-package verification
-4. clean Linux install and real handshake/egress evidence
-5. only then document MAIN/DEMO as complete; deployment and public-download
-   updates remain explicit handoff items
+4. clean isolated Linux install and real kernel handshake evidence
+5. authorized Hetzner profile, public egress, restart, and cleanup evidence
+6. only then document the public beta as complete; deployment and publication
+   remain explicit handoff items
