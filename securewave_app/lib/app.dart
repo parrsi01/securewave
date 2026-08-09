@@ -5,13 +5,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'core/config/app_config.dart';
+import 'core/models/server_region.dart';
+import 'core/models/user_plan.dart';
 import 'core/models/vpn_status.dart';
 import 'core/services/auth_session.dart';
 import 'core/state/app_state.dart';
 import 'core/state/vpn_state.dart';
 import 'core/utils/api_error.dart';
 import 'services/auth_service.dart';
-import 'services/api_client.dart';
 import 'ui/app_ui_v1.dart';
 
 class SecureWaveApp extends ConsumerWidget {
@@ -550,7 +551,10 @@ class _HomeViewState extends ConsumerState<_HomeView> {
       body: IndexedStack(
         index: _selected.index,
         children: [
-          _ConnectPage(isDemo: widget.isDemo),
+          _ConnectPage(
+            isDemo: widget.isDemo,
+            onChooseServer: () => _selectDestination(_HomeDestination.servers),
+          ),
           const _ServersPage(),
           const _SettingsPage(),
         ],
@@ -749,41 +753,99 @@ class _PageFrame extends StatelessWidget {
 }
 
 class _ConnectPage extends ConsumerWidget {
-  const _ConnectPage({required this.isDemo});
+  const _ConnectPage({
+    required this.isDemo,
+    required this.onChooseServer,
+  });
 
   final bool isDemo;
+  final VoidCallback onChooseServer;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final vpn = ref.watch(vpnStateProvider);
-    final target = ref.watch(targetProvider);
+    final servers = ref.watch(serversProvider);
+    final plan = ref.watch(userPlanProvider);
+    final availability = _wireGuardAvailability(
+      servers: servers,
+      selectedServerId: vpn.selectedServerId,
+    );
+    final selectedServer = _selectedServer(
+      servers.valueOrNull ?? const <ServerRegion>[],
+      vpn.selectedServerId,
+    );
+    final locationLabel = vpn.selectedServerId == null
+        ? 'Auto-select'
+        : selectedServer?.location ??
+            selectedServer?.name ??
+            'Selected location unavailable';
     return _PageFrame(
       storageKey: 'connect-page',
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          if (isDemo) const _DemoBanner(),
-          if (isDemo) const SizedBox(height: 16),
-          _ConnectionHeader(status: vpn.status, isDemo: isDemo),
-          const SizedBox(height: 18),
-          _ConnectionCard(
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final hero = _ConnectionDashboardHero(
             vpn: vpn,
-            target: target,
+            availability: availability,
+            locationLabel: locationLabel,
             onConnect: () =>
                 unawaited(ref.read(vpnStateProvider.notifier).connect()),
             onDisconnect: () =>
                 unawaited(ref.read(vpnStateProvider.notifier).disconnect()),
-          ),
-          const SizedBox(height: 16),
-          _DetailsRow(vpn: vpn, target: target),
-          if (vpn.errorMessage != null) ...[
-            const SizedBox(height: 16),
-            AppInlineNotice(
-              text: vpn.errorMessage!,
-              tone: AppNoticeTone.error,
-            ),
-          ],
-        ],
+            onDiagnostics: () => _showDiagnostics(context),
+            onChooseServer: onChooseServer,
+          );
+          final summary = Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              _SessionSummary(
+                vpn: vpn,
+                locationLabel: locationLabel,
+              ),
+              const SizedBox(height: 16),
+              _PlanPanel(plan: plan),
+            ],
+          );
+
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              if (isDemo) const _DemoBanner(),
+              if (isDemo) const SizedBox(height: 16),
+              Text(
+                'Connection',
+                style: Theme.of(context).textTheme.headlineMedium,
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Control the current SecureWave WireGuard beta connection.',
+                style: Theme.of(context).textTheme.bodyMedium,
+              ),
+              const SizedBox(height: 20),
+              if (constraints.maxWidth >= 820)
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(flex: 6, child: hero),
+                    const SizedBox(width: 16),
+                    Expanded(flex: 5, child: summary),
+                  ],
+                )
+              else ...[
+                hero,
+                const SizedBox(height: 16),
+                summary,
+              ],
+              if (vpn.errorMessage != null) ...[
+                const SizedBox(height: 16),
+                AppInlineNotice(
+                  key: const ValueKey('connection-error'),
+                  text: vpn.errorMessage!,
+                  tone: AppNoticeTone.error,
+                ),
+              ],
+            ],
+          );
+        },
       ),
     );
   }
@@ -1011,122 +1073,146 @@ class _InformationRow extends StatelessWidget {
   }
 }
 
-class _ConnectionHeader extends StatelessWidget {
-  const _ConnectionHeader({required this.status, required this.isDemo});
-
-  final VpnStatus status;
-  final bool isDemo;
-
-  @override
-  Widget build(BuildContext context) {
-    final connected = status == VpnStatus.connected;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(connected ? 'Protected' : 'Private internet, one tap away',
-            style: Theme.of(context).textTheme.headlineMedium),
-        const SizedBox(height: 8),
-        Text(
-          isDemo
-              ? 'A deterministic simulated WireGuard experience.'
-              : 'A real WireGuard tunnel to SecureWave Beta.',
-          style: Theme.of(context).textTheme.bodyMedium,
-        ),
-      ],
-    );
-  }
-}
-
-class _ConnectionCard extends StatelessWidget {
-  const _ConnectionCard(
-      {required this.vpn,
-      required this.target,
-      required this.onConnect,
-      required this.onDisconnect});
+class _ConnectionDashboardHero extends StatelessWidget {
+  const _ConnectionDashboardHero({
+    required this.vpn,
+    required this.availability,
+    required this.locationLabel,
+    required this.onConnect,
+    required this.onDisconnect,
+    required this.onDiagnostics,
+    required this.onChooseServer,
+  });
 
   final VpnState vpn;
-  final AsyncValue<SecureWaveTarget> target;
+  final _ConnectionAvailability availability;
+  final String locationLabel;
   final VoidCallback onConnect;
   final VoidCallback onDisconnect;
+  final VoidCallback onDiagnostics;
+  final VoidCallback onChooseServer;
 
   @override
   Widget build(BuildContext context) {
     final busy = vpn.status == VpnStatus.connecting ||
         vpn.status == VpnStatus.disconnecting;
     final connected = vpn.status == VpnStatus.connected;
-    final statusLabel = switch (vpn.status) {
-      VpnStatus.disconnected => 'Disconnected',
-      VpnStatus.connecting => 'Connecting',
-      VpnStatus.connected => 'Connected',
-      VpnStatus.disconnecting => 'Disconnecting',
-      VpnStatus.error => 'Connection error',
-    };
-    final targetLabel = target.maybeWhen(
-      data: (value) => value.name,
-      orElse: () => 'SecureWave Beta',
-    );
+    final statusLabel = _vpnStatusLabel(vpn.status);
     final actionLabel = switch (vpn.status) {
       VpnStatus.connecting => 'Connecting',
       VpnStatus.disconnecting => 'Disconnecting',
       VpnStatus.connected => 'Disconnect',
       _ => 'Connect',
     };
+    final action = busy || (!connected && !availability.canConnect)
+        ? null
+        : connected
+            ? onDisconnect
+            : onConnect;
+
     return AppPanel(
-      padding: const EdgeInsets.fromLTRB(22, 22, 22, 20),
+      key: const ValueKey('connection-dashboard-hero'),
+      padding: const EdgeInsets.all(24),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Row(
-            children: [
-              AppStatusChip(
-                key: const ValueKey('vpn-status-chip'),
-                label: statusLabel,
-                tone: _vpnStatusTone(vpn.status),
-              ),
-              if (busy) ...[
-                const Spacer(),
-                AppProgressIndicator(label: statusLabel),
-              ],
-            ],
-          ),
-          const SizedBox(height: 24),
-          SizedBox(
-            height: 58,
-            child: FilledButton.icon(
-              key: const ValueKey('connection-action'),
-              onPressed: busy
-                  ? null
-                  : connected
-                      ? onDisconnect
-                      : onConnect,
-              style: connected
-                  ? FilledButton.styleFrom(
-                      backgroundColor: AppUIv1.red,
-                      foregroundColor: AppUIv1.background,
-                    )
-                  : null,
-              icon: Icon(
-                connected
-                    ? Icons.stop_circle_outlined
-                    : Icons.power_settings_new_rounded,
-              ),
-              label: Text(actionLabel),
+          Center(
+            child: AppStatusChip(
+              key: const ValueKey('vpn-status-chip'),
+              label: statusLabel,
+              tone: _vpnStatusTone(vpn.status),
             ),
           ),
-          const SizedBox(height: 18),
-          Row(
-            children: [
-              const Icon(Icons.shield_outlined, size: 18),
-              const SizedBox(width: 8),
-              Text('WireGuard', style: Theme.of(context).textTheme.bodyMedium),
-              const Spacer(),
-              Flexible(
-                child: Text(
-                  targetLabel,
-                  overflow: TextOverflow.ellipsis,
-                  textAlign: TextAlign.end,
-                  style: Theme.of(context).textTheme.bodyMedium,
+          const SizedBox(height: 22),
+          Center(
+            child: Semantics(
+              label: '$actionLabel VPN connection',
+              button: true,
+              enabled: action != null,
+              excludeSemantics: true,
+              child: SizedBox.square(
+                dimension: 168,
+                child: FilledButton(
+                  key: const ValueKey('connection-action'),
+                  onPressed: action,
+                  style: FilledButton.styleFrom(
+                    shape: const CircleBorder(),
+                    backgroundColor: _powerButtonColor(vpn.status),
+                    foregroundColor: Colors.white,
+                    disabledBackgroundColor: AppUIv1.surfaceRaised,
+                    disabledForegroundColor: AppUIv1.graphiteSubtle,
+                    side: BorderSide(
+                      color: busy ? AppUIv1.amber : AppUIv1.lineStrong,
+                      width: 2,
+                    ),
+                  ),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      if (busy)
+                        const SizedBox.square(
+                          dimension: 30,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 3,
+                            color: AppUIv1.amber,
+                          ),
+                        )
+                      else
+                        Icon(
+                          connected
+                              ? Icons.power_settings_new_rounded
+                              : vpn.status == VpnStatus.error
+                                  ? Icons.refresh_rounded
+                                  : Icons.power_settings_new_rounded,
+                          size: 36,
+                        ),
+                      const SizedBox(height: 10),
+                      Text(actionLabel),
+                    ],
+                  ),
                 ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 22),
+          Text(
+            _vpnStatusDescription(vpn.status),
+            textAlign: TextAlign.center,
+            style: Theme.of(context).textTheme.bodyMedium,
+          ),
+          const SizedBox(height: 20),
+          const Divider(height: 1),
+          const SizedBox(height: 18),
+          _InformationRow(label: 'Location', value: locationLabel),
+          const SizedBox(height: 12),
+          const _InformationRow(label: 'Protocol', value: 'WireGuard'),
+          if (!availability.canConnect && !connected) ...[
+            const SizedBox(height: 16),
+            AppInlineNotice(
+              key: const ValueKey('connection-unavailable'),
+              text: availability.message,
+              tone: availability.loading
+                  ? AppNoticeTone.info
+                  : AppNoticeTone.warning,
+            ),
+          ],
+          const SizedBox(height: 18),
+          Wrap(
+            alignment: WrapAlignment.center,
+            spacing: 10,
+            runSpacing: 10,
+            children: [
+              OutlinedButton.icon(
+                key: const ValueKey('choose-location-action'),
+                onPressed: onChooseServer,
+                icon: const Icon(Icons.location_on_outlined),
+                label: const Text('Choose location'),
+              ),
+              TextButton.icon(
+                key: const ValueKey('diagnostics-action'),
+                onPressed: onDiagnostics,
+                icon: const Icon(Icons.receipt_long_outlined),
+                label: const Text('Diagnostics'),
               ),
             ],
           ),
@@ -1136,72 +1222,216 @@ class _ConnectionCard extends StatelessWidget {
   }
 }
 
-class _DetailsRow extends StatelessWidget {
-  const _DetailsRow({required this.vpn, required this.target});
+class _SessionSummary extends StatelessWidget {
+  const _SessionSummary({
+    required this.vpn,
+    required this.locationLabel,
+  });
 
   final VpnState vpn;
-  final AsyncValue<SecureWaveTarget> target;
-
-  @override
-  Widget build(BuildContext context) {
-    final health = _Detail(
-      label: 'Connection health',
-      value: vpn.healthLabel,
-      icon: Icons.favorite_border_rounded,
-    );
-    final usage = _Detail(
-      label: 'Session usage',
-      value: '${_formatBytes(vpn.rxBytes + vpn.txBytes)} transferred',
-      icon: Icons.swap_vert_rounded,
-    );
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        if (constraints.maxWidth < 520) {
-          return Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [health, const SizedBox(height: 12), usage],
-          );
-        }
-        return Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Expanded(child: health),
-            const SizedBox(width: 12),
-            Expanded(child: usage),
-          ],
-        );
-      },
-    );
-  }
-}
-
-class _Detail extends StatelessWidget {
-  const _Detail({required this.label, required this.value, required this.icon});
-
-  final String label;
-  final String value;
-  final IconData icon;
+  final String locationLabel;
 
   @override
   Widget build(BuildContext context) {
     return AppPanel(
-      padding: const EdgeInsets.all(16),
-      child: Row(
+      key: const ValueKey('session-summary'),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Icon(icon, size: 19, color: AppUIv1.primary),
-          const SizedBox(width: 10),
-          Expanded(
-              child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                Text(label, style: Theme.of(context).textTheme.bodySmall),
-                const SizedBox(height: 4),
-                Text(value, style: Theme.of(context).textTheme.titleMedium)
-              ])),
+          Text('Session', style: Theme.of(context).textTheme.titleLarge),
+          const SizedBox(height: 18),
+          _InformationRow(label: 'Server', value: locationLabel),
+          const SizedBox(height: 12),
+          const _InformationRow(label: 'Protocol', value: 'WireGuard'),
+          const SizedBox(height: 12),
+          _InformationRow(
+            label: 'State',
+            value: _vpnStatusLabel(vpn.status),
+          ),
+          const SizedBox(height: 12),
+          _InformationRow(label: 'Runtime', value: vpn.healthLabel),
         ],
       ),
     );
   }
+}
+
+class _PlanPanel extends StatelessWidget {
+  const _PlanPanel({required this.plan});
+
+  final AsyncValue<UserPlan> plan;
+
+  @override
+  Widget build(BuildContext context) {
+    return AppPanel(
+      key: const ValueKey('data-allowance-panel'),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text('Data allowance', style: Theme.of(context).textTheme.titleLarge),
+          const SizedBox(height: 18),
+          plan.when(
+            data: (value) => _UsageSummary(plan: value),
+            loading: () => const AppStatePanel(
+              title: 'Loading allowance',
+              message: 'Retrieving your current plan and usage.',
+              tone: AppStateTone.loading,
+            ),
+            error: (error, _) => AppStatePanel(
+              title: 'Allowance unavailable',
+              message: ApiError.messageFrom(
+                error,
+                fallback: 'SecureWave could not load your data allowance.',
+              ),
+              tone: AppStateTone.error,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _UsageSummary extends StatelessWidget {
+  const _UsageSummary({required this.plan});
+
+  final UserPlan plan;
+
+  @override
+  Widget build(BuildContext context) {
+    final progress = plan.usagePercent.clamp(0.0, 1.0).toDouble();
+    final cap = plan.safeDataCapGb;
+    final used = plan.safeUsedGb;
+    final remaining = plan.remainingGb;
+    final allowanceText = plan.isUnlimited
+        ? 'Unlimited data'
+        : cap == 0
+            ? 'No data allowance'
+            : '${_formatGb(remaining)} GB remaining of ${_formatGb(cap)} GB';
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: Text(
+                plan.name,
+                style: Theme.of(context).textTheme.titleMedium,
+              ),
+            ),
+            AppStatusChip(
+              label: plan.isPremium ? 'Premium' : 'Free',
+              tone: plan.isPremium
+                  ? AppStatusTone.success
+                  : AppStatusTone.neutral,
+            ),
+          ],
+        ),
+        const SizedBox(height: 14),
+        Text(
+          allowanceText,
+          key: const ValueKey('allowance-remaining'),
+          style: Theme.of(context).textTheme.titleSmall,
+        ),
+        const SizedBox(height: 10),
+        Semantics(
+          label: plan.isUnlimited
+              ? 'Unlimited data allowance'
+              : 'Data allowance ${(progress * 100).round()} percent used',
+          child: LinearProgressIndicator(
+            key: const ValueKey('allowance-progress'),
+            value: plan.isUnlimited ? null : progress,
+            minHeight: 8,
+            borderRadius: BorderRadius.circular(4),
+            color: progress >= 1 ? AppUIv1.amber : AppUIv1.primary,
+            backgroundColor: AppUIv1.surfaceMuted,
+          ),
+        ),
+        const SizedBox(height: 14),
+        _InformationRow(label: 'Used', value: '${_formatGb(used)} GB'),
+        const SizedBox(height: 10),
+        _InformationRow(
+          label: 'Cap',
+          value: plan.isUnlimited ? 'Unlimited' : '${_formatGb(cap)} GB',
+        ),
+      ],
+    );
+  }
+}
+
+class _ConnectionAvailability {
+  const _ConnectionAvailability({
+    required this.canConnect,
+    required this.message,
+    this.loading = false,
+  });
+
+  final bool canConnect;
+  final String message;
+  final bool loading;
+}
+
+_ConnectionAvailability _wireGuardAvailability({
+  required AsyncValue<List<ServerRegion>> servers,
+  required String? selectedServerId,
+}) {
+  return servers.when(
+    loading: () => const _ConnectionAvailability(
+      canConnect: false,
+      loading: true,
+      message: 'Checking WireGuard location availability.',
+    ),
+    error: (error, _) => _ConnectionAvailability(
+      canConnect: false,
+      message: ApiError.messageFrom(
+        error,
+        fallback: 'WireGuard location availability could not be verified.',
+      ),
+    ),
+    data: (items) {
+      if (selectedServerId != null) {
+        final selected = _selectedServer(items, selectedServerId);
+        if (selected == null) {
+          return const _ConnectionAvailability(
+            canConnect: false,
+            message: 'The selected location is no longer available.',
+          );
+        }
+        if (!selected.isWireGuardConnectable) {
+          return const _ConnectionAvailability(
+            canConnect: false,
+            message: 'WireGuard is unavailable for the selected location.',
+          );
+        }
+        return const _ConnectionAvailability(
+          canConnect: true,
+          message: '',
+        );
+      }
+      if (items.any((server) => server.isWireGuardConnectable)) {
+        return const _ConnectionAvailability(
+          canConnect: true,
+          message: '',
+        );
+      }
+      return const _ConnectionAvailability(
+        canConnect: false,
+        message: 'No location has verified WireGuard availability.',
+      );
+    },
+  );
+}
+
+ServerRegion? _selectedServer(
+  List<ServerRegion> servers,
+  String? selectedServerId,
+) {
+  if (selectedServerId == null) return null;
+  for (final server in servers) {
+    if (server.id == selectedServerId) return server;
+  }
+  return null;
 }
 
 class _BrandMark extends StatelessWidget {
@@ -1260,11 +1490,84 @@ AppStatusTone _vpnStatusTone(VpnStatus status) {
   };
 }
 
-String _formatBytes(int bytes) {
-  if (bytes < 1024) return '$bytes B';
-  if (bytes < 1024 * 1024) return '${(bytes / 1024).toStringAsFixed(1)} KB';
-  if (bytes < 1024 * 1024 * 1024) {
-    return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
+String _vpnStatusLabel(VpnStatus status) => switch (status) {
+      VpnStatus.disconnected => 'Disconnected',
+      VpnStatus.connecting => 'Connecting',
+      VpnStatus.connected => 'Connected',
+      VpnStatus.disconnecting => 'Disconnecting',
+      VpnStatus.error => 'Connection error',
+    };
+
+String _vpnStatusDescription(VpnStatus status) => switch (status) {
+      VpnStatus.disconnected => 'The VPN tunnel is not active.',
+      VpnStatus.connecting => 'SecureWave is starting the WireGuard tunnel.',
+      VpnStatus.connected => 'The WireGuard runtime reports connected.',
+      VpnStatus.disconnecting => 'SecureWave is stopping the tunnel.',
+      VpnStatus.error => 'The connection needs attention before retrying.',
+    };
+
+Color _powerButtonColor(VpnStatus status) => switch (status) {
+      VpnStatus.connected => AppUIv1.red,
+      VpnStatus.connecting || VpnStatus.disconnecting => AppUIv1.amberSoft,
+      VpnStatus.error => AppUIv1.redSoft,
+      VpnStatus.disconnected => AppUIv1.primary,
+    };
+
+String _formatGb(double value) {
+  final safe = value.isFinite && value > 0 ? value : 0;
+  final rounded = safe.roundToDouble();
+  return safe == rounded ? rounded.toStringAsFixed(0) : safe.toStringAsFixed(1);
+}
+
+void _showDiagnostics(BuildContext context) {
+  showModalBottomSheet<void>(
+    context: context,
+    showDragHandle: true,
+    isScrollControlled: true,
+    builder: (_) => const SafeArea(child: _DiagnosticsView()),
+  );
+}
+
+class _DiagnosticsView extends ConsumerWidget {
+  const _DiagnosticsView();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final vpn = ref.watch(vpnStateProvider);
+    final config = ref.watch(appConfigProvider);
+    final service = ref.watch(vpnServiceProvider);
+    return ConstrainedBox(
+      constraints: BoxConstraints(
+        maxHeight: MediaQuery.sizeOf(context).height * 0.72,
+      ),
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text('Diagnostics', style: Theme.of(context).textTheme.titleLarge),
+            const SizedBox(height: 18),
+            _InformationRow(
+              label: 'VPN state',
+              value: _vpnStatusLabel(vpn.status),
+            ),
+            const SizedBox(height: 12),
+            const _InformationRow(label: 'Protocol', value: 'WireGuard'),
+            const SizedBox(height: 12),
+            _InformationRow(
+              label: 'VPN helper',
+              value: service.isAvailable ? 'Available' : 'Not confirmed',
+            ),
+            const SizedBox(height: 12),
+            _InformationRow(label: 'API target', value: config.apiBaseUrl),
+            const SizedBox(height: 12),
+            _InformationRow(
+              label: 'Demo mode',
+              value: config.demoMode ? 'Active — simulated only' : 'Off',
+            ),
+          ],
+        ),
+      ),
+    );
   }
-  return '${(bytes / (1024 * 1024 * 1024)).toStringAsFixed(1)} GB';
 }

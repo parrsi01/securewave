@@ -11,6 +11,7 @@ import 'app_state.dart';
 class VpnState {
   const VpnState({
     this.status = VpnStatus.disconnected,
+    this.selectedServerId,
     this.rxBytes = 0,
     this.txBytes = 0,
     this.healthLabel = 'Waiting',
@@ -18,6 +19,7 @@ class VpnState {
   });
 
   final VpnStatus status;
+  final String? selectedServerId;
   final int rxBytes;
   final int txBytes;
   final String healthLabel;
@@ -25,14 +27,19 @@ class VpnState {
 
   VpnState copyWith({
     VpnStatus? status,
+    String? selectedServerId,
     int? rxBytes,
     int? txBytes,
     String? healthLabel,
     String? errorMessage,
     bool clearError = false,
+    bool clearSelectedServer = false,
   }) =>
       VpnState(
         status: status ?? this.status,
+        selectedServerId: clearSelectedServer
+            ? null
+            : selectedServerId ?? this.selectedServerId,
         rxBytes: rxBytes ?? this.rxBytes,
         txBytes: txBytes ?? this.txBytes,
         healthLabel: healthLabel ?? this.healthLabel,
@@ -47,14 +54,24 @@ final vpnStateProvider =
 
 class VpnStateNotifier extends StateNotifier<VpnState> {
   VpnStateNotifier(this._ref) : super(const VpnState()) {
-    unawaited(_restoreStatus());
+    _initialization = _restoreState();
+    unawaited(_initialization);
   }
 
   final Ref _ref;
+  late final Future<void> _initialization;
   Timer? _trafficTimer;
   bool _operationInFlight = false;
 
-  Future<void> _restoreStatus() async {
+  Future<void> ensureInitialized() => _initialization;
+
+  Future<void> _restoreState() async {
+    final selectedServerId = await _ref
+        .read(secureStorageProvider)
+        .getString(SecureStorage.selectedServerKey);
+    if (mounted && selectedServerId != null && selectedServerId.isNotEmpty) {
+      state = state.copyWith(selectedServerId: selectedServerId);
+    }
     final service = _ref.read(vpnServiceProvider);
     final snapshot = await service.refreshRuntimeStatus();
     if (!mounted) return;
@@ -63,6 +80,27 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
           state.copyWith(status: VpnStatus.connected, healthLabel: 'Connected');
       _startTrafficPolling();
     }
+  }
+
+  Future<void> selectServer(String? serverId) async {
+    final normalized = serverId?.trim();
+    state = state.copyWith(
+      selectedServerId: normalized,
+      clearSelectedServer: normalized == null || normalized.isEmpty,
+    );
+    final storage = _ref.read(secureStorageProvider);
+    if (normalized == null || normalized.isEmpty) {
+      await storage.delete(SecureStorage.selectedServerKey);
+    } else {
+      await storage.saveString(SecureStorage.selectedServerKey, normalized);
+    }
+  }
+
+  Future<bool> recoverStaleServerSelection(Iterable<String> serverIds) async {
+    final selected = state.selectedServerId;
+    if (selected == null || serverIds.contains(selected)) return false;
+    await selectServer(null);
+    return true;
   }
 
   Future<void> connect() async {

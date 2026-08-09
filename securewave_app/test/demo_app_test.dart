@@ -45,8 +45,8 @@ void main() {
     await tester.tap(find.text('Create account'));
     await tester.pumpAndSettle();
 
-    expect(find.text('A deterministic simulated WireGuard experience.'),
-        findsOneWidget);
+    expect(find.text('Connection'), findsOneWidget);
+    expect(find.text('3.4 GB remaining of 5 GB'), findsOneWidget);
     expect(find.text('Disconnected'), findsOneWidget);
     expect(
       find.descendant(
@@ -68,7 +68,8 @@ void main() {
     await tester.pump(const Duration(milliseconds: 300));
     await tester.pump();
     expect(find.text('Connected'), findsOneWidget);
-    expect(find.text('12.0 KB transferred'), findsOneWidget);
+    expect(
+        find.text('The WireGuard runtime reports connected.'), findsOneWidget);
 
     await tester.tap(find.byKey(const ValueKey('connection-action')));
     await tester.pump();
@@ -87,7 +88,8 @@ void main() {
     await tester.pump(const Duration(milliseconds: 300));
     await tester.pump();
     expect(find.text('Connected'), findsOneWidget);
-    expect(find.text('12.0 KB transferred'), findsOneWidget);
+    expect(
+        find.text('The WireGuard runtime reports connected.'), findsOneWidget);
 
     await tester.tap(find.byKey(const ValueKey('connection-action')));
     await tester.pump(const Duration(milliseconds: 180));

@@ -13,6 +13,7 @@ class SecureStorage {
 
   static const _accessTokenKey = 'access_token';
   static const vpnDeviceIdKey = 'vpn_device_id';
+  static const selectedServerKey = 'vpn_selected_server_id';
 
   Future<void> saveToken(String accessToken) async {
     await _storage.write(key: _accessTokenKey, value: accessToken);
@@ -26,6 +27,7 @@ class SecureStorage {
 
   Future<void> clearVpnRuntimeState() async {
     await _storage.delete(key: vpnDeviceIdKey);
+    await _storage.delete(key: selectedServerKey);
   }
 
   Future<void> saveString(String key, String value) =>
@@ -68,7 +70,10 @@ class DemoSecureStorage extends SecureStorage {
   Future<void> clearToken() => delete(SecureStorage._accessTokenKey);
 
   @override
-  Future<void> clearVpnRuntimeState() => delete(SecureStorage.vpnDeviceIdKey);
+  Future<void> clearVpnRuntimeState() async {
+    await delete(SecureStorage.vpnDeviceIdKey);
+    await delete(SecureStorage.selectedServerKey);
+  }
 
   @override
   Future<void> saveString(String key, String value) async {

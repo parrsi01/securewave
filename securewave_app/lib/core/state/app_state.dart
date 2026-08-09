@@ -1,7 +1,9 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../config/app_config.dart';
+import '../models/server_region.dart';
 import '../models/user_account.dart';
+import '../models/user_plan.dart';
 import '../services/vpn_service.dart';
 import '../../services/api_client.dart';
 
@@ -16,4 +18,12 @@ final currentUserProvider = FutureProvider<UserAccount>((ref) {
 
 final targetProvider = FutureProvider<SecureWaveTarget>((ref) {
   return ref.watch(apiClientProvider).fetchTarget();
+});
+
+final serversProvider = FutureProvider<List<ServerRegion>>((ref) {
+  return ref.watch(apiClientProvider).fetchServers();
+});
+
+final userPlanProvider = FutureProvider<UserPlan>((ref) {
+  return ref.watch(apiClientProvider).fetchUserPlan();
 });
