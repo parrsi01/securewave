@@ -1,4 +1,12 @@
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import '../config/app_config.dart';
+
+final secureStorageProvider = Provider<SecureStorage>((ref) {
+  final config = ref.watch(appConfigProvider);
+  return config.demoMode ? DemoSecureStorage() : SecureStorage();
+});
 
 class SecureStorage {
   static const _storage = FlutterSecureStorage();
@@ -44,4 +52,52 @@ class SecureStorage {
     if (raw == null) return null;
     return int.tryParse(raw);
   }
+}
+
+class DemoSecureStorage extends SecureStorage {
+  final Map<String, String> _values = <String, String>{};
+
+  @override
+  Future<void> saveToken(String accessToken) =>
+      saveString(SecureStorage._accessTokenKey, accessToken);
+
+  @override
+  Future<String?> getAccessToken() => getString(SecureStorage._accessTokenKey);
+
+  @override
+  Future<void> clearToken() => delete(SecureStorage._accessTokenKey);
+
+  @override
+  Future<void> clearVpnRuntimeState() => delete(SecureStorage.vpnDeviceIdKey);
+
+  @override
+  Future<void> saveString(String key, String value) async {
+    _values[key] = value;
+  }
+
+  @override
+  Future<String?> getString(String key) async => _values[key];
+
+  @override
+  Future<void> delete(String key) async {
+    _values.remove(key);
+  }
+
+  @override
+  Future<void> saveBool(String key, bool value) =>
+      saveString(key, value.toString());
+
+  @override
+  Future<bool?> getBool(String key) async {
+    final raw = await getString(key);
+    return raw == null ? null : raw.toLowerCase() == 'true';
+  }
+
+  @override
+  Future<void> saveInt(String key, int value) =>
+      saveString(key, value.toString());
+
+  @override
+  Future<int?> getInt(String key) async =>
+      int.tryParse(await getString(key) ?? '');
 }

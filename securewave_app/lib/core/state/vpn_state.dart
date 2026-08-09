@@ -30,16 +30,18 @@ class VpnState {
     String? healthLabel,
     String? errorMessage,
     bool clearError = false,
-  }) => VpnState(
-    status: status ?? this.status,
-    rxBytes: rxBytes ?? this.rxBytes,
-    txBytes: txBytes ?? this.txBytes,
-    healthLabel: healthLabel ?? this.healthLabel,
-    errorMessage: clearError ? null : errorMessage ?? this.errorMessage,
-  );
+  }) =>
+      VpnState(
+        status: status ?? this.status,
+        rxBytes: rxBytes ?? this.rxBytes,
+        txBytes: txBytes ?? this.txBytes,
+        healthLabel: healthLabel ?? this.healthLabel,
+        errorMessage: clearError ? null : errorMessage ?? this.errorMessage,
+      );
 }
 
-final vpnStateProvider = StateNotifierProvider<VpnStateNotifier, VpnState>((ref) {
+final vpnStateProvider =
+    StateNotifierProvider<VpnStateNotifier, VpnState>((ref) {
   return VpnStateNotifier(ref);
 });
 
@@ -57,7 +59,8 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
     final snapshot = await service.refreshRuntimeStatus();
     if (!mounted) return;
     if (snapshot.status == VpnStatus.connected) {
-      state = state.copyWith(status: VpnStatus.connected, healthLabel: 'Connected');
+      state =
+          state.copyWith(status: VpnStatus.connected, healthLabel: 'Connected');
       _startTrafficPolling();
     }
   }
@@ -65,20 +68,38 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
   Future<void> connect() async {
     if (_operationInFlight || state.status == VpnStatus.connected) return;
     _operationInFlight = true;
-    state = state.copyWith(status: VpnStatus.connecting, healthLabel: 'Checking tunnel', clearError: true);
+    state = state.copyWith(
+        status: VpnStatus.connecting,
+        healthLabel: 'Checking tunnel',
+        clearError: true);
     try {
       final profile = await _ref.read(apiClientProvider).fetchVpnProfile(
-        deviceName: 'SecureWave Linux',
-        deviceType: 'linux',
-        deviceId: await SecureStorage().getInt(SecureStorage.vpnDeviceIdKey),
-      );
-      if (profile.deviceId > 0) await SecureStorage().saveInt(SecureStorage.vpnDeviceIdKey, profile.deviceId);
-      final result = await _ref.read(vpnServiceProvider).connect(config: profile.wireguardConfig);
-      if (result != VpnStatus.connected) throw StateError('WireGuard did not reach a connected state.');
-      state = state.copyWith(status: VpnStatus.connected, healthLabel: 'Good', clearError: true);
+            deviceName: 'SecureWave Linux',
+            deviceType: 'linux',
+            deviceId: await _ref
+                .read(secureStorageProvider)
+                .getInt(SecureStorage.vpnDeviceIdKey),
+          );
+      if (profile.deviceId > 0) {
+        await _ref
+            .read(secureStorageProvider)
+            .saveInt(SecureStorage.vpnDeviceIdKey, profile.deviceId);
+      }
+      final result = await _ref
+          .read(vpnServiceProvider)
+          .connect(config: profile.wireguardConfig);
+      if (result != VpnStatus.connected) {
+        throw StateError('WireGuard did not reach a connected state.');
+      }
+      state = state.copyWith(
+          status: VpnStatus.connected, healthLabel: 'Good', clearError: true);
       _startTrafficPolling();
     } catch (error) {
-      state = state.copyWith(status: VpnStatus.error, healthLabel: 'Unavailable', errorMessage: ApiError.messageFrom(error, fallback: 'SecureWave could not connect.'));
+      state = state.copyWith(
+          status: VpnStatus.error,
+          healthLabel: 'Unavailable',
+          errorMessage: ApiError.messageFrom(error,
+              fallback: 'SecureWave could not connect.'));
     } finally {
       _operationInFlight = false;
     }
@@ -88,12 +109,20 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
     if (_operationInFlight || state.status == VpnStatus.disconnected) return;
     _operationInFlight = true;
     _stopTrafficPolling();
-    state = state.copyWith(status: VpnStatus.disconnecting, healthLabel: 'Stopping tunnel', clearError: true);
+    state = state.copyWith(
+        status: VpnStatus.disconnecting,
+        healthLabel: 'Stopping tunnel',
+        clearError: true);
     try {
       await _ref.read(vpnServiceProvider).disconnect();
-      state = state.copyWith(status: VpnStatus.disconnected, healthLabel: 'Waiting');
+      state = state.copyWith(
+          status: VpnStatus.disconnected, healthLabel: 'Waiting');
     } catch (error) {
-      state = state.copyWith(status: VpnStatus.error, healthLabel: 'Unavailable', errorMessage: ApiError.messageFrom(error, fallback: 'SecureWave could not disconnect cleanly.'));
+      state = state.copyWith(
+          status: VpnStatus.error,
+          healthLabel: 'Unavailable',
+          errorMessage: ApiError.messageFrom(error,
+              fallback: 'SecureWave could not disconnect cleanly.'));
     } finally {
       _operationInFlight = false;
     }
@@ -102,7 +131,8 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
   void _startTrafficPolling() {
     _trafficTimer?.cancel();
     unawaited(_pollTraffic());
-    _trafficTimer = Timer.periodic(const Duration(seconds: 1), (_) => unawaited(_pollTraffic()));
+    _trafficTimer = Timer.periodic(
+        const Duration(seconds: 1), (_) => unawaited(_pollTraffic()));
   }
 
   void _stopTrafficPolling() {
