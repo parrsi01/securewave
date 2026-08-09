@@ -25,7 +25,6 @@ exec python3 "$repo_root/scripts/linux_app_vpn_tunnel_proof.py" \
   --allow-production \
   --auth-file "$auth_file" \
   --protocol wireguard \
-  --protocol openvpn \
   --hold-seconds "$hold_seconds" \
   --evidence-timeout "$evidence_timeout" \
   --json

@@ -20,19 +20,13 @@ Only the architecture-matched Debian package installs this boundary. Portable
 tar/zip/AppImage builds are UI-only unless the matching helper is already
 installed separately.
 
-## Protocol gates
+## WireGuard beta runtime
 
 - WireGuard requires `wg-quick` and `wg`. Connected status requires
   `sw-wg` plus default-route evidence; cleanup checks interface, rules, table
   51820 routes, and known kill-switch rules.
-- OpenVPN requires `openvpn`. Connected status requires the expected root
-  process/config, initialization marker, tunnel interface, and route.
-- IKEv2 helper orchestration requires `nmcli`, `ipsec`, NetworkManager
-  strongSwan support, route and DNS evidence, XFRM ESP state/policy, and one
-  exact negated-mark charon-nm rule per address family while connected.
-  SecureWave isolates charon-nm in table/priority 210 while regular charon
-  remains in table 220; unsafe, asymmetric, or duplicate table-210 rules fail
-  closed.
+- OpenVPN and IKEv2 are deferred and are not part of the Linux beta package,
+  UI, or acceptance command.
 - Missing tools, service/socket, contract, or runtime evidence returns an
   unavailable/error result. The app does not substitute a mock connection in
   live mode.
@@ -82,6 +76,26 @@ python3 scripts/linux_vpn_runtime_verifier.py \
 The verifier redacts addresses and counter values. Do not commit the baseline
 IP file, VPN configs, credentials, private keys, raw route tables, or raw
 provider logs.
+
+## App-driven live proof
+
+With an owner-authorized existing login account and an owner-only credential
+file, run the real Flutter/native path:
+
+```bash
+python3 scripts/linux_app_vpn_tunnel_proof.py \
+  --api-base https://api.securewaveapp.com/api \
+  --allow-production \
+  --auth-file /private/path/live-account.env \
+  --protocol wireguard \
+  --hold-seconds 60 \
+  --evidence-timeout 240 \
+  --json
+```
+
+This command does not register an account. It logs in, obtains a WireGuard
+profile, exercises connect/hold/disconnect, verifies cleanup, and redacts
+credentials, addresses, and counters from its report.
 
 ## Current certification boundary
 

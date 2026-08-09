@@ -2178,7 +2178,7 @@ def test_explicit_single_protocol_invocation_runs_exactly_once(
     monkeypatch, tmp_path, capsys
 ):
     cleanup_calls, verifier_calls, workspace_calls, probe_app_root = _prepare_main_test(
-        monkeypatch, tmp_path, ["ikev2"]
+        monkeypatch, tmp_path, ["wireguard"]
     )
     run_calls = []
 
@@ -2189,7 +2189,7 @@ def test_explicit_single_protocol_invocation_runs_exactly_once(
     monkeypatch.setattr(proof, "run_protocol", fake_run_protocol)
 
     assert proof.main() == 0
-    assert run_calls == ["ikev2"]
+    assert run_calls == ["wireguard"]
     assert cleanup_calls == list(proof.SUPPORTED_PROTOCOLS) * 2
     assert len(verifier_calls) == 2
     assert workspace_calls == {
@@ -2203,7 +2203,7 @@ def test_explicit_single_protocol_invocation_runs_exactly_once(
 
 def test_protocol_failure_stops_sequence_and_finally_cleans_all(monkeypatch, tmp_path):
     cleanup_calls, verifier_calls, workspace_calls, probe_app_root = _prepare_main_test(
-        monkeypatch, tmp_path, ["wireguard", "openvpn", "ikev2"]
+        monkeypatch, tmp_path, ["wireguard"]
     )
     run_calls = []
 
@@ -2215,14 +2215,7 @@ def test_protocol_failure_stops_sequence_and_finally_cleans_all(monkeypatch, tmp
 
     assert proof.main() == 1
     assert run_calls == ["wireguard"]
-    assert cleanup_calls == [
-        "wireguard",
-        "openvpn",
-        "ikev2",
-        "wireguard",
-        "openvpn",
-        "ikev2",
-    ]
+    assert cleanup_calls == ["wireguard", "wireguard"]
     assert len(verifier_calls) == 2
     assert workspace_calls["remove"] == [probe_app_root]
 
@@ -2230,7 +2223,7 @@ def test_protocol_failure_stops_sequence_and_finally_cleans_all(monkeypatch, tmp
 def test_sigterm_during_final_cleanup_defers_failure_until_all_finalizers_finish(
     monkeypatch, tmp_path, capsys
 ):
-    protocols = ["wireguard", "openvpn", "ikev2"]
+    protocols = ["wireguard"]
     _, verifier_calls, workspace_calls, probe_app_root = _prepare_main_test(
         monkeypatch, tmp_path, protocols
     )

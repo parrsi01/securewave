@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Run app-driven Linux VPN tunnel proof for SecureWave Linux tunnels.
+"""Run the app-driven Linux WireGuard beta tunnel proof.
 
 This script drives the Flutter app's real runtime service path through
 lib/runtime_vpn_probe.dart. It requires an existing live account because the
@@ -35,7 +35,7 @@ APP_ROOT = REPO_ROOT / "securewave_app"
 PROBE_TARGET = "lib/runtime_vpn_probe.dart"
 DEFAULT_AUTH_FILE = REPO_ROOT / "securewave_private" / "live_certification_account.env"
 SHARED_AUTH_RELATIVE_PATH = Path("securewave_private/live_certification_account.env")
-SUPPORTED_PROTOCOLS = ("wireguard", "openvpn", "ikev2")
+SUPPORTED_PROTOCOLS = ("wireguard",)
 DEFAULT_PROTOCOLS = SUPPORTED_PROTOCOLS
 DEFAULT_API_BASE: str | None = None
 MINIMUM_HELPER_CONTRACT = 13
