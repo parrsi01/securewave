@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 
 class AppUIv1 {
-  static const background = Color(0xFF050B14);
-  static const surface = Color(0xFF0A1524);
-  static const surfaceMuted = Color(0xFF0F1E30);
-  static const surfaceRaised = Color(0xFF14273D);
+  static const background = Color(0xFF071018);
+  static const surface = Color(0xFF111A24);
+  static const surfaceMuted = Color(0xFF0D151E);
+  static const surfaceRaised = Color(0xFF1A2938);
   static const graphite = Color(0xFFF7FAFC);
   static const graphiteMuted = Color(0xFFA9BDD0);
   static const graphiteSubtle = Color(0xFF7F97AD);
@@ -23,8 +23,8 @@ class AppUIv1 {
   static const redSoft = Color(0xFF35171B);
   static const disabled = Color(0xFF52687C);
 
-  static const radius = 10.0;
-  static const radiusSmall = 8.0;
+  static const radius = 8.0;
+  static const radiusSmall = 6.0;
   static const maxWidth = 1160.0;
   static const contentMaxWidth = 760.0;
   static const mobileMax = 760.0;
@@ -394,7 +394,7 @@ class AppPanel extends StatelessWidget {
     super.key,
     this.padding = const EdgeInsets.all(18),
     this.color = AppUIv1.surface,
-    this.showShadow = true,
+    this.showShadow = false,
   });
 
   final Widget child;

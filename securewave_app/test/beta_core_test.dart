@@ -37,6 +37,11 @@ void main() {
     expect(config.demoMode, isFalse);
   });
 
+  test('standalone demo configuration cannot target the real API', () {
+    expect(AppConfig.demoConfig.demoMode, isTrue);
+    expect(AppConfig.demoConfig.apiBaseUrl, 'https://demo.invalid');
+  });
+
   test('profile parser keeps only the WireGuard beta contract', () {
     final profile = VpnProfile.fromJson({
       'device_id': 7,
