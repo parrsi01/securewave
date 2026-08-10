@@ -182,6 +182,25 @@ void main() {
       await tester.pump();
     }
   });
+
+  testWidgets('authenticated shell remains usable with larger text',
+      (tester) async {
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    tester.platformDispatcher.textScaleFactorTestValue = 1.4;
+    addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+
+    await _pumpAuthenticatedShell(tester, const Size(390, 844));
+    expect(tester.takeException(), isNull);
+    await tester.tap(
+      find.descendant(
+        of: find.byKey(const ValueKey('mobile-navigation')),
+        matching: find.text('Settings'),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+  });
 }
 
 Future<void> _pumpAuthenticatedShell(

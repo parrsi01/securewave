@@ -47,7 +47,13 @@ void main() {
 
     expect(find.text('Connection'), findsOneWidget);
     expect(find.text('3.4 GB remaining of 5 GB'), findsOneWidget);
-    expect(find.text('Disconnected'), findsOneWidget);
+    expect(
+      find.descendant(
+        of: find.byKey(const ValueKey('vpn-status-chip')),
+        matching: find.text('Disconnected'),
+      ),
+      findsOneWidget,
+    );
     expect(
       find.descendant(
         of: find.byKey(const ValueKey('connection-action')),
@@ -67,7 +73,13 @@ void main() {
     );
     await tester.pump(const Duration(milliseconds: 300));
     await tester.pump();
-    expect(find.text('Connected'), findsOneWidget);
+    expect(
+      find.descendant(
+        of: find.byKey(const ValueKey('vpn-status-chip')),
+        matching: find.text('Connected'),
+      ),
+      findsOneWidget,
+    );
     expect(
         find.text('The WireGuard runtime reports connected.'), findsOneWidget);
 
@@ -82,21 +94,39 @@ void main() {
     );
     await tester.pump(const Duration(milliseconds: 180));
     await tester.pump();
-    expect(find.text('Disconnected'), findsOneWidget);
+    expect(
+      find.descendant(
+        of: find.byKey(const ValueKey('vpn-status-chip')),
+        matching: find.text('Disconnected'),
+      ),
+      findsOneWidget,
+    );
 
     await tester.tap(find.byKey(const ValueKey('connection-action')));
     await tester.pump(const Duration(milliseconds: 300));
     await tester.pump();
-    expect(find.text('Connected'), findsOneWidget);
+    expect(
+      find.descendant(
+        of: find.byKey(const ValueKey('vpn-status-chip')),
+        matching: find.text('Connected'),
+      ),
+      findsOneWidget,
+    );
     expect(
         find.text('The WireGuard runtime reports connected.'), findsOneWidget);
 
     await tester.tap(find.byKey(const ValueKey('connection-action')));
     await tester.pump(const Duration(milliseconds: 180));
     await tester.pump();
+    await tester.tap(find.byKey(const ValueKey('desktop-nav-servers')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('server-auto-select')), findsOneWidget);
+    expect(find.byKey(const ValueKey('server-location-0')), findsOneWidget);
     await tester.tap(find.byKey(const ValueKey('desktop-nav-settings')));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Sign out'));
+    final signOut = find.byKey(const ValueKey('sign-out-action'));
+    await tester.ensureVisible(signOut);
+    await tester.tap(signOut);
     await tester.pumpAndSettle();
 
     expect(

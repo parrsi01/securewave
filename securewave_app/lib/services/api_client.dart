@@ -53,7 +53,12 @@ class ApiClient {
   Future<UserAccount> fetchCurrentUser() async {
     if (_config.demoMode) {
       return const UserAccount(
-          id: 1, email: 'demo@securewave.local', isActive: true);
+        id: 1,
+        email: 'demo@securewave.local',
+        isActive: true,
+        emailVerified: true,
+        subscriptionStatus: 'Free',
+      );
     }
     final response = await _dio.get<Map<String, dynamic>>('/auth/me');
     return UserAccount.fromJson(response.data ?? const {});

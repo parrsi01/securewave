@@ -1,10 +1,12 @@
 import 'dart:async';
 import 'dart:math' as math;
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'core/config/app_config.dart';
+import 'core/constants/app_constants.dart';
 import 'core/models/server_region.dart';
 import 'core/models/user_plan.dart';
 import 'core/models/vpn_protocol.dart';
@@ -14,6 +16,7 @@ import 'core/state/app_state.dart';
 import 'core/state/vpn_state.dart';
 import 'core/utils/api_error.dart';
 import 'services/auth_service.dart';
+import 'services/external_links.dart';
 import 'ui/app_ui_v1.dart';
 
 class SecureWaveApp extends ConsumerWidget {
@@ -719,10 +722,15 @@ class _DesktopDestination extends StatelessWidget {
 }
 
 class _PageFrame extends StatelessWidget {
-  const _PageFrame({required this.storageKey, required this.child});
+  const _PageFrame({
+    required this.storageKey,
+    required this.child,
+    this.maxWidth = AppUIv1.contentMaxWidth,
+  });
 
   final String storageKey;
   final Widget child;
+  final double maxWidth;
 
   @override
   Widget build(BuildContext context) {
@@ -743,8 +751,7 @@ class _PageFrame extends StatelessWidget {
             40,
           ),
           child: ConstrainedBox(
-            constraints:
-                const BoxConstraints(maxWidth: AppUIv1.contentMaxWidth),
+            constraints: BoxConstraints(maxWidth: maxWidth),
             child: child,
           ),
         ),
@@ -782,6 +789,7 @@ class _ConnectPage extends ConsumerWidget {
             'Selected location unavailable';
     return _PageFrame(
       storageKey: 'connect-page',
+      maxWidth: 1040,
       child: LayoutBuilder(
         builder: (context, constraints) {
           final hero = _ConnectionDashboardHero(
@@ -872,6 +880,7 @@ class _ServersPageState extends ConsumerState<_ServersPage> {
         vpn.status == VpnStatus.disconnecting;
     return _PageFrame(
       storageKey: 'servers-page',
+      maxWidth: 900,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -1174,20 +1183,25 @@ class _SettingsPage extends ConsumerStatefulWidget {
 
 class _SettingsPageState extends ConsumerState<_SettingsPage> {
   bool _busy = false;
+  String? _signOutError;
 
   @override
   Widget build(BuildContext context) {
     final user = ref.watch(currentUserProvider);
-    final session = ref.watch(authSessionProvider);
+    final plan = ref.watch(userPlanProvider);
+    final vpn = ref.watch(vpnStateProvider);
+    final vpnBusy = vpn.status == VpnStatus.connecting ||
+        vpn.status == VpnStatus.disconnecting;
     return _PageFrame(
       storageKey: 'settings-page',
+      maxWidth: 900,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Text('Settings', style: Theme.of(context).textTheme.headlineMedium),
           const SizedBox(height: 8),
           Text(
-            'Account and session settings for this device.',
+            'Manage your account, data allowance, and local app actions.',
             style: Theme.of(context).textTheme.bodyMedium,
           ),
           const SizedBox(height: 20),
@@ -1200,7 +1214,11 @@ class _SettingsPageState extends ConsumerState<_SettingsPage> {
                 user.when(
                   data: (value) => Column(
                     children: [
-                      _InformationRow(label: 'Email', value: value.email),
+                      _InformationRow(
+                        label: 'Signed-in email',
+                        value:
+                            value.email.isEmpty ? 'Not provided' : value.email,
+                      ),
                       const SizedBox(height: 14),
                       _InformationRow(
                         label: 'Account status',
@@ -1211,44 +1229,98 @@ class _SettingsPageState extends ConsumerState<_SettingsPage> {
                               : AppStatusTone.warning,
                         ),
                       ),
+                      if (value.emailVerified != null) ...[
+                        const SizedBox(height: 14),
+                        _InformationRow(
+                          label: 'Email status',
+                          trailing: AppStatusChip(
+                            label: value.emailVerified!
+                                ? 'Verified'
+                                : 'Unverified',
+                            tone: value.emailVerified!
+                                ? AppStatusTone.success
+                                : AppStatusTone.warning,
+                          ),
+                        ),
+                      ],
+                      if (value.subscriptionStatus != null) ...[
+                        const SizedBox(height: 14),
+                        _InformationRow(
+                          label: 'Subscription',
+                          value: value.subscriptionStatus!,
+                        ),
+                      ],
                     ],
                   ),
-                  loading: () => const Align(
-                    alignment: Alignment.centerLeft,
-                    child: AppProgressIndicator(label: 'Loading account'),
+                  loading: () => const AppStatePanel(
+                    key: ValueKey('settings-account-loading'),
+                    title: 'Loading account',
+                    message: 'Retrieving your signed-in account details.',
+                    tone: AppStateTone.loading,
                   ),
-                  error: (error, _) => AppInlineNotice(
-                    text: ApiError.messageFrom(
+                  error: (error, _) => AppStatePanel(
+                    key: const ValueKey('settings-account-error'),
+                    title: 'Account unavailable',
+                    message: ApiError.messageFrom(
                       error,
                       fallback: 'SecureWave could not load your account.',
                     ),
+                    tone: AppStateTone.error,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
+          _PlanPanel(plan: plan),
+          const SizedBox(height: 16),
+          AppPanel(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Text('Actions', style: Theme.of(context).textTheme.titleLarge),
+                const SizedBox(height: 18),
+                OutlinedButton.icon(
+                  key: const ValueKey('settings-diagnostics-action'),
+                  onPressed: () => _showDiagnostics(context),
+                  icon: const Icon(Icons.receipt_long_outlined),
+                  label: const Text('Open diagnostics'),
+                ),
+                const SizedBox(height: 10),
+                OutlinedButton.icon(
+                  key: const ValueKey('account-portal-action'),
+                  onPressed: _openAccountPortal,
+                  icon: const Icon(Icons.open_in_new_rounded),
+                  label: const Text('Open account portal'),
+                ),
+                const SizedBox(height: 10),
+                OutlinedButton.icon(
+                  key: const ValueKey('sign-out-action'),
+                  onPressed: _busy || vpnBusy ? null : _signOut,
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: AppUIv1.red,
+                    side: const BorderSide(color: AppUIv1.red),
+                  ),
+                  icon: _busy
+                      ? const AppProgressIndicator(label: 'Signing out')
+                      : const Icon(Icons.logout_outlined),
+                  label: Text(_busy ? 'Signing out' : 'Sign out'),
+                ),
+                if (vpnBusy) ...[
+                  const SizedBox(height: 12),
+                  const AppInlineNotice(
+                    text:
+                        'Wait for the current VPN transition before signing out.',
+                    tone: AppNoticeTone.warning,
+                  ),
+                ],
+                if (_signOutError != null) ...[
+                  const SizedBox(height: 12),
+                  AppInlineNotice(
+                    text: _signOutError!,
                     tone: AppNoticeTone.error,
                   ),
-                ),
-                const SizedBox(height: 18),
-                const Divider(height: 1),
-                const SizedBox(height: 18),
-                _InformationRow(
-                  label: 'Device session',
-                  value: session.accessToken == null
-                      ? 'Signed out'
-                      : 'Stored securely',
-                ),
-                const SizedBox(height: 20),
-                Align(
-                  alignment: Alignment.centerLeft,
-                  child: OutlinedButton.icon(
-                    onPressed: _busy ? null : _signOut,
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: AppUIv1.red,
-                      side: const BorderSide(color: AppUIv1.red),
-                    ),
-                    icon: _busy
-                        ? const AppProgressIndicator(label: 'Signing out')
-                        : const Icon(Icons.logout_outlined),
-                    label: Text(_busy ? 'Signing out' : 'Sign out'),
-                  ),
-                ),
+                ],
               ],
             ),
           ),
@@ -1257,11 +1329,39 @@ class _SettingsPageState extends ConsumerState<_SettingsPage> {
     );
   }
 
+  void _openAccountPortal() {
+    unawaited(
+      ref.read(externalLinksProvider).openUrl(AppConstants.portalUrlFallback),
+    );
+  }
+
   Future<void> _signOut() async {
-    setState(() => _busy = true);
+    if (_busy) return;
+    setState(() {
+      _busy = true;
+      _signOutError = null;
+    });
     try {
+      final notifier = ref.read(vpnStateProvider.notifier);
+      final vpn = ref.read(vpnStateProvider);
+      if (vpn.status != VpnStatus.disconnected) {
+        await notifier.disconnect();
+      }
+      await notifier.selectServer(null);
       await ref.read(authServiceProvider).logout();
       ref.invalidate(currentUserProvider);
+      ref.invalidate(userPlanProvider);
+      ref.invalidate(serversProvider);
+      ref.invalidate(targetProvider);
+    } catch (error) {
+      if (mounted && ref.read(authSessionProvider).isAuthenticated) {
+        setState(() {
+          _signOutError = ApiError.messageFrom(
+            error,
+            fallback: 'SecureWave could not finish signing out.',
+          );
+        });
+      }
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -1765,6 +1865,7 @@ class _DiagnosticsView extends ConsumerWidget {
     final vpn = ref.watch(vpnStateProvider);
     final config = ref.watch(appConfigProvider);
     final service = ref.watch(vpnServiceProvider);
+    final servers = ref.watch(serversProvider);
     return ConstrainedBox(
       constraints: BoxConstraints(
         maxHeight: MediaQuery.sizeOf(context).height * 0.72,
@@ -1784,6 +1885,11 @@ class _DiagnosticsView extends ConsumerWidget {
             const _InformationRow(label: 'Protocol', value: 'WireGuard'),
             const SizedBox(height: 12),
             _InformationRow(
+              label: 'Device',
+              value: _devicePlatformLabel(defaultTargetPlatform),
+            ),
+            const SizedBox(height: 12),
+            _InformationRow(
               label: 'VPN helper',
               value: service.isAvailable ? 'Available' : 'Not confirmed',
             ),
@@ -1794,9 +1900,27 @@ class _DiagnosticsView extends ConsumerWidget {
               label: 'Demo mode',
               value: config.demoMode ? 'Active — simulated only' : 'Off',
             ),
+            const SizedBox(height: 12),
+            _InformationRow(
+              label: 'Location catalog',
+              value: servers.when(
+                data: (items) => items.isEmpty ? 'Empty' : 'Loaded',
+                loading: () => 'Loading',
+                error: (_, __) => 'Unavailable',
+              ),
+            ),
           ],
         ),
       ),
     );
   }
 }
+
+String _devicePlatformLabel(TargetPlatform platform) => switch (platform) {
+      TargetPlatform.linux => 'Linux desktop',
+      TargetPlatform.android => 'Android device',
+      TargetPlatform.iOS => 'iOS device',
+      TargetPlatform.macOS => 'macOS desktop',
+      TargetPlatform.windows => 'Windows desktop',
+      TargetPlatform.fuchsia => 'Fuchsia device',
+    };
