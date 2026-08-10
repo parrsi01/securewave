@@ -113,57 +113,30 @@ class _AuthViewState extends ConsumerState<_AuthView> {
                   child: ConstrainedBox(
                     constraints:
                         const BoxConstraints(maxWidth: AppUIv1.maxWidth),
-                    child: desktop
-                        ? Row(
-                            crossAxisAlignment: CrossAxisAlignment.center,
-                            children: [
-                              const Expanded(child: _AuthIntroduction()),
-                              const SizedBox(width: 56),
-                              SizedBox(
-                                width: 440,
-                                child: _AuthenticationCard(
-                                  formKey: _formKey,
-                                  email: _email,
-                                  password: _password,
-                                  confirm: _confirm,
-                                  register: _register,
-                                  busy: _busy,
-                                  hidePassword: _hidePassword,
-                                  error: _error,
-                                  isDemo: config.demoMode,
-                                  onTogglePassword: _togglePasswordVisibility,
-                                  onSubmit: _submit,
-                                  onSwitchMode: _switchMode,
-                                ),
-                              ),
-                            ],
-                          )
-                        : Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            crossAxisAlignment: CrossAxisAlignment.stretch,
-                            children: [
-                              const Align(
-                                key: ValueKey('mobile-auth-brand'),
-                                alignment: Alignment.centerLeft,
-                                child: _BrandMark(compact: true),
-                              ),
-                              const SizedBox(height: 20),
-                              _AuthenticationCard(
-                                formKey: _formKey,
-                                email: _email,
-                                password: _password,
-                                confirm: _confirm,
-                                register: _register,
-                                busy: _busy,
-                                hidePassword: _hidePassword,
-                                error: _error,
-                                isDemo: config.demoMode,
-                                onTogglePassword: _togglePasswordVisibility,
-                                onSubmit: _submit,
-                                onSwitchMode: _switchMode,
-                              ),
-                            ],
-                          ),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        _AuthHeader(
+                          desktop: desktop,
+                        ),
+                        SizedBox(height: desktop ? 28 : 20),
+                        _AuthenticationCard(
+                          formKey: _formKey,
+                          email: _email,
+                          password: _password,
+                          confirm: _confirm,
+                          register: _register,
+                          busy: _busy,
+                          hidePassword: _hidePassword,
+                          error: _error,
+                          isDemo: config.demoMode,
+                          onTogglePassword: _togglePasswordVisibility,
+                          onSubmit: _submit,
+                          onSwitchMode: _switchMode,
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ),
@@ -214,72 +187,44 @@ class _AuthViewState extends ConsumerState<_AuthView> {
   }
 }
 
-class _AuthIntroduction extends StatelessWidget {
-  const _AuthIntroduction();
+class _AuthHeader extends StatelessWidget {
+  const _AuthHeader({required this.desktop});
+
+  final bool desktop;
 
   @override
   Widget build(BuildContext context) {
     return Semantics(
-      key: const ValueKey('desktop-auth-introduction'),
+      key:
+          ValueKey(desktop ? 'desktop-auth-introduction' : 'mobile-auth-brand'),
       container: true,
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 16),
         child: Column(
           mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
+          crossAxisAlignment:
+              desktop ? CrossAxisAlignment.center : CrossAxisAlignment.start,
           children: [
             const _BrandMark(),
-            const SizedBox(height: 40),
+            const SizedBox(height: 28),
             Text(
               'SecureWave Linux beta',
+              textAlign: desktop ? TextAlign.center : TextAlign.left,
               style: Theme.of(context).textTheme.headlineLarge,
             ),
             const SizedBox(height: 12),
             Text(
-              'Authenticated WireGuard connection controls for Ubuntu 24.04 ARM64.',
+              desktop
+                  ? 'A focused WireGuard client for the SecureWave Linux beta.'
+                  : 'WireGuard access for the SecureWave Linux beta.',
+              textAlign: desktop ? TextAlign.center : TextAlign.left,
               style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                     color: AppUIv1.graphiteMuted,
                   ),
             ),
-            const SizedBox(height: 28),
-            const _AuthFact(
-              icon: Icons.shield_outlined,
-              text: 'Connect to the SecureWave beta target.',
-            ),
-            const SizedBox(height: 16),
-            const _AuthFact(
-              icon: Icons.dns_outlined,
-              text: 'View the current WireGuard server target.',
-            ),
-            const SizedBox(height: 16),
-            const _AuthFact(
-              icon: Icons.lock_outline_rounded,
-              text: 'Store the signed-in session with secure device storage.',
-            ),
           ],
         ),
       ),
-    );
-  }
-}
-
-class _AuthFact extends StatelessWidget {
-  const _AuthFact({required this.icon, required this.text});
-
-  final IconData icon;
-  final String text;
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Icon(icon, color: AppUIv1.cyan, size: 20),
-        const SizedBox(width: 12),
-        Expanded(
-          child: Text(text, style: Theme.of(context).textTheme.bodyMedium),
-        ),
-      ],
     );
   }
 }
@@ -535,34 +480,38 @@ class _HomeViewState extends ConsumerState<_HomeView> {
   @override
   Widget build(BuildContext context) {
     final compact = MediaQuery.sizeOf(context).width < AppUIv1.mobileMax;
+    final content = IndexedStack(
+      index: _selected.index,
+      children: [
+        _ConnectPage(
+          isDemo: widget.isDemo,
+          onChooseServer: () => _selectDestination(_HomeDestination.servers),
+        ),
+        const _ServersPage(),
+        const _SettingsPage(),
+      ],
+    );
 
     return Scaffold(
-      appBar: AppBar(
-        titleSpacing: compact ? AppUIv1.mobilePadding : AppUIv1.desktopPadding,
-        title: compact
-            ? const _BrandMark(compact: true)
-            : Row(
-                children: [
-                  const _BrandMark(compact: true),
-                  const Spacer(),
-                  _DesktopNavigation(
-                    selected: _selected,
-                    onSelected: _selectDestination,
-                  ),
-                ],
-              ),
-      ),
-      body: IndexedStack(
-        index: _selected.index,
-        children: [
-          _ConnectPage(
-            isDemo: widget.isDemo,
-            onChooseServer: () => _selectDestination(_HomeDestination.servers),
-          ),
-          const _ServersPage(),
-          const _SettingsPage(),
-        ],
-      ),
+      appBar: compact
+          ? AppBar(
+              titleSpacing: AppUIv1.mobilePadding,
+              title: const _BrandMark(compact: true),
+            )
+          : null,
+      body: compact
+          ? content
+          : Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                _DesktopRail(
+                  selected: _selected,
+                  isDemo: widget.isDemo,
+                  onSelected: _selectDestination,
+                ),
+                Expanded(child: content),
+              ],
+            ),
       bottomNavigationBar: compact
           ? Semantics(
               label: 'Primary navigation',
@@ -599,6 +548,54 @@ class _HomeViewState extends ConsumerState<_HomeView> {
   }
 }
 
+class _DesktopRail extends StatelessWidget {
+  const _DesktopRail({
+    required this.selected,
+    required this.isDemo,
+    required this.onSelected,
+  });
+
+  final _HomeDestination selected;
+  final bool isDemo;
+  final ValueChanged<_HomeDestination> onSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 248,
+      decoration: const BoxDecoration(
+        color: AppUIv1.surface,
+        border: Border(right: BorderSide(color: AppUIv1.line)),
+      ),
+      padding: const EdgeInsets.fromLTRB(20, 24, 16, 20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const _BrandMark(compact: true),
+          const SizedBox(height: 36),
+          Text(
+            'Workspace',
+            style: Theme.of(context).textTheme.labelMedium,
+          ),
+          const SizedBox(height: 8),
+          _DesktopNavigation(
+            selected: selected,
+            onSelected: onSelected,
+            vertical: true,
+          ),
+          const Spacer(),
+          if (isDemo) const _DemoBanner(),
+          if (isDemo) const SizedBox(height: 12),
+          Text(
+            'SecureWave Linux beta',
+            style: Theme.of(context).textTheme.bodySmall,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _NavigationSemanticIcon extends StatelessWidget {
   const _NavigationSemanticIcon({
     required this.destination,
@@ -625,23 +622,26 @@ class _DesktopNavigation extends StatelessWidget {
   const _DesktopNavigation({
     required this.selected,
     required this.onSelected,
+    this.vertical = false,
   });
 
   final _HomeDestination selected;
   final ValueChanged<_HomeDestination> onSelected;
+  final bool vertical;
 
   @override
   Widget build(BuildContext context) {
     return Semantics(
       label: 'Primary navigation',
       container: true,
-      child: Row(
+      child: Flex(
+        direction: vertical ? Axis.vertical : Axis.horizontal,
         key: const ValueKey('desktop-navigation'),
         mainAxisSize: MainAxisSize.min,
         children: [
           for (final destination in _HomeDestination.values) ...[
             if (destination != _HomeDestination.values.first)
-              const SizedBox(width: 4),
+              SizedBox(width: vertical ? 0 : 4, height: vertical ? 4 : 0),
             _DesktopDestination(
               destination: destination,
               selected: selected == destination,
@@ -1459,47 +1459,12 @@ class _ConnectionDashboardHero extends StatelessWidget {
               button: true,
               enabled: action != null,
               excludeSemantics: true,
-              child: SizedBox.square(
-                dimension: 168,
-                child: FilledButton(
-                  key: const ValueKey('connection-action'),
-                  onPressed: action,
-                  style: FilledButton.styleFrom(
-                    shape: const CircleBorder(),
-                    backgroundColor: _powerButtonColor(vpn.status),
-                    foregroundColor: Colors.white,
-                    disabledBackgroundColor: AppUIv1.surfaceRaised,
-                    disabledForegroundColor: AppUIv1.graphiteSubtle,
-                    side: BorderSide(
-                      color: busy ? AppUIv1.amber : AppUIv1.lineStrong,
-                      width: 2,
-                    ),
-                  ),
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      if (busy)
-                        const SizedBox.square(
-                          dimension: 30,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 3,
-                            color: AppUIv1.amber,
-                          ),
-                        )
-                      else
-                        Icon(
-                          connected
-                              ? Icons.power_settings_new_rounded
-                              : vpn.status == VpnStatus.error
-                                  ? Icons.refresh_rounded
-                                  : Icons.power_settings_new_rounded,
-                          size: 36,
-                        ),
-                      const SizedBox(height: 10),
-                      Text(actionLabel),
-                    ],
-                  ),
-                ),
+              child: _ConnectionOrb(
+                status: vpn.status,
+                busy: busy,
+                connected: connected,
+                actionLabel: actionLabel,
+                onPressed: action,
               ),
             ),
           ),
@@ -1546,6 +1511,94 @@ class _ConnectionDashboardHero extends StatelessWidget {
             ],
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _ConnectionOrb extends StatelessWidget {
+  const _ConnectionOrb({
+    required this.status,
+    required this.busy,
+    required this.connected,
+    required this.actionLabel,
+    required this.onPressed,
+  });
+
+  final VpnStatus status;
+  final bool busy;
+  final bool connected;
+  final String actionLabel;
+  final VoidCallback? onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    final reducedMotion =
+        MediaQuery.maybeOf(context)?.disableAnimations ?? false;
+    final ringColor = busy
+        ? AppUIv1.amber
+        : connected
+            ? AppUIv1.success
+            : status == VpnStatus.error
+                ? AppUIv1.red
+                : AppUIv1.primary;
+    return AnimatedContainer(
+      duration:
+          reducedMotion ? Duration.zero : const Duration(milliseconds: 180),
+      curve: Curves.easeOut,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        border: Border.all(color: ringColor.withValues(alpha: 0.6), width: 1),
+        boxShadow: [
+          BoxShadow(
+            color: ringColor.withValues(alpha: 0.12),
+            blurRadius: 18,
+            spreadRadius: 3,
+          ),
+        ],
+      ),
+      child: SizedBox.square(
+        dimension: 168,
+        child: FilledButton(
+          key: const ValueKey('connection-action'),
+          onPressed: onPressed,
+          style: FilledButton.styleFrom(
+            shape: const CircleBorder(),
+            backgroundColor: _powerButtonColor(status),
+            foregroundColor: Colors.white,
+            disabledBackgroundColor: AppUIv1.surfaceRaised,
+            disabledForegroundColor: AppUIv1.graphiteSubtle,
+            side: BorderSide(
+              color: busy ? AppUIv1.amber : AppUIv1.lineStrong,
+              width: 2,
+            ),
+          ),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              if (busy)
+                const SizedBox.square(
+                  dimension: 30,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 3,
+                    color: AppUIv1.amber,
+                  ),
+                )
+              else
+                Icon(
+                  connected
+                      ? Icons.power_settings_new_rounded
+                      : status == VpnStatus.error
+                          ? Icons.refresh_rounded
+                          : Icons.power_settings_new_rounded,
+                  size: 36,
+                ),
+              const SizedBox(height: 10),
+              Text(actionLabel),
+            ],
+          ),
+        ),
       ),
     );
   }

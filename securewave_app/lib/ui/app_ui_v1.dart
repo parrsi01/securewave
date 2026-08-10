@@ -10,13 +10,14 @@ class AppUIv1 {
   static const graphiteSubtle = Color(0xFF7F97AD);
   static const line = Color(0xFF263C53);
   static const lineStrong = Color(0xFF3B5C7A);
-  static const primary = Color(0xFF236FDC);
-  static const primaryHover = Color(0xFF1F6FD8);
-  static const primaryPressed = Color(0xFF195CBD);
+  static const primary = Color(0xFF2F80ED);
+  static const primaryHover = Color(0xFF4090F2);
+  static const primaryPressed = Color(0xFF236BC9);
   static const primarySoft = Color(0xFF102E52);
-  static const cyan = Color(0xFF35D0E5);
+  static const cyan = Color(0xFF50D9E8);
   static const cyanSoft = Color(0xFF0C3340);
   static const focus = Color(0xFF78DEFF);
+  static const success = Color(0xFF2ED39A);
   static const amber = Color(0xFFF2B84B);
   static const amberSoft = Color(0xFF33280E);
   static const red = Color(0xFFFF6B6B);
@@ -142,7 +143,7 @@ class AppUIv1 {
       focusColor: focus.withValues(alpha: 0.18),
       hoverColor: primary.withValues(alpha: 0.10),
       highlightColor: primary.withValues(alpha: 0.14),
-      splashFactory: InkSparkle.splashFactory,
+      splashFactory: InkRipple.splashFactory,
       textTheme: textTheme,
       primaryTextTheme: textTheme,
       iconTheme: const IconThemeData(color: graphiteMuted, size: 20),
@@ -440,9 +441,9 @@ class AppStatusChip extends StatelessWidget {
           AppUIv1.lineStrong,
         ),
       AppStatusTone.success => (
-          AppUIv1.cyan,
+          AppUIv1.success,
           AppUIv1.cyanSoft,
-          AppUIv1.cyan,
+          AppUIv1.success,
         ),
       AppStatusTone.warning => (
           AppUIv1.amber,
