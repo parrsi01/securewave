@@ -393,7 +393,7 @@ class AppPanel extends StatelessWidget {
   const AppPanel({
     required this.child,
     super.key,
-    this.padding = const EdgeInsets.all(18),
+    this.padding = const EdgeInsets.all(20),
     this.color = AppUIv1.surface,
     this.showShadow = false,
   });

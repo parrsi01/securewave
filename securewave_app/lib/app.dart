@@ -645,6 +645,7 @@ class _DesktopNavigation extends StatelessWidget {
             _DesktopDestination(
               destination: destination,
               selected: selected == destination,
+              vertical: vertical,
               onPressed: () => onSelected(destination),
             ),
           ],
@@ -659,11 +660,13 @@ class _DesktopDestination extends StatelessWidget {
     required this.destination,
     required this.selected,
     required this.onPressed,
+    this.vertical = false,
   });
 
   final _HomeDestination destination;
   final bool selected;
   final VoidCallback onPressed;
+  final bool vertical;
 
   @override
   Widget build(BuildContext context) {
@@ -678,10 +681,14 @@ class _DesktopDestination extends StatelessWidget {
       child: TextButton.icon(
         onPressed: onPressed,
         style: ButtonStyle(
-          minimumSize: const WidgetStatePropertyAll(Size(104, 44)),
+          minimumSize: WidgetStatePropertyAll(
+            Size(vertical ? double.infinity : 104, 44),
+          ),
           padding: const WidgetStatePropertyAll(
             EdgeInsets.symmetric(horizontal: 14),
           ),
+          alignment:
+              vertical ? AlignmentDirectional.centerStart : Alignment.center,
           foregroundColor: WidgetStateProperty.resolveWith((states) {
             if (selected) return AppUIv1.graphite;
             if (states.contains(WidgetState.hovered)) return AppUIv1.graphite;
@@ -1553,8 +1560,8 @@ class _ConnectionOrb extends StatelessWidget {
         boxShadow: [
           BoxShadow(
             color: ringColor.withValues(alpha: 0.12),
-            blurRadius: 18,
-            spreadRadius: 3,
+            blurRadius: 12,
+            spreadRadius: 1,
           ),
         ],
       ),
