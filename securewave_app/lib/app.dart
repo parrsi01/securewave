@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'core/bootstrap/boot_controller.dart';
 import 'core/config/app_config.dart';
+import 'core/constants/app_constants.dart';
 import 'core/logging/app_logger.dart';
 import 'core/models/server_region.dart';
 import 'core/models/user_account.dart';
@@ -21,9 +22,8 @@ import 'core/state/vpn_state.dart';
 import 'core/utils/api_error.dart';
 import 'services/auth_service.dart';
 import 'services/external_links.dart';
-import 'ui/app_ui_v1.dart';
-
-typedef FreshTheme = AppUIv1;
+import 'ui/sw_theme.dart';
+import 'ui/sw_widgets.dart';
 
 class SecureWaveApp extends ConsumerStatefulWidget {
   const SecureWaveApp({super.key});
@@ -74,7 +74,7 @@ class _SecureWaveAppState extends ConsumerState<SecureWaveApp> {
     return MaterialApp(
       title: 'SecureWave',
       debugShowCheckedModeBanner: false,
-      theme: AppUIv1.theme,
+      theme: SwTheme.light,
       home: const _AppRoot(),
     );
   }
@@ -99,6 +99,10 @@ class _AppRoot extends ConsumerWidget {
     return const _MainShell();
   }
 }
+
+/// ---------------------------------------------------------------------------
+/// Authentication
+/// ---------------------------------------------------------------------------
 
 class _AuthScreen extends ConsumerStatefulWidget {
   const _AuthScreen();
@@ -152,168 +156,189 @@ class _AuthScreenState extends ConsumerState<_AuthScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final copy = _register
-        ? 'Create an account to start using SecureWave.'
-        : 'Sign in to manage your VPN session.';
+    final width = MediaQuery.sizeOf(context).width;
+    final showBrandPanel = width >= 900;
 
     return Scaffold(
+      backgroundColor: SwColors.surface,
       body: SafeArea(
-        child: Center(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.all(20),
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 440),
-              child: _PlainPanel(
-                padding: const EdgeInsets.all(22),
-                child: Form(
-                  key: _formKey,
-                  child: AutofillGroup(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        Text(
-                          'SecureWave',
-                          style: Theme.of(context).textTheme.headlineMedium,
-                        ),
-                        const SizedBox(height: 8),
-                        Text(copy,
-                            style: Theme.of(context).textTheme.bodyMedium),
-                        if (ref
-                            .watch(appConfigProvider)
-                            .autoLoginForTesting) ...[
-                          const SizedBox(height: 10),
-                          const _InlineMessage(
-                            icon: Icons.science_outlined,
-                            message:
-                                'Development test: generating a fresh account and signing in automatically.',
-                            tone: _Tone.info,
-                          ),
-                        ],
-                        const SizedBox(height: 22),
-                        TextFormField(
-                          controller: _email,
-                          autofillHints: const [
-                            AutofillHints.username,
-                            AutofillHints.email,
-                          ],
-                          keyboardType: TextInputType.emailAddress,
-                          textInputAction: TextInputAction.next,
-                          decoration:
-                              const InputDecoration(labelText: 'Email address'),
-                          validator: (value) {
-                            if (value == null || value.trim().isEmpty) {
-                              return 'Enter your email.';
-                            }
-                            if (!value.contains('@')) {
-                              return 'Enter a valid email.';
-                            }
-                            return null;
+        child: Row(
+          children: [
+            if (showBrandPanel) const _AuthBrandPanel(),
+            Expanded(child: _buildForm(context)),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildForm(BuildContext context) {
+    final autoLogin = ref.watch(appConfigProvider).autoLoginForTesting;
+
+    return Center(
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.symmetric(
+          horizontal: SwSpacing.md,
+          vertical: SwSpacing.lg,
+        ),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 340),
+          child: Form(
+            key: _formKey,
+            child: AutofillGroup(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  SwSegmentedControl(
+                    segments: const ['Log in', 'Create account'],
+                    index: _register ? 1 : 0,
+                    onChanged: _busy
+                        ? null
+                        : (next) {
+                            setState(() {
+                              _register = next == 1;
+                              _error = null;
+                            });
                           },
-                        ),
-                        const SizedBox(height: 12),
-                        TextFormField(
-                          controller: _password,
-                          obscureText: _hidePassword,
-                          autofillHints: [
-                            _register
-                                ? AutofillHints.newPassword
-                                : AutofillHints.password,
-                          ],
-                          textInputAction: _register
-                              ? TextInputAction.next
-                              : TextInputAction.done,
-                          decoration: InputDecoration(
-                            labelText: 'Password',
-                            suffixIcon: IconButton(
-                              tooltip: _hidePassword
-                                  ? 'Show password'
-                                  : 'Hide password',
-                              icon: Icon(_hidePassword
-                                  ? Icons.visibility_outlined
-                                  : Icons.visibility_off_outlined),
-                              onPressed: () {
-                                setState(() => _hidePassword = !_hidePassword);
-                              },
-                            ),
-                          ),
-                          validator: (value) {
-                            if (value == null || value.isEmpty) {
-                              return 'Enter your password.';
-                            }
-                            if (value.length < 8) {
-                              return 'Use at least 8 characters.';
-                            }
-                            if (!RegExp(r'[A-Za-z]').hasMatch(value) ||
-                                !RegExp(r'[0-9]').hasMatch(value) ||
-                                !RegExp(r'[^A-Za-z0-9]').hasMatch(value)) {
-                              return 'Use letters, numbers, and a special character.';
-                            }
-                            return null;
-                          },
-                        ),
-                        if (_register) ...[
-                          const SizedBox(height: 12),
-                          TextFormField(
-                            controller: _confirm,
-                            obscureText: true,
-                            autofillHints: const [AutofillHints.newPassword],
-                            textInputAction: TextInputAction.done,
-                            decoration: const InputDecoration(
-                              labelText: 'Confirm password',
-                            ),
-                            validator: (value) {
-                              if (value == null || value.isEmpty) {
-                                return 'Confirm your password.';
-                              }
-                              if (value != _password.text) {
-                                return 'Passwords do not match.';
-                              }
-                              return null;
-                            },
-                          ),
-                        ],
-                        if (_error != null) ...[
-                          const SizedBox(height: 14),
-                          _InlineMessage(
-                            icon: Icons.warning_amber_rounded,
-                            message: _error!,
-                            tone: _Tone.error,
-                          ),
-                        ],
-                        const SizedBox(height: 20),
-                        FilledButton(
-                          onPressed: _busy ? null : _submit,
-                          child: _busy
-                              ? const SizedBox(
-                                  width: 18,
-                                  height: 18,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                    color: Colors.white,
-                                  ),
-                                )
-                              : Text(_register ? 'Create account' : 'Sign in'),
-                        ),
-                        const SizedBox(height: 8),
-                        TextButton(
-                          onPressed: _busy
-                              ? null
-                              : () {
-                                  setState(() {
-                                    _register = !_register;
-                                    _error = null;
-                                  });
-                                },
-                          child: Text(
-                            _register
-                                ? 'Use an existing account'
-                                : 'Create a new account',
-                          ),
-                        ),
-                      ],
-                    ),
                   ),
-                ),
+                  const SizedBox(height: SwSpacing.md),
+                  Text(
+                    _register ? 'Create your account' : 'Welcome back',
+                    style: SwType.title,
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    _register
+                        ? 'A SecureWave account keeps your tunnel and usage in sync.'
+                        : 'Sign in to manage your secure session.',
+                    style: SwType.body,
+                  ),
+                  if (autoLogin) ...[
+                    const SizedBox(height: SwSpacing.sm),
+                    const SwNotice(
+                      title: 'Development test mode',
+                      message:
+                          'Generating a fresh account and signing in automatically.',
+                    ),
+                  ],
+                  const SizedBox(height: 18),
+                  TextFormField(
+                    controller: _email,
+                    autofillHints: const [
+                      AutofillHints.username,
+                      AutofillHints.email,
+                    ],
+                    keyboardType: TextInputType.emailAddress,
+                    textInputAction: TextInputAction.next,
+                    style: SwType.body.copyWith(color: SwColors.textPrimary),
+                    decoration: const InputDecoration(
+                      labelText: 'Email address',
+                    ),
+                    validator: (value) {
+                      if (value == null || value.trim().isEmpty) {
+                        return 'Enter your email.';
+                      }
+                      if (!value.contains('@')) {
+                        return 'Enter a valid email.';
+                      }
+                      return null;
+                    },
+                  ),
+                  const SizedBox(height: 14),
+                  TextFormField(
+                    controller: _password,
+                    obscureText: _hidePassword,
+                    autofillHints: [
+                      _register
+                          ? AutofillHints.newPassword
+                          : AutofillHints.password,
+                    ],
+                    textInputAction:
+                        _register ? TextInputAction.next : TextInputAction.done,
+                    style: SwType.body.copyWith(color: SwColors.textPrimary),
+                    decoration: InputDecoration(
+                      labelText: 'Password',
+                      suffixIcon: IconButton(
+                        tooltip:
+                            _hidePassword ? 'Show password' : 'Hide password',
+                        color: SwColors.textSecondary,
+                        icon: Icon(
+                          _hidePassword
+                              ? Icons.visibility_outlined
+                              : Icons.visibility_off_outlined,
+                          size: 20,
+                        ),
+                        onPressed: () {
+                          setState(() => _hidePassword = !_hidePassword);
+                        },
+                      ),
+                    ),
+                    validator: (value) {
+                      if (value == null || value.isEmpty) {
+                        return 'Enter your password.';
+                      }
+                      if (value.length < 8) {
+                        return 'Use at least 8 characters.';
+                      }
+                      if (!RegExp(r'[A-Za-z]').hasMatch(value) ||
+                          !RegExp(r'[0-9]').hasMatch(value) ||
+                          !RegExp(r'[^A-Za-z0-9]').hasMatch(value)) {
+                        return 'Use letters, numbers, and a special character.';
+                      }
+                      return null;
+                    },
+                  ),
+                  if (_register) ...[
+                    const SizedBox(height: 14),
+                    TextFormField(
+                      controller: _confirm,
+                      obscureText: true,
+                      autofillHints: const [AutofillHints.newPassword],
+                      textInputAction: TextInputAction.done,
+                      style: SwType.body.copyWith(color: SwColors.textPrimary),
+                      decoration: const InputDecoration(
+                        labelText: 'Confirm password',
+                      ),
+                      validator: (value) {
+                        if (value == null || value.isEmpty) {
+                          return 'Confirm your password.';
+                        }
+                        if (value != _password.text) {
+                          return 'Passwords do not match.';
+                        }
+                        return null;
+                      },
+                    ),
+                  ],
+                  if (_error != null) ...[
+                    const SizedBox(height: SwSpacing.sm),
+                    SwNotice(
+                      title: 'We could not continue',
+                      message: _error,
+                      tone: SwNoticeTone.error,
+                    ),
+                  ],
+                  const SizedBox(height: 18),
+                  FilledButton(
+                    onPressed: _busy ? null : _submit,
+                    child: _busy
+                        ? const SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: SwColors.onPrimary,
+                            ),
+                          )
+                        : Text(_register ? 'Create account' : 'Log in'),
+                  ),
+                  const SizedBox(height: 18),
+                  const Text(
+                    'Secured with WireGuard · Linux Beta',
+                    textAlign: TextAlign.center,
+                    style: SwType.footnote,
+                  ),
+                ],
               ),
             ),
           ),
@@ -361,6 +386,59 @@ class _AuthScreenState extends ConsumerState<_AuthScreen> {
   }
 }
 
+class _AuthBrandPanel extends StatelessWidget {
+  const _AuthBrandPanel();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: SwLayout.authPanelWidth,
+      color: SwColors.primarySoft,
+      padding:
+          const EdgeInsets.symmetric(horizontal: SwSpacing.xl, vertical: 56),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const SwLogo(size: 38),
+              const SizedBox(width: 12),
+              Text('SecureWave', style: SwType.wordmark.copyWith(fontSize: 20)),
+            ],
+          ),
+          const Spacer(),
+          const Text('Private\nconnection.\nOne click.',
+              style: SwType.headline),
+          const SizedBox(height: 14),
+          const Text(
+            'A single encrypted WireGuard tunnel for your Linux desktop.',
+            style: SwType.body,
+          ),
+          const SizedBox(height: SwSpacing.lg),
+          // Only claims the client can actually evidence. Do not add a
+          // "no logs" claim here: the app posts connect/disconnect events to
+          // the backend (ApiClient.notifyVpnConnected) and the account is
+          // metered, so that claim would be false.
+          const SwCheckBullet(text: 'WireGuard encryption'),
+          const SwCheckBullet(text: 'No third-party trackers'),
+          const SwCheckBullet(text: 'Native Linux client'),
+          const Spacer(),
+        ],
+      ),
+    );
+  }
+}
+
+/// ---------------------------------------------------------------------------
+/// Application shell
+/// ---------------------------------------------------------------------------
+
+const _destinations = <SwDestination>[
+  SwDestination(label: 'Home', icon: SwIconKind.home),
+  SwDestination(label: 'Account', icon: SwIconKind.account),
+  SwDestination(label: 'Diagnostics', icon: SwIconKind.pulse),
+];
+
 class _MainShell extends ConsumerStatefulWidget {
   const _MainShell();
 
@@ -371,150 +449,163 @@ class _MainShell extends ConsumerStatefulWidget {
 class _MainShellState extends ConsumerState<_MainShell> {
   int _index = 0;
 
-  static const _tabs = [
-    _ShellTab('Connect', Icons.power_settings_new_rounded),
-    _ShellTab('Servers', Icons.public_rounded),
-    _ShellTab('Account', Icons.person_rounded),
-    _ShellTab('Settings', Icons.tune_rounded),
-  ];
+  void _select(int next) => setState(() => _index = next);
 
   @override
   Widget build(BuildContext context) {
-    final wide = MediaQuery.sizeOf(context).width >= FreshTheme.mobileMax;
-    final title = _tabs[_index].label;
-    final child = switch (_index) {
-      0 => const _ConnectScreen(),
-      1 => const _ServersScreen(),
-      2 => const _AccountScreen(),
-      _ => const _SettingsScreen(),
+    final compact = MediaQuery.sizeOf(context).width < SwLayout.compactMax;
+    final connected = ref.watch(vpnStateProvider).status == VpnStatus.connected;
+
+    // The old UI watched this from the landing tab, so /auth/me was fetched
+    // immediately after login and refetched by the invalidate() calls in
+    // _submit and _signOut. Watching it here keeps that timing unchanged even
+    // though the details are only rendered on the Account screen.
+    ref.watch(currentUserProvider);
+
+    final content = switch (_index) {
+      0 => const _HomeScreen(),
+      1 => _AccountScreen(onOpenDiagnostics: () => _select(2)),
+      _ => const _DiagnosticsScreen(),
     };
 
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(title),
-        bottom: wide
-            ? PreferredSize(
-                preferredSize: const Size.fromHeight(50),
-                child: _TopTabs(
-                  tabs: _tabs,
-                  index: _index,
-                  onChanged: (next) => setState(() => _index = next),
-                ),
-              )
-            : null,
-      ),
-      body: _PageFrame(child: child),
-      bottomNavigationBar: wide
-          ? null
-          : NavigationBar(
-              selectedIndex: _index,
-              onDestinationSelected: (next) => setState(() => _index = next),
-              destinations: [
-                for (final tab in _tabs)
-                  NavigationDestination(
-                    icon: Icon(tab.icon),
-                    label: tab.label,
-                  ),
-              ],
-            ),
+    final main = Column(
+      children: [
+        _TopBar(compact: compact),
+        Expanded(child: content),
+      ],
     );
-  }
-}
 
-class _TopTabs extends StatelessWidget {
-  const _TopTabs({
-    required this.tabs,
-    required this.index,
-    required this.onChanged,
-  });
-
-  final List<_ShellTab> tabs;
-  final int index;
-  final ValueChanged<int> onChanged;
-
-  @override
-  Widget build(BuildContext context) {
-    return DecoratedBox(
-      decoration: const BoxDecoration(
-        border: Border(top: BorderSide(color: FreshTheme.line)),
-      ),
-      child: Align(
-        alignment: Alignment.centerLeft,
-        child: SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          padding: const EdgeInsets.symmetric(horizontal: 18),
-          child: Row(
-            children: [
-              for (var i = 0; i < tabs.length; i++)
-                _TopTabButton(
-                  tab: tabs[i],
-                  selected: index == i,
-                  onTap: () => onChanged(i),
+    if (compact) {
+      return Scaffold(
+        body: SafeArea(bottom: false, child: main),
+        bottomNavigationBar: NavigationBar(
+          selectedIndex: _index,
+          onDestinationSelected: _select,
+          destinations: [
+            for (final destination in _destinations)
+              NavigationDestination(
+                icon: SwIcon(kind: destination.icon),
+                selectedIcon: SwIcon(
+                  kind: destination.icon,
+                  color: SwColors.primaryStrong,
                 ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _TopTabButton extends StatelessWidget {
-  const _TopTabButton({
-    required this.tab,
-    required this.selected,
-    required this.onTap,
-  });
-
-  final _ShellTab tab;
-  final bool selected;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return InkWell(
-      onTap: onTap,
-      child: Container(
-        height: 49,
-        padding: const EdgeInsets.symmetric(horizontal: 16),
-        decoration: BoxDecoration(
-          border: Border(
-            bottom: BorderSide(
-              color: selected ? FreshTheme.primary : Colors.transparent,
-              width: 2,
-            ),
-          ),
-        ),
-        child: Row(
-          children: [
-            Icon(
-              tab.icon,
-              size: 18,
-              color: selected ? FreshTheme.primary : FreshTheme.graphiteMuted,
-            ),
-            const SizedBox(width: 8),
-            Text(
-              tab.label,
-              style: TextStyle(
-                fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
-                color:
-                    selected ? FreshTheme.graphite : FreshTheme.graphiteMuted,
+                label: destination.label,
               ),
-            ),
           ],
         ),
+      );
+    }
+
+    return Scaffold(
+      body: Row(
+        children: [
+          SwNavRail(
+            destinations: _destinations,
+            index: _index,
+            onSelected: _select,
+            connected: connected,
+          ),
+          Expanded(child: SafeArea(left: false, child: main)),
+        ],
       ),
     );
   }
 }
 
-class _ConnectScreen extends ConsumerWidget {
-  const _ConnectScreen();
+class _TopBar extends ConsumerWidget {
+  const _TopBar({required this.compact});
+
+  final bool compact;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final config = ref.watch(appConfigProvider);
+
+    return Container(
+      height: SwLayout.topBarHeight,
+      padding: const EdgeInsets.symmetric(horizontal: SwSpacing.md),
+      decoration: const BoxDecoration(
+        color: SwColors.surface,
+        border: Border(bottom: BorderSide(color: SwColors.border)),
+      ),
+      child: Row(
+        children: [
+          if (compact) ...[
+            const SwLogo(size: 26),
+            const SizedBox(width: 10),
+          ],
+          // Flexible so a very narrow window ellipsises instead of overflowing.
+          const Flexible(
+            child: Text(
+              'SecureWave',
+              overflow: TextOverflow.ellipsis,
+              style: SwType.wordmark,
+            ),
+          ),
+          const Spacer(),
+          TextButton(
+            onPressed: () => unawaited(_openExternalLink(
+              context,
+              ref,
+              AppConstants.supportUrlFallback,
+            )),
+            child: const Text('Help'),
+          ),
+          const SizedBox(width: 8),
+          if (config.useMockApi) const SwStatusPill(text: 'Demo mode'),
+        ],
+      ),
+    );
+  }
+}
+
+/// ---------------------------------------------------------------------------
+/// Home — the connect surface
+/// ---------------------------------------------------------------------------
+
+class _HomeScreen extends ConsumerStatefulWidget {
+  const _HomeScreen();
+
+  @override
+  ConsumerState<_HomeScreen> createState() => _HomeScreenState();
+}
+
+class _HomeScreenState extends ConsumerState<_HomeScreen> {
+  Timer? _ticker;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _syncTicker(ref.read(vpnStateProvider));
+    });
+  }
+
+  @override
+  void dispose() {
+    _ticker?.cancel();
+    super.dispose();
+  }
+
+  /// Drives the live session duration. Only runs while a tunnel is up and a
+  /// start time actually exists, so an idle or boot-restored session costs
+  /// nothing.
+  void _syncTicker(VpnState vpn) {
+    final wantTicker =
+        vpn.status == VpnStatus.connected && vpn.lastTunnelStartAt != null;
+    if (wantTicker && _ticker == null) {
+      _ticker = Timer.periodic(const Duration(seconds: 1), (_) {
+        if (mounted) setState(() {});
+      });
+    } else if (!wantTicker && _ticker != null) {
+      _ticker!.cancel();
+      _ticker = null;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final vpn = ref.watch(vpnStateProvider);
-    final user = ref.watch(currentUserProvider);
     final plan = ref.watch(userPlanProvider);
     final servers = ref.watch(serversProvider);
     final config = ref.watch(appConfigProvider);
@@ -524,33 +615,78 @@ class _ConnectScreen extends ConsumerWidget {
       data: (value) => value,
       orElse: () => const <ServerRegion>[],
     );
-    final selectedServer = _serverLabel(vpn.selectedServerId, serverList);
+
+    final connected = vpn.status == VpnStatus.connected;
+    final busy = vpn.isBusy ||
+        vpn.status == VpnStatus.connecting ||
+        vpn.status == VpnStatus.disconnecting;
+
+    // Start/stop the ticker from a listener rather than from build(), so
+    // building the widget stays free of side effects.
+    ref.listen<VpnState>(vpnStateProvider, (_, next) => _syncTicker(next));
+
     final protocolAvailable = _protocolIsAvailable(
       service: service,
       servers: serverList,
       selectedServerId: vpn.selectedServerId,
       protocol: vpn.protocol,
     );
-    final status = _statusDescriptor(vpn);
-    final connected = vpn.status == VpnStatus.connected;
-    final busy = vpn.isBusy ||
-        vpn.status == VpnStatus.connecting ||
-        vpn.status == VpnStatus.disconnecting;
 
-    return ListView(
-      children: [
-        _PlainPanel(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _AccountLine(user: user),
-              const SizedBox(height: 18),
-              _ConnectionStrip(status: status, protocol: vpn.protocol),
-              const SizedBox(height: 18),
-              Row(
-                children: [
-                  Expanded(
-                    child: FilledButton.icon(
+    final serverLabel = _serverLabel(vpn.selectedServerId, serverList);
+    final dataUsed = plan.maybeWhen(
+      data: (value) => '${value.usedGb.toStringAsFixed(1)} GB',
+      orElse: () => '—',
+    );
+
+    final stats = connected
+        ? <SwStat>[
+            SwStat(label: 'Server', value: serverLabel),
+            SwStat(label: 'Duration', value: _sessionDuration(vpn)),
+            SwStat(label: 'Data used', value: dataUsed),
+            SwStat(
+              label: 'Health',
+              value: _healthLabel(vpn.stabilityScore),
+              highlight: true,
+            ),
+          ]
+        : <SwStat>[
+            SwStat(label: 'Server', value: serverLabel),
+            SwStat(label: 'Protocol', value: vpnProtocolLabel(vpn.protocol)),
+            SwStat(label: 'Data used', value: dataUsed),
+            SwStat(label: 'Status', value: _idleLabel(vpn)),
+          ];
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        return SingleChildScrollView(
+          padding: const EdgeInsets.symmetric(
+            horizontal: SwSpacing.md,
+            vertical: SwSpacing.md,
+          ),
+          child: ConstrainedBox(
+            constraints: BoxConstraints(
+              minHeight: (constraints.maxHeight - SwSpacing.xl)
+                  .clamp(0, double.infinity),
+            ),
+            child: Center(
+              child: ConstrainedBox(
+                constraints:
+                    const BoxConstraints(maxWidth: SwLayout.contentMaxWidth),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    SwStatusPill(
+                      text: connected
+                          ? 'Encrypted · WireGuard'
+                          : _idlePillText(vpn, serverLabel),
+                      success: connected,
+                    ),
+                    const SizedBox(height: 22),
+                    SwConnectButton(
+                      connected: connected,
+                      busy: busy,
+                      label: _connectLabel(vpn),
                       onPressed: busy || (!connected && !protocolAvailable)
                           ? null
                           : () {
@@ -560,537 +696,232 @@ class _ConnectScreen extends ConsumerWidget {
                                   ? unawaited(notifier.disconnect())
                                   : unawaited(notifier.connect());
                             },
-                      icon: Icon(connected
-                          ? Icons.stop_rounded
-                          : Icons.power_settings_new_rounded),
-                      label: Text(connected ? 'Disconnect' : 'Connect'),
                     ),
-                  ),
-                  const SizedBox(width: 10),
-                  OutlinedButton.icon(
-                    onPressed: () => _showDiagnostics(context),
-                    icon: const Icon(Icons.receipt_long_rounded),
-                    label: const Text('Diagnostics'),
-                  ),
-                ],
-              ),
-              if (!connected && !protocolAvailable) ...[
-                const SizedBox(height: 12),
-                _InlineMessage(
-                  icon: Icons.info_outline_rounded,
-                  message: _protocolUnavailableReason(
-                    service: service,
-                    servers: serverList,
-                    selectedServerId: vpn.selectedServerId,
-                    protocol: vpn.protocol,
-                  ),
-                  tone: _Tone.warning,
-                ),
-              ],
-              if (vpn.errorMessage != null) ...[
-                const SizedBox(height: 12),
-                _InlineMessage(
-                  icon: Icons.error_outline_rounded,
-                  message: vpn.errorMessage!,
-                  tone: _Tone.error,
-                ),
-              ],
-              if (config.useMockApi) ...[
-                const SizedBox(height: 12),
-                const _InlineMessage(
-                  icon: Icons.info_outline_rounded,
-                  message:
-                      'Demo API mode is enabled. Do not treat a demo connection as a real tunnel.',
-                  tone: _Tone.warning,
-                ),
-              ],
-            ],
-          ),
-        ),
-        const SizedBox(height: 14),
-        _ResponsivePair(
-          left: _PlainPanel(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const _SectionTitle('Session'),
-                const SizedBox(height: 12),
-                _InfoRow('Server', selectedServer),
-                _InfoRow('Protocol', vpnProtocolLabel(vpn.protocol)),
-                _InfoRow(
-                  'Traffic',
-                  connected ? 'Metered by account usage' : 'Disconnected',
-                ),
-                const _InfoRow('Bridge rates', 'Not exposed'),
-              ],
-            ),
-          ),
-          right: _PlainPanel(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const _SectionTitle('Data'),
-                const SizedBox(height: 12),
-                plan.when(
-                  data: (value) => _UsageSummary(plan: value),
-                  loading: () => const _LoadingLine('Loading usage'),
-                  error: (_, __) => const _InlineMessage(
-                    icon: Icons.warning_amber_rounded,
-                    message: 'Usage could not be loaded.',
-                    tone: _Tone.warning,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-        const SizedBox(height: 14),
-        _PlainPanel(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const _SectionTitle('Protocol'),
-              const SizedBox(height: 12),
-              _ProtocolPicker(selected: vpn.protocol),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _ServersScreen extends ConsumerWidget {
-  const _ServersScreen();
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final servers = ref.watch(serversProvider);
-    final vpn = ref.watch(vpnStateProvider);
-
-    return servers.when(
-      loading: () => const _CenteredState(
-        icon: Icons.public_rounded,
-        title: 'Loading regions',
-        body: 'SecureWave is requesting the server catalog.',
-      ),
-      error: (error, _) => _CenteredState(
-        icon: Icons.cloud_off_rounded,
-        title: 'Regions unavailable',
-        body: ApiError.messageFrom(
-          error,
-          fallback: 'The server list could not be loaded.',
-        ),
-      ),
-      data: (items) {
-        if (items.isEmpty) {
-          return const _CenteredState(
-            icon: Icons.public_off_rounded,
-            title: 'No regions available',
-            body: 'Auto-select will stay active until the catalog returns.',
-          );
-        }
-
-        return ListView(
-          children: [
-            _PlainPanel(
-              child: _ServerTile(
-                title: 'Auto-select',
-                subtitle: 'Choose the best region at connect time.',
-                selected: vpn.selectedServerId == null,
-                icon: Icons.auto_awesome_rounded,
-                onTap: () =>
-                    ref.read(vpnStateProvider.notifier).selectServer(null),
-              ),
-            ),
-            const SizedBox(height: 10),
-            for (final server in items) ...[
-              _PlainPanel(
-                child: _ServerTile(
-                  title: server.name,
-                  subtitle: _serverSubtitle(server),
-                  selected: vpn.selectedServerId == server.id,
-                  icon: Icons.public_rounded,
-                  onTap: () => ref
-                      .read(vpnStateProvider.notifier)
-                      .selectServer(server.id),
+                    const SizedBox(height: 22),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        SwStatusDot(active: connected),
+                        const SizedBox(width: 8),
+                        Text(
+                          _statusHeadline(vpn),
+                          style: SwType.body.copyWith(
+                            fontWeight: FontWeight.w700,
+                            color: connected
+                                ? SwColors.primaryStrong
+                                : SwColors.textPrimary,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      _statusHelper(vpn),
+                      textAlign: TextAlign.center,
+                      style: SwType.body,
+                    ),
+                    const SizedBox(height: 22),
+                    SwInfoCard(stats: stats),
+                    ..._catalogNotices(servers),
+                    if (!connected && !protocolAvailable) ...[
+                      const SizedBox(height: SwSpacing.sm),
+                      SwNotice(
+                        title: 'Connection unavailable',
+                        message: _protocolUnavailableReason(
+                          service: service,
+                          servers: serverList,
+                          selectedServerId: vpn.selectedServerId,
+                          protocol: vpn.protocol,
+                        ),
+                        tone: SwNoticeTone.warning,
+                      ),
+                    ],
+                    if (vpn.errorMessage != null) ...[
+                      const SizedBox(height: SwSpacing.sm),
+                      SwNotice(
+                        title: 'Last attempt failed',
+                        message: vpn.errorMessage,
+                        tone: SwNoticeTone.error,
+                      ),
+                    ],
+                    if (config.useMockApi) ...[
+                      const SizedBox(height: SwSpacing.sm),
+                      const SwNotice(
+                        title: 'Demo mode',
+                        message:
+                            'Do not treat a demo connection as a real tunnel.',
+                        tone: SwNoticeTone.warning,
+                      ),
+                    ],
+                  ],
                 ),
               ),
-              const SizedBox(height: 10),
-            ],
-          ],
+            ),
+          ),
         );
       },
     );
   }
+
+  List<Widget> _catalogNotices(AsyncValue<List<ServerRegion>> servers) {
+    return servers.when(
+      loading: () => const <Widget>[],
+      error: (error, _) => <Widget>[
+        const SizedBox(height: SwSpacing.sm),
+        SwNotice(
+          title: 'Regions unavailable',
+          message: ApiError.messageFrom(
+            error,
+            fallback: 'The server list could not be loaded.',
+          ),
+          tone: SwNoticeTone.warning,
+        ),
+      ],
+      data: (items) => items.isEmpty
+          ? const <Widget>[
+              SizedBox(height: SwSpacing.sm),
+              SwNotice(
+                title: 'No regions available',
+                message:
+                    'Auto-select will stay active until the catalog returns.',
+                tone: SwNoticeTone.warning,
+              ),
+            ]
+          : const <Widget>[],
+    );
+  }
 }
 
+/// ---------------------------------------------------------------------------
+/// Account / settings
+/// ---------------------------------------------------------------------------
+
 class _AccountScreen extends ConsumerWidget {
-  const _AccountScreen();
+  const _AccountScreen({required this.onOpenDiagnostics});
+
+  final VoidCallback onOpenDiagnostics;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final user = ref.watch(currentUserProvider);
     final plan = ref.watch(userPlanProvider);
-
-    return ListView(
-      children: [
-        _PlainPanel(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const _SectionTitle('Account'),
-              const SizedBox(height: 12),
-              user.when(
-                data: (value) => Column(
-                  children: [
-                    _InfoRow('Email',
-                        value.email.isEmpty ? 'Signed in' : value.email),
-                    _InfoRow('Status', value.isActive ? 'Active' : 'Inactive'),
-                    _InfoRow(
-                      'Verification',
-                      value.emailVerified
-                          ? 'Email verified'
-                          : 'Email unverified',
-                    ),
-                    _InfoRow('Plan', value.subscriptionStatus),
-                  ],
-                ),
-                loading: () => const _LoadingLine('Loading account'),
-                error: (_, __) => const _InlineMessage(
-                  icon: Icons.warning_amber_rounded,
-                  message: 'Account details could not be loaded.',
-                  tone: _Tone.warning,
-                ),
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 14),
-        _PlainPanel(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const _SectionTitle('Usage'),
-              const SizedBox(height: 12),
-              plan.when(
-                data: (value) => _UsageSummary(plan: value),
-                loading: () => const _LoadingLine('Loading usage'),
-                error: (_, __) => const _InlineMessage(
-                  icon: Icons.warning_amber_rounded,
-                  message: 'Usage could not be loaded.',
-                  tone: _Tone.warning,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _SettingsScreen extends ConsumerWidget {
-  const _SettingsScreen();
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
     final config = ref.watch(appConfigProvider);
     final device = ref.watch(deviceInfoProvider);
     final vpn = ref.watch(vpnStateProvider);
-    final plan = ref.watch(userPlanProvider);
 
     return ListView(
-      children: [
-        _PlainPanel(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const _SectionTitle('Runtime'),
-              const SizedBox(height: 12),
-              _InfoRow('Device', device),
-              _InfoRow('API', config.apiBaseUrl),
-              _InfoRow('Mock API', config.useMockApi ? 'On' : 'Off'),
-              _InfoRow('Protocol', vpnProtocolLabel(vpn.protocol)),
-            ],
-          ),
-        ),
-        const SizedBox(height: 14),
-        _PlainPanel(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const _SectionTitle('Usage'),
-              const SizedBox(height: 12),
-              plan.when(
-                data: (value) => _UsageSummary(plan: value),
-                loading: () => const _LoadingLine('Loading usage'),
-                error: (_, __) => const _InlineMessage(
-                  icon: Icons.warning_amber_rounded,
-                  message: 'Usage could not be loaded.',
-                  tone: _Tone.warning,
-                ),
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 14),
-        _PlainPanel(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              OutlinedButton.icon(
-                onPressed: () => _showDiagnostics(context),
-                icon: const Icon(Icons.receipt_long_rounded),
-                label: const Text('Open diagnostics'),
-              ),
-              const SizedBox(height: 10),
-              OutlinedButton.icon(
-                onPressed: () =>
-                    ref.read(externalLinksProvider).openUrl(config.portalUrl),
-                icon: const Icon(Icons.open_in_new_rounded),
-                label: const Text('Open account portal'),
-              ),
-              const SizedBox(height: 10),
-              FilledButton.icon(
-                onPressed: () => _signOut(context, ref),
-                icon: const Icon(Icons.logout_rounded),
-                label: const Text('Sign out'),
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _DiagnosticsView extends ConsumerWidget {
-  const _DiagnosticsView();
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final vpn = ref.watch(vpnStateProvider);
-    final service = ref.watch(vpnServiceProvider);
-    final serverList = ref.watch(serversProvider);
-
-    return ListView(
-      shrinkWrap: true,
-      children: [
-        _InfoRow('VPN state', _statusDescriptor(vpn).label),
-        _InfoRow('Native bridge',
-            service.isNativeAvailable ? 'Available' : 'Unavailable'),
-        _InfoRow('Protocol', vpnProtocolLabel(vpn.protocol)),
-        _InfoRow('Desired state', vpn.desiredOn ? 'On' : 'Off'),
-        _InfoRow(
-          'Profile fetch',
-          vpn.lastProfileFetchOk == null
-              ? 'Not run'
-              : vpn.lastProfileFetchOk!
-                  ? 'Last fetch passed'
-                  : 'Last fetch failed',
-        ),
-        _InfoRow(
-          'Tunnel start',
-          vpn.lastTunnelStartOk == null
-              ? 'Not run'
-              : vpn.lastTunnelStartOk!
-                  ? 'Last start passed'
-                  : 'Last start failed',
-        ),
-        serverList.when(
-          data: (items) => _InfoRow('Regions', '${items.length} loaded'),
-          loading: () => const _InfoRow('Regions', 'Loading'),
-          error: (_, __) => const _InfoRow('Regions', 'Load failed'),
-        ),
-        if (vpn.errorMessage != null)
-          _InlineMessage(
-            icon: Icons.error_outline_rounded,
-            message: vpn.errorMessage!,
-            tone: _Tone.error,
-          ),
-      ],
-    );
-  }
-}
-
-bool _protocolIsAvailable({
-  required VpnService service,
-  required List<ServerRegion> servers,
-  required String? selectedServerId,
-  required VpnProtocol protocol,
-}) {
-  if (!service.canConnectProtocol(protocol)) return false;
-  final candidates = selectedServerId == null
-      ? servers
-      : servers.where((server) => server.id == selectedServerId);
-  return candidates.any(
-    (server) => server.supportsProtocol(vpnProtocolStorageValue(protocol)),
-  );
-}
-
-String _protocolUnavailableReason({
-  required VpnService service,
-  required List<ServerRegion> servers,
-  required String? selectedServerId,
-  required VpnProtocol protocol,
-}) {
-  final nativeReason = service.protocolUnavailableReason(protocol);
-  if (nativeReason != null) return nativeReason;
-  final scope = selectedServerId == null ? 'server catalog' : 'selected server';
-  return 'No verified ${vpnProtocolLabel(protocol)} evidence exists for the $scope.';
-}
-
-class _ProtocolPicker extends ConsumerWidget {
-  const _ProtocolPicker({required this.selected});
-
-  final VpnProtocol selected;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final vpnService = ref.watch(vpnServiceProvider);
-    final vpn = ref.watch(vpnStateProvider);
-    final servers = ref.watch(serversProvider).maybeWhen(
-          data: (value) => value,
-          orElse: () => const <ServerRegion>[],
-        );
-
-    String detail(VpnProtocol protocol, String fallback) {
-      return _protocolIsAvailable(
-        service: vpnService,
-        servers: servers,
-        selectedServerId: vpn.selectedServerId,
-        protocol: protocol,
-      )
-          ? fallback
-          : _protocolUnavailableReason(
-              service: vpnService,
-              servers: servers,
-              selectedServerId: vpn.selectedServerId,
-              protocol: protocol,
-            );
-    }
-
-    bool enabled(VpnProtocol protocol) => _protocolIsAvailable(
-          service: vpnService,
-          servers: servers,
-          selectedServerId: vpn.selectedServerId,
-          protocol: protocol,
-        );
-
-    return Column(
-      children: [
-        _ProtocolTile(
-          protocol: VpnProtocol.wireGuard,
-          selected: selected == VpnProtocol.wireGuard,
-          title: 'WireGuard',
-          detail: detail(VpnProtocol.wireGuard, 'Primary Linux runtime path.'),
-          enabled: enabled(VpnProtocol.wireGuard),
-        ),
-        const SizedBox(height: 8),
-        _ProtocolTile(
-          protocol: VpnProtocol.openVpn,
-          selected: selected == VpnProtocol.openVpn,
-          title: 'OpenVPN',
-          detail: detail(VpnProtocol.openVpn,
-              'Requires a backend-issued OpenVPN profile.'),
-          enabled: enabled(VpnProtocol.openVpn),
-        ),
-        const SizedBox(height: 8),
-        _ProtocolTile(
-          protocol: VpnProtocol.ikev2,
-          selected: selected == VpnProtocol.ikev2,
-          title: 'IKEv2/IPSec',
-          detail: detail(
-            VpnProtocol.ikev2,
-            'Requires a backend-issued IKEv2 profile and strongSwan.',
-          ),
-          enabled: enabled(VpnProtocol.ikev2),
-        ),
-      ],
-    );
-  }
-}
-
-class _ProtocolTile extends ConsumerWidget {
-  const _ProtocolTile({
-    required this.protocol,
-    required this.selected,
-    required this.title,
-    required this.detail,
-    required this.enabled,
-  });
-
-  final VpnProtocol protocol;
-  final bool selected;
-  final String title;
-  final String detail;
-  final bool enabled;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    return _SelectableRow(
-      selected: selected,
-      enabled: enabled,
-      title: title,
-      subtitle: detail,
-      trailing: enabled
-          ? null
-          : const _StatusChip(label: 'Unavailable', tone: _Tone.warning),
-      onTap: enabled
-          ? () => ref.read(vpnStateProvider.notifier).selectProtocol(protocol)
-          : null,
-    );
-  }
-}
-
-class _ConnectionStrip extends StatelessWidget {
-  const _ConnectionStrip({required this.status, required this.protocol});
-
-  final _StatusDescriptor status;
-  final VpnProtocol protocol;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: status.background,
-        border: Border.all(color: status.border),
-        borderRadius: BorderRadius.circular(FreshTheme.radius),
+      padding: const EdgeInsets.fromLTRB(
+        SwSpacing.md,
+        SwSpacing.lg,
+        SwSpacing.md,
+        SwSpacing.xl,
       ),
-      child: Row(
-        children: [
-          Icon(status.icon, color: status.color),
-          const SizedBox(width: 12),
-          Expanded(
+      children: [
+        Center(
+          child: ConstrainedBox(
+            constraints:
+                const BoxConstraints(maxWidth: SwLayout.contentMaxWidth),
             child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Text(status.label,
-                    style: Theme.of(context).textTheme.titleMedium),
-                const SizedBox(height: 2),
-                Text(
-                  vpnProtocolLabel(protocol),
-                  style: Theme.of(context).textTheme.bodySmall,
+                SwPanel(
+                  padding: const EdgeInsets.all(24),
+                  child: user.when(
+                    data: (value) => _AccountHeader(account: value),
+                    loading: () => const _LoadingLine('Loading account'),
+                    error: (_, __) => const SwNotice(
+                      title: 'Account unavailable',
+                      message: 'Account details could not be loaded.',
+                      tone: SwNoticeTone.warning,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: SwSpacing.md),
+                const SwSectionLabel('Usage'),
+                plan.when(
+                  data: (value) => SwRowPanel(rows: _usageRows(value)),
+                  loading: () => const SwPanel(
+                    padding: EdgeInsets.all(24),
+                    child: _LoadingLine('Loading usage'),
+                  ),
+                  error: (_, __) => const SwNotice(
+                    title: 'Usage unavailable',
+                    message: 'Usage could not be loaded.',
+                    tone: SwNoticeTone.warning,
+                  ),
+                ),
+                const SizedBox(height: SwSpacing.md),
+                const SwSectionLabel('Runtime'),
+                SwRowPanel(
+                  rows: [
+                    SwRow(
+                      label: 'Protocol',
+                      value: vpnProtocolLabel(vpn.protocol),
+                    ),
+                    SwRow(label: 'Device', value: device),
+                    SwRow(label: 'API', value: config.apiBaseUrl),
+                    SwRow(
+                      label: 'Demo mode',
+                      value: config.useMockApi ? 'On' : 'Off',
+                    ),
+                  ],
+                ),
+                const SizedBox(height: SwSpacing.md),
+                const SwSectionLabel('Support'),
+                SwRowPanel(
+                  rows: [
+                    SwRow(
+                      label: 'Diagnostics',
+                      onTap: onOpenDiagnostics,
+                      trailing: const Icon(
+                        Icons.chevron_right_rounded,
+                        size: 20,
+                        color: SwColors.textSecondary,
+                      ),
+                    ),
+                    SwRow(
+                      label: 'Help & support',
+                      onTap: () => unawaited(_openExternalLink(
+                        context,
+                        ref,
+                        AppConstants.supportUrlFallback,
+                      )),
+                      trailing: const Icon(
+                        Icons.open_in_new_rounded,
+                        size: 18,
+                        color: SwColors.textSecondary,
+                      ),
+                    ),
+                    SwRow(
+                      label: 'Account portal',
+                      onTap: () => unawaited(
+                        _openExternalLink(context, ref, config.portalUrl),
+                      ),
+                      trailing: const Icon(
+                        Icons.open_in_new_rounded,
+                        size: 18,
+                        color: SwColors.textSecondary,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: SwSpacing.lg),
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: OutlinedButton(
+                    onPressed: () => _signOut(ref),
+                    child: const Text('Log out'),
+                  ),
                 ),
               ],
             ),
           ),
-          _StatusChip(label: status.shortLabel, tone: status.tone),
-        ],
-      ),
+        ),
+      ],
     );
   }
-}
 
-class _UsageSummary extends StatelessWidget {
-  const _UsageSummary({required this.plan});
-
-  final UserPlan plan;
-
-  @override
-  Widget build(BuildContext context) {
+  List<Widget> _usageRows(UserPlan plan) {
     final percent = plan.usagePercent.isFinite
         ? plan.usagePercent.clamp(0.0, 1.0).toDouble()
         : 0.0;
@@ -1100,142 +931,67 @@ class _UsageSummary extends StatelessWidget {
         ? 'Unlimited'
         : '${plan.dataCapGb.toStringAsFixed(0)} GB';
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          children: [
-            Expanded(
-              child: Text(
-                plan.name,
-                style: Theme.of(context).textTheme.titleMedium,
-              ),
-            ),
-            _StatusChip(
-              label: plan.isPremium ? 'Premium' : 'Free',
-              tone: plan.isPremium ? _Tone.info : _Tone.neutral,
-            ),
-          ],
-        ),
-        const SizedBox(height: 12),
-        LinearProgressIndicator(
-          value: plan.isUnlimited ? 1 : percent,
-          minHeight: 8,
-          borderRadius: BorderRadius.circular(4),
-          color: FreshTheme.primary,
-          backgroundColor: FreshTheme.surfaceMuted,
-        ),
-        const SizedBox(height: 12),
-        _InfoRow('Used', '${plan.usedGb.toStringAsFixed(1)} GB'),
-        _InfoRow('Cap', cap),
-        _InfoRow('Usage', percentText),
-      ],
-    );
+    return [
+      SwRow(label: 'Plan', value: plan.name),
+      SwRow(label: 'Used', value: '${plan.usedGb.toStringAsFixed(1)} GB'),
+      SwRow(label: 'Cap', value: cap),
+      SwRow(label: 'Usage', value: percentText),
+    ];
   }
 }
 
-class _PlainPanel extends StatelessWidget {
-  const _PlainPanel({
-    required this.child,
-    this.padding = const EdgeInsets.all(16),
-  });
+class _AccountHeader extends StatelessWidget {
+  const _AccountHeader({required this.account});
 
-  final Widget child;
-  final EdgeInsets padding;
+  final UserAccount account;
 
   @override
   Widget build(BuildContext context) {
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: FreshTheme.surface,
-        border: Border.all(color: FreshTheme.line),
-        borderRadius: BorderRadius.circular(FreshTheme.radius),
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x66000000),
-            blurRadius: 20,
-            offset: Offset(0, 10),
-          ),
-        ],
-      ),
-      child: Padding(padding: padding, child: child),
-    );
-  }
-}
+    final email = account.email.isEmpty ? 'Signed in' : account.email;
+    final initial = email.isEmpty ? '?' : email.substring(0, 1).toUpperCase();
 
-class _PageFrame extends StatelessWidget {
-  const _PageFrame({required this.child});
-
-  final Widget child;
-
-  @override
-  Widget build(BuildContext context) {
-    return SafeArea(
-      top: false,
-      child: Align(
-        alignment: Alignment.topCenter,
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: FreshTheme.maxWidth),
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: child,
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _ResponsivePair extends StatelessWidget {
-  const _ResponsivePair({required this.left, required this.right});
-
-  final Widget left;
-  final Widget right;
-
-  @override
-  Widget build(BuildContext context) {
-    final wide = MediaQuery.sizeOf(context).width >= FreshTheme.mobileMax;
-    if (!wide) {
-      return Column(
-        children: [
-          left,
-          const SizedBox(height: 14),
-          right,
-        ],
-      );
-    }
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Expanded(child: left),
-        const SizedBox(width: 14),
-        Expanded(child: right),
-      ],
-    );
-  }
-}
-
-class _AccountLine extends StatelessWidget {
-  const _AccountLine({required this.user});
-
-  final AsyncValue<UserAccount> user;
-
-  @override
-  Widget build(BuildContext context) {
     return Row(
       children: [
-        const Icon(Icons.person_outline_rounded, size: 20),
-        const SizedBox(width: 10),
-        Expanded(
+        Container(
+          width: 52,
+          height: 52,
+          alignment: Alignment.center,
+          decoration: const BoxDecoration(
+            shape: BoxShape.circle,
+            color: SwColors.primarySoft,
+          ),
           child: Text(
-            user.maybeWhen(
-              data: (value) => value.email.isEmpty ? 'Signed in' : value.email,
-              loading: () => 'Loading account',
-              orElse: () => 'Account unavailable',
-            ),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: Theme.of(context).textTheme.titleMedium,
+            initial,
+            style: SwType.title.copyWith(color: SwColors.primaryStrong),
+          ),
+        ),
+        const SizedBox(width: 16),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                email,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: SwType.body.copyWith(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w700,
+                  color: SwColors.textPrimary,
+                ),
+              ),
+              const SizedBox(height: 6),
+              Row(
+                children: [
+                  const SwStatusPill(text: 'Beta'),
+                  const SizedBox(width: 8),
+                  Text(
+                    account.isActive ? 'Active' : 'Inactive',
+                    style: SwType.footnote,
+                  ),
+                ],
+              ),
+            ],
           ),
         ),
       ],
@@ -1243,237 +999,104 @@ class _AccountLine extends StatelessWidget {
   }
 }
 
-class _ServerTile extends StatelessWidget {
-  const _ServerTile({
-    required this.title,
-    required this.subtitle,
-    required this.selected,
-    required this.icon,
-    required this.onTap,
-  });
+/// ---------------------------------------------------------------------------
+/// Diagnostics
+/// ---------------------------------------------------------------------------
 
-  final String title;
-  final String subtitle;
-  final bool selected;
-  final IconData icon;
-  final VoidCallback onTap;
+class _DiagnosticsScreen extends ConsumerWidget {
+  const _DiagnosticsScreen();
 
   @override
-  Widget build(BuildContext context) {
-    return _SelectableRow(
-      selected: selected,
-      enabled: true,
-      title: title,
-      subtitle: subtitle,
-      leading: Icon(icon,
-          color: selected ? FreshTheme.primary : FreshTheme.graphiteMuted),
-      onTap: onTap,
-    );
-  }
-}
+  Widget build(BuildContext context, WidgetRef ref) {
+    final vpn = ref.watch(vpnStateProvider);
+    final service = ref.watch(vpnServiceProvider);
+    final servers = ref.watch(serversProvider);
 
-class _SelectableRow extends StatelessWidget {
-  const _SelectableRow({
-    required this.selected,
-    required this.enabled,
-    required this.title,
-    required this.subtitle,
-    this.leading,
-    this.trailing,
-    this.onTap,
-  });
-
-  final bool selected;
-  final bool enabled;
-  final String title;
-  final String subtitle;
-  final Widget? leading;
-  final Widget? trailing;
-  final VoidCallback? onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return InkWell(
-      onTap: enabled ? onTap : null,
-      borderRadius: BorderRadius.circular(FreshTheme.radiusSmall),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-        decoration: BoxDecoration(
-          color: selected ? FreshTheme.primarySoft : Colors.transparent,
-          border: Border.all(
-            color: selected ? FreshTheme.primary : FreshTheme.line,
-          ),
-          borderRadius: BorderRadius.circular(FreshTheme.radiusSmall),
-        ),
-        child: Row(
-          children: [
-            leading ??
-                Icon(
-                  selected ? Icons.check_circle_rounded : Icons.circle_outlined,
-                  color:
-                      selected ? FreshTheme.primary : FreshTheme.graphiteMuted,
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(
+        SwSpacing.md,
+        SwSpacing.lg,
+        SwSpacing.md,
+        SwSpacing.xl,
+      ),
+      children: [
+        Center(
+          child: ConstrainedBox(
+            constraints:
+                const BoxConstraints(maxWidth: SwLayout.contentMaxWidth),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                const Text('Diagnostics', style: SwType.title),
+                const SizedBox(height: 6),
+                const Text(
+                  'Runtime facts for support. No credentials are shown.',
+                  style: SwType.body,
                 ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Opacity(
-                opacity: enabled ? 1 : 0.62,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(title, style: Theme.of(context).textTheme.titleMedium),
-                    const SizedBox(height: 2),
-                    Text(subtitle,
-                        style: Theme.of(context).textTheme.bodySmall),
+                const SizedBox(height: SwSpacing.md),
+                SwRowPanel(
+                  rows: [
+                    SwRow(label: 'VPN state', value: _statusHeadline(vpn)),
+                    SwRow(
+                      label: 'Native bridge',
+                      value: service.isNativeAvailable
+                          ? 'Available'
+                          : 'Unavailable',
+                    ),
+                    SwRow(
+                      label: 'Protocol',
+                      value: vpnProtocolLabel(vpn.protocol),
+                    ),
+                    SwRow(
+                      label: 'Desired state',
+                      value: vpn.desiredOn ? 'On' : 'Off',
+                    ),
+                    SwRow(
+                      label: 'Profile fetch',
+                      value: vpn.lastProfileFetchOk == null
+                          ? 'Not run'
+                          : vpn.lastProfileFetchOk!
+                              ? 'Last fetch passed'
+                              : 'Last fetch failed',
+                    ),
+                    SwRow(
+                      label: 'Tunnel start',
+                      value: vpn.lastTunnelStartOk == null
+                          ? 'Not run'
+                          : vpn.lastTunnelStartOk!
+                              ? 'Last start passed'
+                              : 'Last start failed',
+                    ),
+                    SwRow(
+                      label: 'Regions',
+                      value: servers.when(
+                        data: (items) => '${items.length} loaded',
+                        loading: () => 'Loading',
+                        error: (_, __) => 'Load failed',
+                      ),
+                    ),
                   ],
                 ),
-              ),
-            ),
-            if (trailing != null) ...[
-              const SizedBox(width: 10),
-              trailing!,
-            ],
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _InfoRow extends StatelessWidget {
-  const _InfoRow(this.label, this.value);
-
-  final String label;
-  final String value;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 7),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          SizedBox(
-            width: 104,
-            child: Text(label, style: Theme.of(context).textTheme.bodySmall),
-          ),
-          Expanded(
-            child: Text(
-              value,
-              textAlign: TextAlign.right,
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: FreshTheme.graphite,
-                    fontWeight: FontWeight.w600,
+                if (vpn.errorMessage != null) ...[
+                  const SizedBox(height: SwSpacing.md),
+                  SwNotice(
+                    title: 'Last error',
+                    message: vpn.errorMessage,
+                    tone: SwNoticeTone.error,
                   ),
+                ],
+              ],
             ),
           ),
-        ],
-      ),
-    );
-  }
-}
-
-class _StatusChip extends StatelessWidget {
-  const _StatusChip({required this.label, required this.tone});
-
-  final String label;
-  final _Tone tone;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = _toneColors(tone);
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
-      decoration: BoxDecoration(
-        color: colors.background,
-        border: Border.all(color: colors.border),
-        borderRadius: BorderRadius.circular(7),
-      ),
-      child: Text(
-        label,
-        style: TextStyle(
-          color: colors.foreground,
-          fontSize: 12,
-          fontWeight: FontWeight.w700,
         ),
-      ),
+      ],
     );
   }
 }
 
-class _InlineMessage extends StatelessWidget {
-  const _InlineMessage({
-    required this.icon,
-    required this.message,
-    required this.tone,
-  });
-
-  final IconData icon;
-  final String message;
-  final _Tone tone;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = _toneColors(tone);
-    return Container(
-      padding: const EdgeInsets.all(11),
-      decoration: BoxDecoration(
-        color: colors.background,
-        border: Border.all(color: colors.border),
-        borderRadius: BorderRadius.circular(FreshTheme.radiusSmall),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Icon(icon, size: 18, color: colors.foreground),
-          const SizedBox(width: 9),
-          Expanded(
-            child: Text(
-              message,
-              style: Theme.of(context)
-                  .textTheme
-                  .bodySmall
-                  ?.copyWith(color: colors.foreground),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _CenteredState extends StatelessWidget {
-  const _CenteredState({
-    required this.icon,
-    required this.title,
-    required this.body,
-  });
-
-  final IconData icon;
-  final String title;
-  final String body;
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: _PlainPanel(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, size: 30, color: FreshTheme.graphiteMuted),
-            const SizedBox(height: 12),
-            Text(title, style: Theme.of(context).textTheme.titleLarge),
-            const SizedBox(height: 6),
-            Text(
-              body,
-              textAlign: TextAlign.center,
-              style: Theme.of(context).textTheme.bodyMedium,
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
+/// ---------------------------------------------------------------------------
+/// Boot + shared bits
+/// ---------------------------------------------------------------------------
 
 class _BootView extends StatelessWidget {
   const _BootView({this.message});
@@ -1483,32 +1106,33 @@ class _BootView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: SwColors.surface,
       body: SafeArea(
         child: Center(
-          child: _PlainPanel(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const SizedBox(
-                  width: 24,
-                  height: 24,
-                  child: CircularProgressIndicator(strokeWidth: 2.5),
-                ),
-                const SizedBox(height: 14),
-                Text(
-                  'Starting SecureWave',
-                  style: Theme.of(context).textTheme.titleMedium,
-                ),
-                if (message != null) ...[
-                  const SizedBox(height: 8),
-                  Text(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const SwLogo(size: 46),
+              const SizedBox(height: SwSpacing.md),
+              const Text('Starting SecureWave', style: SwType.title),
+              const SizedBox(height: SwSpacing.sm),
+              const SizedBox(
+                width: 22,
+                height: 22,
+                child: CircularProgressIndicator(strokeWidth: 2.2),
+              ),
+              if (message != null) ...[
+                const SizedBox(height: SwSpacing.sm),
+                ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 320),
+                  child: Text(
                     message!,
                     textAlign: TextAlign.center,
-                    style: Theme.of(context).textTheme.bodySmall,
+                    style: SwType.footnote,
                   ),
-                ],
+                ),
               ],
-            ),
+            ],
           ),
         ),
       ),
@@ -1530,216 +1154,152 @@ class _LoadingLine extends StatelessWidget {
           height: 16,
           child: CircularProgressIndicator(strokeWidth: 2),
         ),
-        const SizedBox(width: 10),
-        Text(label, style: Theme.of(context).textTheme.bodyMedium),
+        const SizedBox(width: 12),
+        Text(label, style: SwType.body),
       ],
     );
   }
 }
 
-class _SectionTitle extends StatelessWidget {
-  const _SectionTitle(this.text);
+/// ---------------------------------------------------------------------------
+/// Presentation helpers
+/// ---------------------------------------------------------------------------
 
-  final String text;
-
-  @override
-  Widget build(BuildContext context) {
-    return Text(text, style: Theme.of(context).textTheme.titleLarge);
-  }
+bool _protocolIsAvailable({
+  required VpnService service,
+  required List<ServerRegion> servers,
+  required String? selectedServerId,
+  required VpnProtocol protocol,
+}) {
+  if (!service.canConnectProtocol(protocol)) return false;
+  final selected = selectedServerId == null
+      ? const <ServerRegion>[]
+      : servers.where((server) => server.id == selectedServerId).toList();
+  // Treat an ID that no longer exists in the catalog as auto-select. The
+  // state layer will clear it if the backend also rejects the reference.
+  final candidates = selected.isEmpty ? servers : selected;
+  return candidates.any(
+    (server) => server.supportsProtocol(vpnProtocolStorageValue(protocol)),
+  );
 }
 
-class _ShellTab {
-  const _ShellTab(this.label, this.icon);
-
-  final String label;
-  final IconData icon;
-}
-
-class _StatusDescriptor {
-  const _StatusDescriptor({
-    required this.label,
-    required this.shortLabel,
-    required this.icon,
-    required this.color,
-    required this.background,
-    required this.border,
-    required this.tone,
-  });
-
-  final String label;
-  final String shortLabel;
-  final IconData icon;
-  final Color color;
-  final Color background;
-  final Color border;
-  final _Tone tone;
-}
-
-enum _Tone { neutral, info, success, warning, error }
-
-({Color background, Color border, Color foreground}) _toneColors(_Tone tone) {
-  return switch (tone) {
-    _Tone.success => (
-        background: FreshTheme.primarySoft,
-        border: const Color(0xFF2F61A6),
-        foreground: FreshTheme.primary,
-      ),
-    _Tone.warning => (
-        background: FreshTheme.amberSoft,
-        border: const Color(0xFF6B4E1C),
-        foreground: FreshTheme.amber,
-      ),
-    _Tone.error => (
-        background: FreshTheme.redSoft,
-        border: const Color(0xFF6A2B31),
-        foreground: FreshTheme.red,
-      ),
-    _Tone.info => (
-        background: FreshTheme.secondarySoft,
-        border: const Color(0xFF52627A),
-        foreground: FreshTheme.secondary,
-      ),
-    _Tone.neutral => (
-        background: FreshTheme.surfaceMuted,
-        border: FreshTheme.line,
-        foreground: FreshTheme.graphiteMuted,
-      ),
-  };
-}
-
-_StatusDescriptor _statusDescriptor(VpnState vpn) {
-  final backendUnreachable = vpn.status == VpnStatus.error &&
-      vpn.errorKind == VpnErrorKind.backendUnreachable;
-  return switch (vpn.status) {
-    VpnStatus.connected => const _StatusDescriptor(
-        label: 'VPN connected',
-        shortLabel: 'On',
-        icon: Icons.verified_rounded,
-        color: FreshTheme.primary,
-        background: FreshTheme.primarySoft,
-        border: Color(0xFF2F61A6),
-        tone: _Tone.success,
-      ),
-    VpnStatus.connecting => const _StatusDescriptor(
-        label: 'Connecting',
-        shortLabel: 'Wait',
-        icon: Icons.sync_rounded,
-        color: FreshTheme.amber,
-        background: FreshTheme.amberSoft,
-        border: Color(0xFF6B4E1C),
-        tone: _Tone.warning,
-      ),
-    VpnStatus.disconnecting => const _StatusDescriptor(
-        label: 'Disconnecting',
-        shortLabel: 'Wait',
-        icon: Icons.sync_disabled_rounded,
-        color: FreshTheme.amber,
-        background: FreshTheme.amberSoft,
-        border: Color(0xFF6B4E1C),
-        tone: _Tone.warning,
-      ),
-    VpnStatus.error => _StatusDescriptor(
-        label:
-            backendUnreachable ? 'Backend unreachable' : 'VPN needs attention',
-        shortLabel: 'Error',
-        icon: Icons.warning_amber_rounded,
-        color: FreshTheme.red,
-        background: FreshTheme.redSoft,
-        border: const Color(0xFF6A2B31),
-        tone: _Tone.error,
-      ),
-    VpnStatus.disconnected => const _StatusDescriptor(
-        label: 'VPN disconnected',
-        shortLabel: 'Off',
-        icon: Icons.power_settings_new_rounded,
-        color: FreshTheme.graphiteMuted,
-        background: FreshTheme.surfaceMuted,
-        border: FreshTheme.line,
-        tone: _Tone.neutral,
-      ),
-  };
+String _protocolUnavailableReason({
+  required VpnService service,
+  required List<ServerRegion> servers,
+  required String? selectedServerId,
+  required VpnProtocol protocol,
+}) {
+  final nativeReason = service.protocolUnavailableReason(protocol);
+  if (nativeReason != null) return nativeReason;
+  final selectedExists = selectedServerId != null &&
+      servers.any((server) => server.id == selectedServerId);
+  final scope = selectedExists ? 'selected server' : 'server catalog';
+  return 'No verified ${vpnProtocolLabel(protocol)} evidence exists for the $scope.';
 }
 
 String _serverLabel(String? selectedServerId, List<ServerRegion> servers) {
-  if (selectedServerId == null) return 'Auto-select';
+  if (selectedServerId == null) {
+    if (servers.length == 1) return servers.first.name;
+    return 'Auto-select';
+  }
   for (final server in servers) {
     if (server.id == selectedServerId) return server.name;
   }
-  return selectedServerId;
+  return 'Auto-select';
 }
 
-String _serverSubtitle(ServerRegion server) {
-  final parts = <String>[];
-  if (server.city != null && server.city!.isNotEmpty) parts.add(server.city!);
-  if (server.country != null && server.country!.isNotEmpty) {
-    parts.add(server.country!);
-  }
-  if (server.latencyMs != null) parts.add('${server.latencyMs} ms');
-  if (server.loadPercent != null) {
-    parts.add('${server.loadPercent!.round()}% load');
-  }
-  final protocols = server.supportedProtocols
-      .map((item) => switch (item) {
-            'wireguard' => 'WG',
-            'openvpn' => 'OVPN',
-            'ikev2' => 'IKEv2',
-            _ => item,
-          })
-      .join('/');
-  if (protocols.isNotEmpty) parts.add(protocols);
-  final health = server.regionHealthStatus ?? server.healthStatus;
-  if (health != null && health.isNotEmpty && health != 'up') {
-    parts.add(health);
-  }
-  if (server.premiumOnly) parts.add('Premium');
-  return parts.isEmpty ? 'Region endpoint' : parts.join(' · ');
+String _statusHeadline(VpnState vpn) {
+  final backendUnreachable = vpn.status == VpnStatus.error &&
+      vpn.errorKind == VpnErrorKind.backendUnreachable;
+  return switch (vpn.status) {
+    VpnStatus.connected => 'Connected',
+    VpnStatus.connecting => 'Connecting',
+    VpnStatus.disconnecting => 'Disconnecting',
+    VpnStatus.error =>
+      backendUnreachable ? 'Backend unreachable' : 'Needs attention',
+    VpnStatus.disconnected => 'Not connected',
+  };
 }
 
-Future<void> _signOut(BuildContext context, WidgetRef ref) async {
+String _statusHelper(VpnState vpn) {
+  return switch (vpn.status) {
+    // A session restored at boot reports connected without a recorded start
+    // time, so only claim a duration when one actually exists.
+    VpnStatus.connected => vpn.lastTunnelStartAt == null
+        ? 'Your traffic is routed through WireGuard'
+        : 'Session started ${_sessionDuration(vpn)} ago',
+    VpnStatus.connecting => 'Bringing up the WireGuard tunnel',
+    VpnStatus.disconnecting => 'Closing the tunnel',
+    VpnStatus.error => 'Review the details below and try again',
+    VpnStatus.disconnected => 'Tap connect to start a secure session',
+  };
+}
+
+String _connectLabel(VpnState vpn) {
+  return switch (vpn.status) {
+    VpnStatus.connected => 'DISCONNECT',
+    VpnStatus.connecting => 'CONNECTING',
+    VpnStatus.disconnecting => 'STOPPING',
+    _ => 'CONNECT',
+  };
+}
+
+String _idleLabel(VpnState vpn) {
+  return switch (vpn.status) {
+    VpnStatus.error => 'Error',
+    VpnStatus.connecting => 'Starting',
+    VpnStatus.disconnecting => 'Stopping',
+    _ => 'Idle',
+  };
+}
+
+String _idlePillText(VpnState vpn, String serverLabel) {
+  return '${vpnProtocolLabel(vpn.protocol)} · $serverLabel';
+}
+
+String _sessionDuration(VpnState vpn) {
+  final started = vpn.lastTunnelStartAt;
+  if (started == null) return '—';
+  final elapsed = DateTime.now().difference(started);
+  if (elapsed.isNegative) return '—';
+  final hours = elapsed.inHours;
+  final minutes = elapsed.inMinutes.remainder(60);
+  final seconds = elapsed.inSeconds.remainder(60);
+  if (hours > 0) return '${hours}h ${minutes}m';
+  if (minutes > 0) return '${minutes}m ${seconds}s';
+  return '${seconds}s';
+}
+
+String _healthLabel(double stabilityScore) {
+  if (stabilityScore >= 0.9) return 'Excellent';
+  if (stabilityScore >= 0.7) return 'Good';
+  if (stabilityScore >= 0.4) return 'Fair';
+  return 'Degraded';
+}
+
+Future<void> _signOut(WidgetRef ref) async {
   final vpn = ref.read(vpnStateProvider);
   if (!vpn.isBusy && vpn.status != VpnStatus.disconnected) {
     await ref.read(vpnStateProvider.notifier).disconnect();
   }
   await SecureStorage().clearVpnRuntimeState();
   await ref.read(authSessionProvider).clearSession();
-  ref.read(vpnStateProvider.notifier).selectServer(null);
+  await ref.read(vpnStateProvider.notifier).resetConnectionSelection();
   ref.invalidate(currentUserProvider);
   ref.invalidate(userPlanProvider);
   ref.invalidate(serversProvider);
 }
 
-void _showDiagnostics(BuildContext context) {
-  showModalBottomSheet<void>(
-    context: context,
-    showDragHandle: true,
-    isScrollControlled: true,
-    builder: (context) {
-      return SafeArea(
-        child: Padding(
-          padding: EdgeInsets.only(
-            left: 18,
-            right: 18,
-            bottom: 18 + MediaQuery.viewInsetsOf(context).bottom,
-          ),
-          child: ConstrainedBox(
-            constraints: BoxConstraints(
-              maxHeight: MediaQuery.sizeOf(context).height * 0.76,
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Diagnostics',
-                  style: Theme.of(context).textTheme.titleLarge,
-                ),
-                const SizedBox(height: 12),
-                const Expanded(child: _DiagnosticsView()),
-              ],
-            ),
-          ),
-        ),
-      );
-    },
+Future<void> _openExternalLink(
+  BuildContext context,
+  WidgetRef ref,
+  String url,
+) async {
+  final opened = await ref.read(externalLinksProvider).openUrl(url);
+  if (opened || !context.mounted) return;
+  ScaffoldMessenger.of(context).showSnackBar(
+    const SnackBar(
+      content: Text('Could not open that link. Please try again.'),
+    ),
   );
 }

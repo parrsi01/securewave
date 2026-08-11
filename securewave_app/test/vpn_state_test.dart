@@ -375,7 +375,7 @@ void main() {
     expect(service.getStatus(), VpnStatus.connected);
   });
 
-  test('restored protocol is loaded before a cold-start connect', () async {
+  test('legacy protocol is reset before a cold-start Beta connect', () async {
     await SecureStorage().saveString(
       SecureStorage.vpnProtocolKey,
       vpnProtocolStorageValue(VpnProtocol.openVpn),
@@ -392,9 +392,13 @@ void main() {
 
     await container.read(vpnStateProvider.notifier).connect();
 
-    expect(api.requestedProtocols, [VpnProtocol.openVpn]);
-    expect(service.lastProtocol, VpnProtocol.openVpn);
-    expect(container.read(vpnStateProvider).protocol, VpnProtocol.openVpn);
+    expect(api.requestedProtocols, [VpnProtocol.wireGuard]);
+    expect(service.lastProtocol, VpnProtocol.wireGuard);
+    expect(container.read(vpnStateProvider).protocol, VpnProtocol.wireGuard);
+    expect(
+      await SecureStorage().getString(SecureStorage.vpnProtocolKey),
+      isNull,
+    );
   });
 
   test('repeated connect and disconnect leaves no busy state', () async {

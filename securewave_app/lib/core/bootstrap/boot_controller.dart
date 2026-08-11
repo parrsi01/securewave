@@ -7,7 +7,6 @@ import '../config/app_config.dart';
 import '../logging/app_logger.dart';
 import '../services/auth_session.dart';
 import '../services/secure_storage.dart';
-import '../state/vpn_state.dart';
 
 enum BootStatus { initializing, ready, failed }
 
@@ -96,16 +95,14 @@ class BootController extends ChangeNotifier {
       }
     }
 
-    // Step 2: Restore VPN server selection (can fail gracefully)
+    // Step 2: Remove selections left by older builds. The current desktop UI
+    // uses backend auto-selection and has no server picker, so restoring a
+    // retired server would otherwise leave Connect disabled with no recovery.
     try {
-      final selectedServer =
-          await storage.getString(SecureStorage.selectedServerKey);
-      if (selectedServer != null) {
-        _ref.read(vpnStateProvider.notifier).selectServer(selectedServer);
-        AppLogger.info('Boot: restored server $selectedServer');
-      }
+      await storage.delete(SecureStorage.selectedServerKey);
+      AppLogger.info('Boot: VPN server selection set to auto-select');
     } catch (error) {
-      AppLogger.warning('Boot: could not restore server selection');
+      AppLogger.warning('Boot: could not reset server selection');
     }
 
     // Step 3: (reserved for future security posture initialization)

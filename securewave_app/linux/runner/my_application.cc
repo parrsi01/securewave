@@ -20,6 +20,7 @@
 
 namespace {
 const char* kChannelName = "securewave/vpn";
+const char* kLinksChannelName = "securewave/links";
 const char* kHelperSocketPath = "/run/securewave/helper.sock";
 const char* kWireGuardConfigFileName = "sw-wg.conf";
 const char* kOpenVpnPidFileName = "securewave-openvpn.pid";
@@ -35,6 +36,10 @@ typedef struct {
   gchar* active_protocol;
 } VpnChannelState;
 
+typedef struct {
+  FlMethodChannel* channel;
+} LinksChannelState;
+
 static void vpn_channel_state_free(VpnChannelState* state) {
   if (!state) {
     return;
@@ -44,6 +49,14 @@ static void vpn_channel_state_free(VpnChannelState* state) {
   g_clear_pointer(&state->openvpn_pid_path, g_free);
   g_clear_pointer(&state->openvpn_log_path, g_free);
   g_clear_pointer(&state->active_protocol, g_free);
+  g_free(state);
+}
+
+static void links_channel_state_free(LinksChannelState* state) {
+  if (!state) {
+    return;
+  }
+  g_clear_object(&state->channel);
   g_free(state);
 }
 
@@ -73,6 +86,56 @@ static void respond_error(
     FlValue* details) {
   g_autoptr(FlMethodResponse) response = FL_METHOD_RESPONSE(
       fl_method_error_response_new(code, message, details));
+  fl_method_call_respond(method_call, response, nullptr);
+}
+
+static gboolean is_safe_external_url(const gchar* url) {
+  if (!url || *url == '\0') {
+    return FALSE;
+  }
+  g_autoptr(GError) error = nullptr;
+  g_autoptr(GUri) uri = g_uri_parse(url, G_URI_FLAGS_NONE, &error);
+  if (!uri) {
+    return FALSE;
+  }
+  const gchar* scheme = g_uri_get_scheme(uri);
+  const gchar* host = g_uri_get_host(uri);
+  const gchar* userinfo = g_uri_get_userinfo(uri);
+  return scheme && g_ascii_strcasecmp(scheme, "https") == 0 && host &&
+         *host != '\0' && (!userinfo || *userinfo == '\0');
+}
+
+static void handle_links_call(FlMethodChannel* channel,
+                              FlMethodCall* method_call,
+                              gpointer user_data) {
+  (void)channel;
+  (void)user_data;
+  const gchar* method = fl_method_call_get_name(method_call);
+  if (g_strcmp0(method, "openUrl") != 0) {
+    g_autoptr(FlMethodResponse) response = FL_METHOD_RESPONSE(
+        fl_method_not_implemented_response_new());
+    fl_method_call_respond(method_call, response, nullptr);
+    return;
+  }
+
+  const gchar* url = get_string_arg(fl_method_call_get_args(method_call), "url");
+  if (!is_safe_external_url(url)) {
+    respond_error(method_call, "invalid_url",
+                  "Only valid HTTPS links can be opened.", nullptr);
+    return;
+  }
+
+  g_autoptr(GError) error = nullptr;
+  if (!g_app_info_launch_default_for_uri(url, nullptr, &error)) {
+    // Do not include the URL or platform error in the channel response: a
+    // configured portal may contain sensitive query parameters.
+    respond_error(method_call, "link_open_failed",
+                  "The system could not open the external link.", nullptr);
+    return;
+  }
+
+  g_autoptr(FlMethodResponse) response = FL_METHOD_RESPONSE(
+      fl_method_success_response_new(fl_value_new_bool(TRUE)));
   fl_method_call_respond(method_call, response, nullptr);
 }
 
@@ -471,6 +534,17 @@ static void my_application_activate(GApplication* application) {
       handle_vpn_call,
       vpn_state,
       reinterpret_cast<GDestroyNotify>(vpn_channel_state_free));
+
+  LinksChannelState* links_state = g_new0(LinksChannelState, 1);
+  links_state->channel = fl_method_channel_new(
+      fl_engine_get_binary_messenger(engine),
+      kLinksChannelName,
+      FL_METHOD_CODEC(fl_standard_method_codec_new()));
+  fl_method_channel_set_method_call_handler(
+      links_state->channel,
+      handle_links_call,
+      links_state,
+      reinterpret_cast<GDestroyNotify>(links_channel_state_free));
 
   gtk_widget_grab_focus(GTK_WIDGET(view));
 }

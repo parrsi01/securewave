@@ -39,6 +39,7 @@ class SecureStorage {
 
   Future<void> clearVpnRuntimeState() async {
     await _storage.delete(key: selectedServerKey);
+    await _storage.delete(key: vpnProtocolKey);
     await _storage.delete(key: vpnProfileExpiresAtKey);
     await _storage.delete(key: vpnProfileConfigKeyFor('wireguard'));
     await _storage.delete(key: vpnProfileConfigKeyFor('openvpn'));

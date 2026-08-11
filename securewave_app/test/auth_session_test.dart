@@ -91,12 +91,28 @@ void main() {
       SecureStorage.vpnProfileConfigKey,
       'profile',
     );
+    await SecureStorage().saveString(
+      SecureStorage.selectedServerKey,
+      'retired-server',
+    );
+    await SecureStorage().saveString(
+      SecureStorage.vpnProtocolKey,
+      'openvpn',
+    );
 
     await SecureStorage().clearVpnRuntimeState();
 
     expect(await SecureStorage().getInt(SecureStorage.vpnDeviceIdKey), 42);
     expect(
       await SecureStorage().getString(SecureStorage.vpnProfileConfigKey),
+      isNull,
+    );
+    expect(
+      await SecureStorage().getString(SecureStorage.selectedServerKey),
+      isNull,
+    );
+    expect(
+      await SecureStorage().getString(SecureStorage.vpnProtocolKey),
       isNull,
     );
   });

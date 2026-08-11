@@ -107,7 +107,26 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
   Future<void> _loadProtocol() async {
     final storage = SecureStorage();
     final stored = await storage.getString(SecureStorage.vpnProtocolKey);
-    state = state.copyWith(protocol: vpnProtocolFromStorage(stored));
+    final restored = vpnProtocolFromStorage(stored);
+    if (restored != VpnProtocol.wireGuard) {
+      // The current desktop UI intentionally exposes a WireGuard-only Beta
+      // path. Discard protocol choices left by older multi-protocol builds so
+      // an unavailable hidden choice cannot disable Connect permanently.
+      await storage.delete(SecureStorage.vpnProtocolKey);
+    }
+    state = state.copyWith(protocol: VpnProtocol.wireGuard);
+  }
+
+  Future<void> resetConnectionSelection() async {
+    await _protocolLoadFuture;
+    if (_selectionLocked) return;
+    state = state.copyWith(
+      protocol: VpnProtocol.wireGuard,
+      clearSelectedServer: true,
+    );
+    final storage = SecureStorage();
+    await storage.delete(SecureStorage.selectedServerKey);
+    await storage.delete(SecureStorage.vpnProtocolKey);
   }
 
   void selectServer(String? serverId) {

@@ -35,6 +35,16 @@ def test_linux_disconnect_can_clean_wireguard_residue_without_config_file():
     assert '{"version", "1"}, {"op", "wireguard.cleanup"}' in runner
 
 
+def test_linux_runner_registers_a_fail_closed_https_link_channel():
+    runner = _read(RUNNER)
+
+    assert 'const char* kLinksChannelName = "securewave/links";' in runner
+    assert 'g_ascii_strcasecmp(scheme, "https") == 0' in runner
+    assert '(!userinfo || *userinfo == \'\\0\')' in runner
+    assert 'g_app_info_launch_default_for_uri(url, nullptr, &error)' in runner
+    assert 'handle_links_call' in runner
+
+
 def test_historical_runner_does_not_start_openvpn_without_authenticated_credentials():
     runner = _read(RUNNER)
 
