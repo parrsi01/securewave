@@ -72,7 +72,7 @@ class AppUIv1 {
           color: graphiteMuted,
         ),
         bodySmall: TextStyle(
-          fontSize: 12.5,
+          fontSize: 12,
           height: 1.32,
           color: graphiteMuted,
         ),

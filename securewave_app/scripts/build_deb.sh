@@ -4,6 +4,11 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT_DIR"
 
+REPO_DIR="$ROOT_DIR/.."
+"$ROOT_DIR/scripts/authorize_linux_release.sh" "$REPO_DIR"
+source_sha="$(git -C "$REPO_DIR" rev-parse --verify HEAD)"
+source_tree_state="clean"
+
 # Guard against packaging when WireGuard tooling is missing on the target platform.
 if ! command -v wg-quick >/dev/null 2>&1; then
   echo "ERROR: wg-quick not found. Install WireGuard tools before packaging." >&2
@@ -22,7 +27,9 @@ if ! command -v dpkg-deb >/dev/null 2>&1; then
 fi
 
 flutter pub get
-flutter build linux --release
+flutter build linux --release \
+  --dart-define="SECUREWAVE_API_BASE_URL=$SECUREWAVE_API_BASE_URL" \
+  --dart-define=SECUREWAVE_USE_MOCK_API=false
 
 bundle_dir=""
 for candidate in build/linux/*/release/bundle; do
@@ -56,6 +63,7 @@ mkdir -p "$staging_dir/DEBIAN" \
   "$staging_dir/usr/lib/tmpfiles.d" \
   "$staging_dir/usr/share/applications" \
   "$staging_dir/usr/share/icons/hicolor/256x256/apps" \
+  "$staging_dir/usr/share/securewave/release" \
   "$staging_dir/usr/share/securewave/packaging/linux"
 
 cp -a "$bundle_dir/"* "$staging_dir/usr/lib/securewave/"
@@ -73,6 +81,14 @@ cp -f "$ROOT_DIR/packaging/linux/securewave-wg-quick.contract" "$staging_dir/usr
 cp -f "$ROOT_DIR/packaging/linux/securewave-strongswan-routing.conf" "$staging_dir/usr/share/securewave/packaging/linux/securewave-strongswan-routing.conf"
 chmod 0755 "$staging_dir/usr/share/securewave/packaging/linux/securewave-wg-quick" \
   "$staging_dir/usr/share/securewave/packaging/linux/securewave-helperd"
+
+printf '%s\n' "$source_sha" > "$staging_dir/usr/share/securewave/release/source-sha"
+printf '%s\n' "$version" > "$staging_dir/usr/share/securewave/release/app-version"
+printf '%s\n' "$arch" > "$staging_dir/usr/share/securewave/release/package-architecture"
+printf '%s\n' "$source_tree_state" > "$staging_dir/usr/share/securewave/release/source-tree-state"
+cp -f "$ROOT_DIR/packaging/linux/securewave-wg-quick.contract" \
+  "$staging_dir/usr/share/securewave/release/helper-contract"
+chmod 0644 "$staging_dir/usr/share/securewave/release/"*
 
 cat <<CONTROL > "$staging_dir/DEBIAN/control"
 Package: $package_name

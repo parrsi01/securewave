@@ -1,12 +1,15 @@
+import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:securewave_app/app.dart';
 import 'package:securewave_app/core/config/app_config.dart';
+import 'package:securewave_app/core/constants/app_constants.dart';
 import 'package:securewave_app/core/models/server_region.dart';
 import 'package:securewave_app/core/models/user_account.dart';
 import 'package:securewave_app/core/models/user_plan.dart';
 import 'package:securewave_app/core/state/app_state.dart';
+import 'package:securewave_app/services/external_links.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -65,8 +68,10 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('No regions available'), findsOneWidget);
-    expect(find.text('Auto-select will stay active until the catalog returns.'),
-        findsOneWidget);
+    expect(
+      find.text('Auto-select will stay active until the catalog returns.'),
+      findsOneWidget,
+    );
   });
 
   testWidgets('server screen renders error state', (tester) async {
@@ -105,12 +110,31 @@ void main() {
     expect(find.text('Unlimited'), findsOneWidget);
     expect(find.textContaining('NaN'), findsNothing);
   });
+
+  testWidgets('Help uses the approved external link service', (tester) async {
+    final links = _RecordingLinks();
+    await _pumpApp(
+      tester,
+      linksOverride: externalLinksProvider.overrideWithValue(links),
+    );
+
+    await tester.tap(find.text('Settings').last);
+    await tester.pumpAndSettle();
+    final help = find.byKey(const ValueKey('settings-help-action'));
+    await tester.scrollUntilVisible(help, 300);
+    await tester.pumpAndSettle();
+    await tester.tap(help);
+    await tester.pump();
+
+    expect(links.openedUrl, AppConstants.supportUrlFallback);
+  });
 }
 
 Future<void> _pumpApp(
   WidgetTester tester, {
   Override? serversOverride,
   Override? planOverride,
+  Override? linksOverride,
 }) async {
   tester.view.physicalSize = const Size(390, 844);
   tester.view.devicePixelRatio = 1;
@@ -148,6 +172,7 @@ Future<void> _pumpApp(
                 usedGb: 1.2,
               ),
             ),
+        if (linksOverride != null) linksOverride,
         serversOverride ??
             serversProvider.overrideWith(
               (ref) async => const [
@@ -164,4 +189,13 @@ Future<void> _pumpApp(
     ),
   );
   await tester.pumpAndSettle();
+}
+
+class _RecordingLinks extends ExternalLinksService {
+  String? openedUrl;
+
+  @override
+  Future<void> openUrl(String url) async {
+    openedUrl = url;
+  }
 }

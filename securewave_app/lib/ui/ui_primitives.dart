@@ -18,9 +18,9 @@ class _PlainPanel extends StatelessWidget {
         borderRadius: BorderRadius.circular(FreshTheme.radius),
         boxShadow: const [
           BoxShadow(
-            color: Color(0x66000000),
-            blurRadius: 20,
-            offset: Offset(0, 10),
+            color: Color(0x40000000),
+            blurRadius: 8,
+            offset: Offset(0, 2),
           ),
         ],
       ),

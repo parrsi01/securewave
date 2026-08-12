@@ -44,6 +44,17 @@ def test_runner_uses_helper_service_socket_without_connect_time_prompts():
     assert "g_spawn_async_with_pipes" not in source
 
 
+def test_linux_runner_exposes_https_only_external_link_channel():
+    source = _runner_source()
+
+    assert 'kLinksChannelName = "securewave/links"' in source
+    assert 'g_strcmp0(fl_method_call_get_name(method_call), "openUrl")' in source
+    assert 'g_ascii_strncasecmp(url, "https://", 8)' in source
+    assert "g_app_info_launch_default_for_uri" in source
+    assert '"Only valid HTTPS links may be opened."' in source
+    assert '"securewave-links-channel"' in source
+
+
 def test_runner_rejects_missing_malformed_and_outdated_helper_contracts():
     source = _runner_source()
 

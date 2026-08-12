@@ -22,6 +22,7 @@
 namespace {
 
 const char* kChannelName = "securewave/vpn";
+const char* kLinksChannelName = "securewave/links";
 const char* kHelperSocketPath = "/run/securewave/helper.sock";
 const char* kHelperDaemonPath = "/usr/local/libexec/securewave-helperd";
 const char* kHelperContractPath = "/usr/local/libexec/securewave-wg-quick.contract";
@@ -553,6 +554,57 @@ static void respond_success(FlMethodCall* method_call) {
   g_autoptr(FlMethodResponse) response = FL_METHOD_RESPONSE(
       fl_method_success_response_new(nullptr));
   fl_method_call_respond(method_call, response, nullptr);
+}
+
+static gboolean is_https_url(const gchar* url) {
+  if (!url || g_ascii_strncasecmp(url, "https://", 8) != 0 || url[8] == '\0') {
+    return FALSE;
+  }
+  for (const gchar* cursor = url; *cursor != '\0'; ++cursor) {
+    if (g_ascii_isspace(*cursor) || g_ascii_iscntrl(*cursor)) {
+      return FALSE;
+    }
+  }
+  const gchar* authority = url + 8;
+  const gchar* path = std::strchr(authority, '/');
+  const gchar* authority_end = path ? path : authority + std::strlen(authority);
+  if (authority == authority_end) {
+    return FALSE;
+  }
+  for (const gchar* cursor = authority; cursor < authority_end; ++cursor) {
+    if (*cursor == '@') {
+      return FALSE;
+    }
+  }
+  return TRUE;
+}
+
+static void handle_links_call(FlMethodChannel* channel,
+                              FlMethodCall* method_call,
+                              gpointer user_data) {
+  (void)channel;
+  (void)user_data;
+  if (g_strcmp0(fl_method_call_get_name(method_call), "openUrl") != 0) {
+    g_autoptr(FlMethodResponse) response = FL_METHOD_RESPONSE(
+        fl_method_not_implemented_response_new());
+    fl_method_call_respond(method_call, response, nullptr);
+    return;
+  }
+
+  const gchar* url = get_string_arg(fl_method_call_get_args(method_call), "url");
+  if (!is_https_url(url)) {
+    respond_error(method_call, "invalid_link",
+                  "Only valid HTTPS links may be opened.", nullptr);
+    return;
+  }
+
+  g_autoptr(GError) error = nullptr;
+  if (!g_app_info_launch_default_for_uri(url, nullptr, &error)) {
+    respond_error(method_call, "link_open_failed",
+                  "Unable to open the HTTPS link.", nullptr);
+    return;
+  }
+  respond_success(method_call);
 }
 
 static void respond_runtime_install_state(FlMethodCall* method_call) {
@@ -1232,6 +1284,15 @@ static void my_application_activate(GApplication* application) {
       handle_vpn_call,
       vpn_state,
       reinterpret_cast<GDestroyNotify>(vpn_channel_state_free));
+
+  FlMethodChannel* links_channel = fl_method_channel_new(
+      fl_engine_get_binary_messenger(engine),
+      kLinksChannelName,
+      FL_METHOD_CODEC(fl_standard_method_codec_new()));
+  fl_method_channel_set_method_call_handler(
+      links_channel, handle_links_call, nullptr, nullptr);
+  g_object_set_data_full(
+      G_OBJECT(view), "securewave-links-channel", links_channel, g_object_unref);
 
   gtk_widget_grab_focus(GTK_WIDGET(view));
   gtk_widget_show(GTK_WIDGET(window));

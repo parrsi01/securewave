@@ -255,6 +255,15 @@ class _SettingsScreen extends ConsumerWidget {
                 label: const Text('Open account portal'),
               ),
               const SizedBox(height: 10),
+              OutlinedButton.icon(
+                key: const ValueKey('settings-help-action'),
+                onPressed: () => ref
+                    .read(externalLinksProvider)
+                    .openUrl(AppConstants.supportUrlFallback),
+                icon: const Icon(Icons.help_outline_rounded),
+                label: const Text('Help'),
+              ),
+              const SizedBox(height: 10),
               FilledButton.icon(
                 onPressed: () => _signOut(context, ref),
                 icon: const Icon(Icons.logout_rounded),

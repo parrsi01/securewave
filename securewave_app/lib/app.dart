@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'core/bootstrap/boot_controller.dart';
 import 'core/config/app_config.dart';
+import 'core/constants/app_constants.dart';
 import 'core/logging/app_logger.dart';
 import 'core/models/protocol_availability.dart';
 import 'core/models/server_region.dart';
