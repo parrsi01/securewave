@@ -5,11 +5,11 @@ Last audited: 2026-08-21 UTC
 ## Local Linux ARM64 Beta candidate
 
 - Branch: `codex/linux-beta-release-candidate`
-- Source: `0c6a0e4d10b5ecc8d1d42c6724b96f892c0d9ca7`
+- Source: current branch HEAD; the exact SHA is embedded in the package below.
 - Base: `origin/master` at `f558d0337d5bd20d52cb94e8112746a4d818ab99`
 - Application/package version: `4.0.0+10`
 - Package: `securewave_app/build/packaging/securewave-vpn_4.0.0+10_arm64.deb`
-- Package SHA-256: `102e9e97d198a21c2bace69aa42d38a6d6b5ce040ab503495ac47b950c422d3c`
+- Package SHA-256: verify the adjacent `.deb.sha256` sidecar for this build.
 - Embedded package source state: `clean`
 - Helper contract: `13`
 - Publication, signing, deployment, merge, tag, and external acceptance: not performed.
