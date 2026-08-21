@@ -103,21 +103,15 @@ if missing:
     sys.exit(1)
 PY
 
-if ! test -f securewave_app/lib/ui/app_ui_v1.dart; then
-  echo "Missing Flutter UI v1.0 theme file" >&2
+if ! test -f securewave_app/lib/ui/sw_theme.dart ||
+   ! test -f securewave_app/lib/ui/sw_widgets.dart; then
+  echo "Missing current Flutter light UI files" >&2
   exit 1
 fi
 
 EXTRA_THEME_FILES=$(find securewave_app/lib/ui -maxdepth 1 -type f \
-  ! -name "app_ui_v1.dart" \
-  ! -name "app_haptics.dart" \
-  ! -name "auth_screen.dart" \
-  ! -name "catalog_screens.dart" \
-  ! -name "connect_screen.dart" \
-  ! -name "connection_widgets.dart" \
-  ! -name "main_shell.dart" \
-  ! -name "ui_models.dart" \
-  ! -name "ui_primitives.dart")
+  ! -name "sw_theme.dart" \
+  ! -name "sw_widgets.dart")
 if [[ -n "${EXTRA_THEME_FILES}" ]]; then
   echo "Unexpected Flutter UI files present:" >&2
   echo "${EXTRA_THEME_FILES}" >&2
@@ -125,15 +119,15 @@ if [[ -n "${EXTRA_THEME_FILES}" ]]; then
 fi
 
 if command -v rg >/dev/null 2>&1; then
-  if ! rg -q "AppUIv1.theme" securewave_app/lib/app.dart; then
-    echo "Flutter app is not using AppUIv1.theme" >&2
+  if ! rg -q "SwTheme.light" securewave_app/lib/app.dart; then
+    echo "Flutter app is not using the current light theme" >&2
     exit 1
   fi
 else
-  if ! grep -q "AppUIv1.theme" securewave_app/lib/app.dart; then
-    echo "Flutter app is not using AppUIv1.theme" >&2
+  if ! grep -q "SwTheme.light" securewave_app/lib/app.dart; then
+    echo "Flutter app is not using the current light theme" >&2
     exit 1
   fi
 fi
 
-echo "UI v1.0 guard checks passed"
+echo "Current Flutter light UI guard checks passed"

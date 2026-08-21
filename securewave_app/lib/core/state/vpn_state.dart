@@ -192,7 +192,26 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
     final storage = SecureStorage();
     final stored = await storage.getString(SecureStorage.vpnProtocolKey);
     if (!mounted) return;
-    state = state.copyWith(protocol: vpnProtocolFromStorage(stored));
+    final protocol = vpnProtocolFromStorage(stored);
+    if (protocol != VpnProtocol.wireGuard) {
+      await storage.delete(SecureStorage.vpnProtocolKey);
+      if (!mounted) return;
+      state = state.copyWith(protocol: VpnProtocol.wireGuard);
+      return;
+    }
+    state = state.copyWith(protocol: protocol);
+  }
+
+  Future<void> resetConnectionSelection() async {
+    await ensureInitialized();
+    if (state.isBusy) return;
+    state = state.copyWith(
+      protocol: VpnProtocol.wireGuard,
+      clearSelectedServer: true,
+    );
+    final storage = SecureStorage();
+    await storage.delete(SecureStorage.selectedServerKey);
+    await storage.delete(SecureStorage.vpnProtocolKey);
   }
 
   void selectServer(String? serverId) {

@@ -23,6 +23,8 @@ class SecureStorage {
     await _storage.write(key: _accessTokenKey, value: accessToken);
     if (refreshToken != null) {
       await _storage.write(key: _refreshTokenKey, value: refreshToken);
+    } else {
+      await _storage.delete(key: _refreshTokenKey);
     }
   }
 
@@ -37,7 +39,7 @@ class SecureStorage {
 
   Future<void> clearVpnRuntimeState() async {
     await _storage.delete(key: selectedServerKey);
-    await _storage.delete(key: vpnDeviceIdKey);
+    await _storage.delete(key: vpnProtocolKey);
     await _storage.delete(key: vpnProfileExpiresAtKey);
     await _storage.delete(key: vpnProfileConfigKeyFor('wireguard'));
     await _storage.delete(key: vpnProfileConfigKeyFor('openvpn'));

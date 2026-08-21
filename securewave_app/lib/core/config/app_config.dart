@@ -14,6 +14,7 @@ class AppConfig {
     required this.useMockApi,
     this.skipLoginForDevelopment = false,
     required this.resetSessionOnBoot,
+    this.autoLoginForTesting = false,
   });
 
   final String apiBaseUrl;
@@ -22,6 +23,7 @@ class AppConfig {
   final bool useMockApi;
   final bool skipLoginForDevelopment;
   final bool resetSessionOnBoot;
+  final bool autoLoginForTesting;
   static AppConfig? _cached;
 
   factory AppConfig.defaults() {
@@ -48,6 +50,10 @@ class AppConfig {
       ),
       skipLoginForDevelopment: false,
       resetSessionOnBoot: false,
+      autoLoginForTesting: _parseBool(const String.fromEnvironment(
+        'SECUREWAVE_AUTO_LOGIN',
+        defaultValue: 'false',
+      )),
     );
   }
 
@@ -115,6 +121,13 @@ class AppConfig {
             defaultValue: 'false',
           ),
     );
+    final autoLoginForTesting = _parseBool(
+      env['SECUREWAVE_AUTO_LOGIN'] ??
+          const String.fromEnvironment(
+            'SECUREWAVE_AUTO_LOGIN',
+            defaultValue: 'false',
+          ),
+    );
 
     _cached = AppConfig(
       apiBaseUrl: baseUrl,
@@ -123,6 +136,7 @@ class AppConfig {
       useMockApi: useMock,
       skipLoginForDevelopment: skipLoginForDevelopment,
       resetSessionOnBoot: resetSessionOnBoot,
+      autoLoginForTesting: autoLoginForTesting,
     );
     return _cached!;
   }
