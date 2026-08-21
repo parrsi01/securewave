@@ -97,6 +97,12 @@ mkdir -p \
   "$staging_dir/usr/share/securewave/release"
 
 cp -a "$bundle_dir/." "$staging_dir/usr/lib/securewave/"
+# The Flutter bundle also carries legacy portable-install payloads for other
+# protocol experiments. The authenticated Linux beta package is WireGuard
+# only; its postinst owns the helper lifecycle and must not ship those files.
+rm -f \
+  "$staging_dir/usr/lib/securewave/packaging/linux/securewave-strongswan-routing.conf" \
+  "$staging_dir/usr/lib/securewave/scripts/install_linux_helper.sh"
 install -m 0755 "$ROOT_DIR/packaging/linux/securewave-wg-quick" \
   "$staging_dir/usr/share/securewave/packaging/linux/securewave-wg-quick"
 install -m 0755 "$helperd_source" \
