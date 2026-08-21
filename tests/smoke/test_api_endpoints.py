@@ -64,6 +64,13 @@ class TestHealthEndpoints:
         assert "version" in data
         assert "environment" in data
 
+    def test_downloads_endpoint_contract(self, client: TestClient):
+        response = client.get("/api/downloads")
+        assert response.status_code == 200
+        data = response.json()
+        assert set(data) == {"version", "detected_platform", "downloads"}
+        assert isinstance(data["downloads"], list)
+
 
 class TestAuthEndpoints:
     """Authentication endpoints must accept proper request formats."""

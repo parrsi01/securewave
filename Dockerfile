@@ -51,7 +51,9 @@ EXPOSE 8080
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
-    CMD curl -f http://localhost:8080/api/health || exit 1
+    CMD curl -fsS http://localhost:8080/api/health >/dev/null \
+        && curl -fsS http://localhost:8080/api/downloads >/dev/null \
+        || exit 1
 
 # Run migrations and replace the shell with Gunicorn for correct signal handling.
 ENTRYPOINT ["securewave-entrypoint"]
