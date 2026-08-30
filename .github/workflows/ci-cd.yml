@@ -61,10 +61,12 @@ jobs:
               echo false
             fi
           }
-          echo "backend=$(classify '^(main\.py|routes/|routers/|services/|models/|database/|utils/|alembic/|requirements.*\.txt|Dockerfile|deploy/|infrastructure/|scripts/deploy_)')" >> "$GITHUB_OUTPUT"
-          echo "client=$(classify '^(securewave_app/|scripts/(build_apps|prepare_flutter_env|run_flutter_linux)\.sh)')" >> "$GITHUB_OUTPUT"
-          echo "website=$(classify '^(static/|templates/|scripts/verify_website\.sh)')" >> "$GITHUB_OUTPUT"
-          echo "security=$(classify '^(requirements.*\.txt|main\.py|routes/|routers/|services/|models/|database/|utils/|infrastructure/)')" >> "$GITHUB_OUTPUT"
+          {
+            echo "backend=$(classify '^(main\.py|routes/|routers/|services/|models/|database/|utils/|alembic/|requirements.*\.txt|Dockerfile|deploy/|infrastructure/|scripts/deploy_)')"
+            echo "client=$(classify '^(securewave_app/|scripts/(build_apps|prepare_flutter_env|run_flutter_linux)\.sh)')"
+            echo "website=$(classify '^(static/|templates/|scripts/verify_website\.sh)')"
+            echo "security=$(classify '^(requirements.*\.txt|main\.py|routes/|routers/|services/|models/|database/|utils/|infrastructure/)')"
+          } >> "$GITHUB_OUTPUT"
 
   repo-guards:
     name: Repository Guards
