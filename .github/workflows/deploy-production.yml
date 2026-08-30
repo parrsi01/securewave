@@ -1,0 +1,94 @@
+name: Deploy Production
+
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [master]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: securewave-production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Native systemd deployment
+    if: github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - name: Checkout the verified revision
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+          fetch-depth: 0
+
+      - name: Reject stale workflow results
+        id: current
+        env:
+          VERIFIED_SHA: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          set -euo pipefail
+          git fetch origin master
+          if [[ "$(git rev-parse origin/master)" != "$VERIFIED_SHA" ]]; then
+            echo "A newer master revision exists; skipping stale deployment."
+            echo "deploy=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "deploy=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Prepare protected SSH inputs
+        if: steps.current.outputs.deploy == 'true'
+        env:
+          SSH_KEY: ${{ secrets.SECUREWAVE_PRODUCTION_SSH_KEY }}
+          KNOWN_HOSTS: ${{ secrets.SECUREWAVE_PRODUCTION_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          test -n "$SSH_KEY"
+          test -n "$KNOWN_HOSTS"
+          install -m 600 /dev/null "$RUNNER_TEMP/securewave_deploy_key"
+          printf '%s\n' "$SSH_KEY" > "$RUNNER_TEMP/securewave_deploy_key"
+          install -m 600 /dev/null "$RUNNER_TEMP/securewave_known_hosts"
+          printf '%s\n' "$KNOWN_HOSTS" > "$RUNNER_TEMP/securewave_known_hosts"
+
+      - name: Resolve release version
+        if: steps.current.outputs.deploy == 'true'
+        id: release-version
+        run: |
+          set -euo pipefail
+          version="$(awk '/^version:/ {print $2; exit}' securewave_app/pubspec.yaml)"
+          test -n "$version"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+      - name: Deploy verified native release
+        if: steps.current.outputs.deploy == 'true'
+        env:
+          SECUREWAVE_PRODUCTION_HOST: ${{ vars.SECUREWAVE_PRODUCTION_HOST }}
+          SECUREWAVE_PRODUCTION_USER: ${{ vars.SECUREWAVE_PRODUCTION_USER }}
+          SECUREWAVE_PRODUCTION_RELEASE_ROOT: ${{ vars.SECUREWAVE_PRODUCTION_RELEASE_ROOT }}
+          SECUREWAVE_PRODUCTION_SERVICE: ${{ vars.SECUREWAVE_PRODUCTION_SERVICE }}
+          SECUREWAVE_PRODUCTION_LOCAL_URL: ${{ vars.SECUREWAVE_PRODUCTION_LOCAL_URL }}
+          SECUREWAVE_PRODUCTION_SSH_KEY_FILE: ${{ runner.temp }}/securewave_deploy_key
+          SECUREWAVE_PRODUCTION_KNOWN_HOSTS_FILE: ${{ runner.temp }}/securewave_known_hosts
+          SECUREWAVE_RELEASE_SHA: ${{ github.event.workflow_run.head_sha }}
+          SECUREWAVE_RELEASE_VERSION: ${{ steps.release-version.outputs.version }}
+        run: |
+          set -euo pipefail
+          bash scripts/deploy_native_production.sh
+
+      - name: Confirm public release identity
+        if: steps.current.outputs.deploy == 'true'
+        run: |
+          set -euo pipefail
+          for path in /api/health /api/ready /api/downloads /version; do
+            curl --fail --silent --show-error --retry 12 --retry-delay 2 \
+              "https://api.securewaveapp.com$path" >/dev/null
+          done
+          curl --fail --silent --show-error https://api.securewaveapp.com/version \
+            | python3 -c 'import json, os, sys; data=json.load(sys.stdin); assert data.get("version") == os.environ["EXPECTED_VERSION"]; assert data.get("commit") == os.environ["EXPECTED_SHA"]'
+        env:
+          EXPECTED_SHA: ${{ github.event.workflow_run.head_sha }}
+          EXPECTED_VERSION: ${{ steps.release-version.outputs.version }}

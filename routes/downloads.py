@@ -19,6 +19,7 @@ from typing import List, Literal, Optional
 from fastapi import APIRouter, Request, HTTPException
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, ConfigDict, ValidationError, field_validator, model_validator
+from utils.release_identity import get_release_identity
 
 logger = logging.getLogger(__name__)
 
@@ -31,7 +32,7 @@ public_router = APIRouter(tags=["downloads"])
 # Configuration
 # ---------------------------------------------------------------------------
 
-APP_VERSION = os.getenv("APP_VERSION", "1.0.0")
+APP_VERSION, _ = get_release_identity(default_version="1.0.0")
 DOWNLOADS_DIR = Path(__file__).resolve().parent.parent / "static" / "downloads"
 DOWNLOAD_MANIFEST_PATH = DOWNLOADS_DIR / "manifest.json"
 
@@ -51,6 +52,7 @@ class DownloadEntry(BaseModel):
     status: str  # "available" | "beta" | "coming_soon"
     notes: Optional[str] = None
     checksum_sha256: Optional[str] = None
+    source_sha: Optional[str] = None
     evidence_url: Optional[str] = None
     evidence_label: Optional[str] = None
 
@@ -67,13 +69,15 @@ class DownloadManifestEntry(BaseModel):
     architecture: str
     filename: str
     url: str
+    version: str
     status: DownloadStatus
     notes: str
     checksum_sha256: Optional[str] = None
+    source_sha: Optional[str] = None
     evidence_url: Optional[str] = None
     evidence_label: Optional[str] = None
 
-    @field_validator("platform", "architecture", "url", "notes")
+    @field_validator("platform", "architecture", "url", "version", "notes")
     @classmethod
     def validate_non_empty_text(cls, value: str) -> str:
         value = value.strip()
@@ -101,6 +105,16 @@ class DownloadManifestEntry(BaseModel):
         normalized = value.strip().lower()
         if len(normalized) != 64 or any(char not in "0123456789abcdef" for char in normalized):
             raise ValueError("checksum_sha256 must be 64 hexadecimal characters")
+        return normalized
+
+    @field_validator("source_sha")
+    @classmethod
+    def validate_source_sha(cls, value: Optional[str]) -> Optional[str]:
+        if value is None:
+            return None
+        normalized = value.strip().lower()
+        if len(normalized) != 40 or any(char not in "0123456789abcdef" for char in normalized):
+            raise ValueError("source_sha must be a full 40-character Git SHA")
         return normalized
 
     @model_validator(mode="after")
@@ -184,6 +198,7 @@ DEFAULT_DOWNLOAD_MANIFEST = [
         "architecture": "universal",
         "filename": "securewave-apple-release-handoff.zip",
         "url": "/downloads/securewave-apple-release-handoff.zip",
+        "version": APP_VERSION,
         "status": "available",
         "notes": "Mac/Xcode handoff kit for producing the signed macOS/iOS archive. Not a notarized app bundle.",
     },
@@ -192,6 +207,7 @@ DEFAULT_DOWNLOAD_MANIFEST = [
         "architecture": "arm64",
         "filename": "securewave-macos-arm64-ui-demo.zip",
         "url": "/downloads/securewave-macos-arm64-ui-demo.zip",
+        "version": APP_VERSION,
         "status": "available",
         "notes": "macOS UI demo app package. Build this on an Apple Silicon Mac with securewave_app/scripts/package_macos_ui_demo.sh; VPN tunneling is not enabled in the macOS demo.",
     },
@@ -200,6 +216,7 @@ DEFAULT_DOWNLOAD_MANIFEST = [
         "architecture": "x64",
         "filename": "securewave-macos-x64-ui-demo.zip",
         "url": "/downloads/securewave-macos-x64-ui-demo.zip",
+        "version": APP_VERSION,
         "status": "coming_soon",
         "notes": "macOS UI demo app package. Build this on an Intel Mac with securewave_app/scripts/package_macos_ui_demo.sh; VPN tunneling is not enabled in the macOS demo.",
     },
@@ -209,6 +226,7 @@ DEFAULT_DOWNLOAD_MANIFEST = [
         "architecture": "x64",
         "filename": "securewave-windows-x64-setup.exe",
         "url": "/downloads/securewave-windows-x64-setup.exe",
+        "version": APP_VERSION,
         "status": "coming_soon",
         "notes": "Windows 10+. NSIS installer (may be unsigned in early builds).",
     },
@@ -218,6 +236,7 @@ DEFAULT_DOWNLOAD_MANIFEST = [
         "architecture": "x64",
         "filename": "securewave-linux-x64.deb",
         "url": "#",
+        "version": APP_VERSION,
         "status": "coming_soon",
         "evidence_url": "https://github.com/parrsi01/securewave/actions/runs/29348878602",
         "evidence_label": "GitHub Actions build evidence",
@@ -229,6 +248,7 @@ DEFAULT_DOWNLOAD_MANIFEST = [
         "architecture": "x64",
         "filename": "securewave-linux-x64.AppImage",
         "url": "/downloads/securewave-linux-x64.AppImage",
+        "version": APP_VERSION,
         "status": "coming_soon",
         "notes": "Portable AppImage build (coming soon).",
     },
@@ -237,16 +257,20 @@ DEFAULT_DOWNLOAD_MANIFEST = [
         "architecture": "x64",
         "filename": "securewave-linux-x64.tar.gz",
         "url": "/downloads/securewave-linux-x64.tar.gz",
+        "version": APP_VERSION,
         "status": "available",
         "notes": "Portable tarball (x64).",
     },
     {
         "platform": "linux",
         "architecture": "arm64",
-        "filename": "securewave-app-linux-arm64.zip",
-        "url": "/downloads/securewave-app-linux-arm64.zip",
+        "filename": "securewave-vpn_4.0.0+10_arm64.deb",
+        "url": "/downloads/securewave-vpn_4.0.0+10_arm64.deb",
+        "version": "4.0.0+10",
         "status": "available",
-        "notes": "Portable zip (ARM64).",
+        "checksum_sha256": "749e8c4e37fea27023d9030181e5cc36c46ff2e5d60e00519fa16082853d540a",
+        "source_sha": "a4fcf9419d98d6b4fd78e8806993fb499ac408a7",
+        "notes": "SecureWave Linux ARM64 WireGuard Beta Debian package for Ubuntu 24.04.",
     },
     # Apple
     {
@@ -254,6 +278,7 @@ DEFAULT_DOWNLOAD_MANIFEST = [
         "architecture": "arm64",
         "filename": "",
         "url": "#",
+        "version": APP_VERSION,
         "status": "coming_soon",
         "notes": "Coming soon. Will be available on the Apple App Store / TestFlight.",
     },
@@ -263,6 +288,7 @@ DEFAULT_DOWNLOAD_MANIFEST = [
         "architecture": "universal",
         "filename": "securewave-android.apk",
         "url": "/downloads/securewave-android.apk",
+        "version": APP_VERSION,
         "status": "coming_soon",
         "notes": "Android 10+. APK link appears here when published.",
     },
@@ -401,12 +427,13 @@ def _build_download_entries() -> List[DownloadEntry]:
             architecture=item.architecture,
             filename=filename,
             url=url,
-            version=APP_VERSION,
+            version=item.version,
             size_bytes=size_bytes,
             size_display=size_display,
             status=status,
             notes=item.notes,
             checksum_sha256=item.checksum_sha256,
+            source_sha=item.source_sha,
             evidence_url=item.evidence_url,
             evidence_label=item.evidence_label,
         ))

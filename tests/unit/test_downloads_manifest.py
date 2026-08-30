@@ -15,17 +15,22 @@ def _manifest_row(
     architecture: str = "x64",
     url: str | None = None,
     checksum_sha256: str | None = None,
+    version: str = "4.0.0+10",
+    source_sha: str | None = None,
 ) -> dict:
     row = {
         "platform": platform,
         "architecture": architecture,
         "filename": filename,
         "url": url if url is not None else f"/downloads/{filename}",
+        "version": version,
         "status": status,
         "notes": "Focused download manifest test artifact.",
     }
     if checksum_sha256 is not None:
         row["checksum_sha256"] = checksum_sha256
+    if source_sha is not None:
+        row["source_sha"] = source_sha
     return row
 
 
@@ -178,6 +183,37 @@ def test_available_local_file_requires_matching_checksum(monkeypatch, tmp_path, 
     response = client.get("/api/downloads/file/trusted.bin")
     assert response.status_code == 200
     assert response.content == content
+
+
+def test_download_entry_uses_artifact_version_and_source_sha(monkeypatch, tmp_path, client):
+    content = b"versioned artifact"
+    checksum = hashlib.sha256(content).hexdigest()
+    source_sha = "a" * 40
+    rows = [
+        _manifest_row(
+            "versioned.deb",
+            checksum_sha256=checksum,
+            version="4.0.0+10",
+            source_sha=source_sha,
+        )
+    ]
+    downloads_dir = _configure_downloads(monkeypatch, tmp_path, rows)
+    (downloads_dir / "versioned.deb").write_bytes(content)
+
+    [entry] = client.get("/api/downloads").json()["downloads"]
+
+    assert entry["version"] == "4.0.0+10"
+    assert entry["source_sha"] == source_sha
+
+
+def test_invalid_artifact_source_sha_is_rejected(monkeypatch, tmp_path, client):
+    rows = [_manifest_row("invalid.deb", source_sha="abc")]
+    _configure_downloads(monkeypatch, tmp_path, rows)
+
+    response = client.get("/api/downloads")
+
+    assert response.status_code == 200
+    assert response.json()["downloads"] == []
 
 
 def test_checksum_mismatch_fails_closed_for_listing_and_serving(monkeypatch, tmp_path, client):

@@ -1,6 +1,6 @@
 # SecureWave - Current Release Status
 
-Last audited: 2026-08-21 UTC
+Last updated: 2026-08-30 UTC
 
 ## Local Linux ARM64 Beta candidate
 
@@ -9,15 +9,15 @@ Last audited: 2026-08-21 UTC
 - Base: `origin/master` at `f558d0337d5bd20d52cb94e8112746a4d818ab99`
 - Application/package version: `4.0.0+10`
 - Existing package: `securewave_app/build/packaging/securewave-vpn_4.0.0+10_arm64.deb`
-- Existing package SHA-256: `9b170999845b6f53d22288058b314d42eda70938f4c1b37126ea20cef1ebc8fc`
+- Existing package SHA-256: `749e8c4e37fea27023d9030181e5cc36c46ff2e5d60e00519fa16082853d540a`
 - Package metadata: `securewave-vpn`, version `4.0.0+10`, architecture `arm64`
-- Embedded package source state: clean source at `9c5921af75dd2478cb6c57b33e26a088c410faba`
+- Embedded package source state: clean source at `a4fcf9419d98d6b4fd78e8806993fb499ac408a7`
 - Helper contract: `13`
-- Publication, signing, deployment, merge, tag, installation, and external acceptance: not performed.
+- The corrected package is represented independently in download metadata;
+  public publication and external acceptance remain separate release actions.
 
-The internal remediation changes backend container/deployment checks, focused
-tests, and this status report only. No Flutter or Debian package source was
-changed, so no replacement package was built.
+The current automation changes do not rebuild the package or alter its bytes.
+Backend deployments preserve the native systemd/Gunicorn release architecture.
 
 ## Intended scope
 

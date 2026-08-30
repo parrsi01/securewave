@@ -21,6 +21,7 @@ from sqlalchemy import text
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
+from utils.release_identity import get_release_identity
 from slowapi.middleware import SlowAPIMiddleware
 
 from database.session import SessionLocal
@@ -523,9 +524,10 @@ def readiness():
 
 @app.get("/version")
 def version():
+    release_version, release_commit = get_release_identity()
     return {
-        "version": os.getenv("APP_VERSION", "dev"),
-        "commit": os.getenv("GIT_SHA", ""),
+        "version": release_version,
+        "commit": release_commit,
         "environment": os.getenv("ENVIRONMENT", "development"),
     }
 

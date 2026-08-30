@@ -6,6 +6,7 @@
       "architecture": "universal",
       "filename": "securewave-apple-release-handoff.zip",
       "url": "/downloads/securewave-apple-release-handoff.zip",
+      "version": "4.0.0+10",
       "status": "available",
       "notes": "Mac/Xcode handoff kit for producing the signed macOS/iOS archive. Not a notarized app bundle."
     },
@@ -14,6 +15,7 @@
       "architecture": "arm64",
       "filename": "securewave-macos-arm64-ui-demo.zip",
       "url": "/downloads/securewave-macos-arm64-ui-demo.zip",
+      "version": "4.0.0+10",
       "status": "available",
       "notes": "macOS UI demo app package. Build this on an Apple Silicon Mac with securewave_app/scripts/package_macos_ui_demo.sh; VPN tunneling is not enabled in the macOS demo."
     },
@@ -22,6 +24,7 @@
       "architecture": "x64",
       "filename": "securewave-macos-x64-ui-demo.zip",
       "url": "/downloads/securewave-macos-x64-ui-demo.zip",
+      "version": "4.0.0+10",
       "status": "coming_soon",
       "notes": "macOS UI demo app package. Build this on an Intel Mac with securewave_app/scripts/package_macos_ui_demo.sh; VPN tunneling is not enabled in the macOS demo."
     },
@@ -30,6 +33,7 @@
       "architecture": "x64",
       "filename": "securewave-windows-x64-setup.exe",
       "url": "/downloads/securewave-windows-x64-setup.exe",
+      "version": "4.0.0+10",
       "status": "coming_soon",
       "notes": "Windows installer appears here after the Windows release runner publishes it."
     },
@@ -38,6 +42,7 @@
       "architecture": "x64",
       "filename": "securewave-linux-x64.deb",
       "url": "#",
+      "version": "4.0.0+10",
       "status": "coming_soon",
       "evidence_url": "https://github.com/parrsi01/securewave/actions/runs/29348878602",
       "evidence_label": "GitHub Actions build evidence",
@@ -49,6 +54,7 @@
       "architecture": "x64",
       "filename": "securewave-linux-x64.AppImage",
       "url": "/downloads/securewave-linux-x64.AppImage",
+      "version": "4.0.0+10",
       "status": "coming_soon",
       "notes": "Portable AppImage appears here after the Linux release runner publishes it."
     },
@@ -57,22 +63,27 @@
       "architecture": "x64",
       "filename": "securewave-linux-x64.tar.gz",
       "url": "/downloads/securewave-linux-x64.tar.gz",
+      "version": "4.0.0+10",
       "status": "available",
       "notes": "Portable Linux tarball."
     },
     {
       "platform": "linux",
       "architecture": "arm64",
-      "filename": "securewave-app-linux-arm64.zip",
-      "url": "/downloads/securewave-app-linux-arm64.zip",
+      "filename": "securewave-vpn_4.0.0+10_arm64.deb",
+      "url": "/downloads/securewave-vpn_4.0.0+10_arm64.deb",
+      "version": "4.0.0+10",
       "status": "available",
-      "notes": "Portable Linux ARM64 zip."
+      "checksum_sha256": "749e8c4e37fea27023d9030181e5cc36c46ff2e5d60e00519fa16082853d540a",
+      "source_sha": "a4fcf9419d98d6b4fd78e8806993fb499ac408a7",
+      "notes": "SecureWave Linux ARM64 WireGuard Beta Debian package for Ubuntu 24.04."
     },
     {
       "platform": "android",
       "architecture": "universal",
       "filename": "securewave-android.apk",
       "url": "/downloads/securewave-android.apk",
+      "version": "4.0.0+10",
       "status": "coming_soon",
       "notes": "Android APK appears here after the Android release runner publishes it."
     },
@@ -81,6 +92,7 @@
       "architecture": "arm64",
       "filename": "",
       "url": "#",
+      "version": "4.0.0+10",
       "status": "coming_soon",
       "notes": "iOS is distributed through TestFlight/App Store after Apple Network Extension approval."
     }
