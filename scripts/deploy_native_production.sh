@@ -130,10 +130,14 @@ printf '{"version":"%s","commit":"%s"}\n' "$release_version" "$release_sha" > "$
 printf 'APP_VERSION=%s\nGIT_SHA=%s\n' "$release_version" "$release_sha" > "$release/.release.env"
 ln -s "$shared/.env" "$release/.env"
 
-# Preserve already-published immutable download bytes. Manifest metadata comes
-# from the new release; artifacts remain unchanged unless published separately.
-if [[ -d "$previous/static/downloads" ]]; then
-  find "$previous/static/downloads" -maxdepth 1 -type f ! -name manifest.json -exec cp -p {} "$release/static/downloads/" \;
+# Copy separately published immutable download bytes from shared storage. Keep
+# the previous release as a compatibility fallback for hosts not yet migrated.
+download_source="$shared/downloads"
+if [[ ! -d "$download_source" ]]; then
+  download_source="$previous/static/downloads"
+fi
+if [[ -d "$download_source" ]]; then
+  find "$download_source" -maxdepth 1 -type f ! -name manifest.json -exec cp -p {} "$release/static/downloads/" \;
 fi
 
 python3 -m venv "$release/.venv"
