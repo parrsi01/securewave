@@ -6,6 +6,11 @@ SecureWave production remains a native Gunicorn service managed by
 `/opt/securewave-beta/current` symlink. The workflow refuses to deploy if that
 contract is not already present.
 
+Published client packages are stored separately under
+`/opt/securewave-beta/shared/downloads`. A native application release copies
+those immutable bytes into its static download directory and rejects activation
+when their checksums do not match the source-controlled manifest.
+
 The GitHub `production` environment requires these repository environment
 variables:
 
@@ -40,4 +45,4 @@ symlink so each restart reports the activated release identity. A failed
 activation restores the previous release pointer.
 
 Client `.deb` publication remains explicit. A backend or website deployment
-does not rebuild or silently replace client package bytes.
+does not rebuild or silently replace the bytes in shared artifact storage.

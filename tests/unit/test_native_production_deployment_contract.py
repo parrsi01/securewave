@@ -22,3 +22,15 @@ def test_native_production_requirements_cover_import_time_dependencies() -> None
     assert "PyJWT==2.13.0" in requirements
     assert "pyotp==2.9.0" in requirements
     assert "Jinja2==3.1.6" in requirements
+
+
+def test_native_deploy_prefers_shared_immutable_downloads() -> None:
+    script = (PROJECT_ROOT / "scripts" / "deploy_native_production.sh").read_text(
+        encoding="utf-8"
+    )
+
+    shared_source = 'download_source="$shared/downloads"'
+    legacy_source = 'download_source="$previous/static/downloads"'
+    assert shared_source in script
+    assert legacy_source in script
+    assert script.index(shared_source) < script.index(legacy_source)
