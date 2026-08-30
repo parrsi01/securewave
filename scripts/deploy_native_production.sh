@@ -180,7 +180,8 @@ sudo systemctl restart "$service"
 sudo systemctl is-active --quiet "$service"
 
 for path in /api/health /api/ready /api/downloads /version; do
-  curl --fail --silent --show-error --retry 12 --retry-delay 2 "$local_url$path" >/dev/null
+  curl --fail --silent --show-error --retry 12 --retry-delay 2 \
+    --retry-connrefused "$local_url$path" >/dev/null
 done
 observed="$(curl --fail --silent --show-error "$local_url/version")"
 python3 - "$release_version" "$release_sha" "$observed" <<'PY'
@@ -199,7 +200,8 @@ echo "Native production activation passed: $release_sha"
 REMOTE
 
 for path in /api/health /api/ready /api/downloads /version; do
-  curl --fail --silent --show-error --retry 12 --retry-delay 2 "$public_url$path" >/dev/null
+  curl --fail --silent --show-error --retry 12 --retry-delay 2 \
+    --retry-connrefused "$public_url$path" >/dev/null
 done
 public_identity="$(curl --fail --silent --show-error "$public_url/version")"
 python3 - "$SECUREWAVE_RELEASE_VERSION" "$SECUREWAVE_RELEASE_SHA" "$public_identity" <<'PY'

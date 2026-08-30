@@ -85,7 +85,7 @@ jobs:
           set -euo pipefail
           for path in /api/health /api/ready /api/downloads /version; do
             curl --fail --silent --show-error --retry 12 --retry-delay 2 \
-              "https://api.securewaveapp.com$path" >/dev/null
+              --retry-connrefused "https://api.securewaveapp.com$path" >/dev/null
           done
           curl --fail --silent --show-error https://api.securewaveapp.com/version \
             | python3 -c 'import json, os, sys; data=json.load(sys.stdin); assert data.get("version") == os.environ["EXPECTED_VERSION"]; assert data.get("commit") == os.environ["EXPECTED_SHA"]'
