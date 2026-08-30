@@ -9,7 +9,7 @@ def _read_page(name: str) -> str:
 
 
 def test_home_page_loads():
-    html = _read_page("home.html")
+    html = _read_page("index.html")
     assert "SecureWave" in html
     assert "Download" in html
 

@@ -17,6 +17,7 @@ from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.staticfiles import StaticFiles
+from release_metadata import get_app_version
 from sqlalchemy import text
 from slowapi import Limiter
 from slowapi.util import get_remote_address
@@ -131,7 +132,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title="SecureWave VPN",
-    version="1.0.0",
+    version=get_app_version(),
     docs_url="/api/docs" if docs_enabled else None,
     redoc_url="/api/redoc" if docs_enabled else None,
     openapi_url="/api/openapi.json" if docs_enabled else None,
@@ -535,7 +536,9 @@ def version():
 static_directory = Path(__file__).resolve().parent / "static"
 
 page_routes = {
-    "/home": "home.html",
+    "/home": "index.html",
+    "/home.html": "index.html",
+    "/favicon.svg": "favicon.svg",
     "/login": "login.html",
     "/register": "register.html",
     "/dashboard": "dashboard.html",
@@ -556,7 +559,7 @@ page_routes = {
 }
 
 html_pages = [
-    "index.html", "home.html", "login.html", "register.html",
+    "index.html", "login.html", "register.html",
     "dashboard.html", "vpn.html", "services.html", "subscription.html", "download.html", "leak_test.html",
     "about.html", "contact.html", "privacy.html", "terms.html",
     "settings.html", "diagnostics.html"

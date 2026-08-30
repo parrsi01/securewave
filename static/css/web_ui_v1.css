@@ -3,6 +3,8 @@
    Single-stylesheet build (CI guard: web_ui_v1.css only).
    Sections: tokens / base / nav / hero / sections / features /
    pricing / footer / legacy page components / responsive
+   Design contract: docs/WEBSITE_DESIGN_LOCK.md. Version and download
+   updates must not replace this black/navy and cyan visual system.
    ════════════════════════════════════════════════════════════ */
 
 /* Self-hosted fonts (CSP: font-src 'self') */

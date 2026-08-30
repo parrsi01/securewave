@@ -244,12 +244,11 @@ document.addEventListener('DOMContentLoaded', () => {
       node(135, 375, 'AUTH', M, 'pending', M) +
       node(135, 185, 'CLIENT', A, 'active', A) +
       protoLabel(217, 232, 'WG', A) +
-      protoLabel(300, 185, 'IKEv2', G) +
-      protoLabel(382, 232, 'OVPN', M) +
+      protoLabel(300, 185, 'DNS', G) +
+      protoLabel(382, 232, 'LOCKED', M) +
       '<circle r="4" fill="' + A + '" filter="url(#nvglow)"><animateMotion dur="2.4s" repeatCount="indefinite"><mpath href="#nv-client"/></animateMotion></circle>' +
       '<circle r="3.5" fill="' + G + '" filter="url(#nvglow)"><animateMotion dur="2s" begin="0.8s" repeatCount="indefinite"><mpath href="#nv-dns"/></animateMotion></circle>' +
       '<circle r="3" fill="' + A + '" opacity="0.6"><animateMotion dur="2.4s" begin="1.4s" repeatCount="indefinite"><mpath href="#nv-client-r"/></animateMotion></circle>' +
-      '<circle r="2.5" fill="' + S + '"><animateMotion dur="3s" begin="0.3s" repeatCount="indefinite"><mpath href="#nv-srv"/></animateMotion></circle>' +
       '</svg>';
   }
 

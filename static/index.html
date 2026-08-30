@@ -53,7 +53,7 @@
             <a class="cta-secondary" href="/download.html">Download client</a>
           </div>
           <div class="hero-stats">
-            <div class="stat"><span class="v">3</span><span class="l">VPN protocols</span></div>
+            <div class="stat"><span class="v">1</span><span class="l">Release protocol</span></div>
             <div class="stat"><span class="v">5 GB</span><span class="l">Free transfer</span></div>
             <div class="stat"><span class="v">1</span><span class="l">Account surface</span></div>
           </div>
@@ -165,20 +165,16 @@
               <circle r="2.5" fill="#00b4ff" opacity="0.6"><animateMotion dur="2.7s" begin="0.9s" repeatCount="indefinite"><mpath href="#wgpath"/></animateMotion></circle>
               <line x1="14" y1="73" x2="466" y2="73" stroke="#0f1e3a"/>
               <text x="14" y="94" font-family="JetBrains Mono, monospace" font-size="11" fill="#4a72a8">OVPN</text>
-              <text x="14" y="108" font-family="JetBrains Mono, monospace" font-size="7" fill="#1a3055">OpenVPN &#183; restrictive networks</text>
-              <path id="ovpnpath" d="M80,98 L120,88 L160,108 L200,88 L240,108 L280,88 L320,108 L360,88 L400,108 L450,98" stroke="#4a72a8" stroke-width="1.5" fill="none" opacity="0.6"/>
-              <circle r="3" fill="#4a72a8"><animateMotion dur="3.5s" repeatCount="indefinite"><mpath href="#ovpnpath"/></animateMotion></circle>
+              <text x="14" y="108" font-family="JetBrains Mono, monospace" font-size="7" fill="#1a3055">OpenVPN &#183; unavailable</text>
+              <path d="M80,98 L450,98" stroke="#1a3055" stroke-width="1" fill="none" stroke-dasharray="5 5"/>
               <line x1="14" y1="127" x2="466" y2="127" stroke="#0f1e3a"/>
-              <text x="14" y="148" font-family="JetBrains Mono, monospace" font-size="11" fill="#00e5a0">IKEv2</text>
-              <text x="14" y="162" font-family="JetBrains Mono, monospace" font-size="7" fill="#1a3055">mobile continuity</text>
-              <path id="ikepath" d="M80,152 L200,152 Q220,152 220,160 Q220,168 240,168 L450,168" stroke="#00e5a0" stroke-width="1.5" fill="none"/>
-              <text x="186" y="144" font-family="JetBrains Mono, monospace" font-size="7" fill="#1a3055">wi-fi</text>
-              <text x="246" y="182" font-family="JetBrains Mono, monospace" font-size="7" fill="#1a3055">cellular</text>
-              <circle r="3" fill="#00e5a0"><animateMotion dur="3s" repeatCount="indefinite"><mpath href="#ikepath"/></animateMotion></circle>
+              <text x="14" y="148" font-family="JetBrains Mono, monospace" font-size="11" fill="#1a3055">IKEv2</text>
+              <text x="14" y="162" font-family="JetBrains Mono, monospace" font-size="7" fill="#1a3055">unavailable</text>
+              <path d="M80,158 L450,158" stroke="#1a3055" stroke-width="1" fill="none" stroke-dasharray="5 5"/>
             </svg>
             <span class="tag">Private transport</span>
-            <h3>Three protocol paths, one account.</h3>
-            <p>WireGuard for daily speed, OpenVPN for restrictive networks, IKEv2 for mobile continuity. The right path is visible before you need support to find it.</p>
+            <h3>WireGuard first, unsupported paths stay locked.</h3>
+            <p>WireGuard is the current release path. OpenVPN and IKEv2 remain visibly unavailable until their normal backend and client flows are proven end to end.</p>
           </div>
           <div class="feat-side">
             <div class="feat-sub reveal">
@@ -236,7 +232,7 @@
             <span class="plan-cycle">Forever &#183; No card needed</span>
             <ul class="plan-feats">
               <li>5 GB monthly transfer</li>
-              <li>3 protocol paths</li>
+              <li>WireGuard routing</li>
               <li>Device management</li>
               <li>Diagnostics + leak test</li>
               <li class="off">Priority support</li>
@@ -250,7 +246,7 @@
             <span class="plan-cycle">Per month &#183; Billed annually</span>
             <ul class="plan-feats">
               <li>Unlimited transfer</li>
-              <li>3 protocol paths</li>
+              <li>WireGuard routing</li>
               <li>Device management</li>
               <li>Diagnostics + leak test</li>
               <li>Priority support</li>
