@@ -248,6 +248,14 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements_dev.txt
 
+      - name: Verify native production dependency set
+        run: |
+          python -m venv "$RUNNER_TEMP/securewave-production-venv"
+          "$RUNNER_TEMP/securewave-production-venv/bin/pip" install \
+            --disable-pip-version-check -r requirements_production.txt
+          TESTING=true AUTO_CREATE_TABLES=false DEMO_MODE=true WG_MOCK_MODE=true \
+            "$RUNNER_TEMP/securewave-production-venv/bin/python" -c "import main"
+
       - name: Apply and verify Alembic schema
         run: |
           python - <<'PY'
