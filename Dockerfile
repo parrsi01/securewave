@@ -25,6 +25,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy backend application
 COPY main.py .
 COPY background_tasks.py .
+COPY release_metadata.py .
 COPY alembic.ini .
 COPY database/ ./database/
 COPY infrastructure/ ./infrastructure/

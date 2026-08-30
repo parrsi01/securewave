@@ -5,6 +5,7 @@
 !requirements.txt
 !main.py
 !background_tasks.py
+!release_metadata.py
 !alembic.ini
 
 !alembic/
