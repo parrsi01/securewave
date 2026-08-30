@@ -83,6 +83,25 @@ document.addEventListener('DOMContentLoaded', () => {
   const yearEl = document.querySelector('[data-year]');
   if (yearEl) yearEl.textContent = new Date().getFullYear();
 
+  /* ── Live deployed version ── */
+  const footerBottom = document.querySelector('.footer-bottom');
+  if (footerBottom && !footerBottom.querySelector('[data-site-version]')) {
+    fetch('/version', { cache: 'no-store' })
+      .then((res) => res.ok ? res.json() : null)
+      .then((release) => {
+        if (!release || typeof release.version !== 'string' || !release.version.trim()) return;
+        const commit = typeof release.commit === 'string' && /^[0-9a-f]{7,40}$/i.test(release.commit)
+          ? ` · build ${release.commit.slice(0, 7)}`
+          : '';
+        const version = document.createElement('span');
+        version.dataset.siteVersion = 'true';
+        version.textContent = `v${release.version}${commit}`;
+        version.setAttribute('aria-label', `Deployed version ${release.version}`);
+        footerBottom.append(document.createTextNode(' · '), version);
+      })
+      .catch(() => {});
+  }
+
   /* ── Scroll reveal animations ── */
   const revealEls = document.querySelectorAll('.reveal');
   if (revealEls.length > 0 && 'IntersectionObserver' in window) {
