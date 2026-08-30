@@ -9,14 +9,24 @@ final externalLinksProvider =
 class ExternalLinksService {
   static const MethodChannel _channel = MethodChannel('securewave/links');
 
-  Future<void> openUrl(String url) async {
+  Future<bool> openUrl(String url) async {
+    final uri = Uri.tryParse(url);
+    if (uri == null ||
+        uri.scheme.toLowerCase() != 'https' ||
+        uri.host.isEmpty ||
+        uri.userInfo.isNotEmpty) {
+      AppLogger.warning('Blocked an invalid external link request.');
+      return false;
+    }
     try {
-      await _channel.invokeMethod('openUrl', {'url': url});
-    } on PlatformException catch (error, stackTrace) {
-      AppLogger.error('Failed to open URL',
-          error: error, stackTrace: stackTrace);
+      return await _channel.invokeMethod<bool>('openUrl', {'url': url}) ??
+          false;
+    } on PlatformException {
+      AppLogger.warning('External link request failed.');
+      return false;
     } on MissingPluginException {
-      AppLogger.warning('Link channel not ready. URL: $url');
+      AppLogger.warning('External link channel is not ready.');
+      return false;
     }
   }
 }

@@ -52,7 +52,7 @@ services:
       test:
         [
           "CMD-SHELL",
-          "curl -fsS http://localhost:8080/api/health >/dev/null && curl -fsS http://localhost:8080/downloads/manifest.json >/dev/null",
+          "curl -fsS http://localhost:8080/api/health >/dev/null && curl -fsS http://localhost:8080/api/downloads >/dev/null && curl -fsS http://localhost:8080/downloads/manifest.json >/dev/null",
         ]
       interval: 30s
       timeout: 10s

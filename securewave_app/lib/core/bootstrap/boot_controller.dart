@@ -7,7 +7,6 @@ import '../config/app_config.dart';
 import '../logging/app_logger.dart';
 import '../services/auth_session.dart';
 import '../services/secure_storage.dart';
-import '../state/vpn_state.dart';
 
 enum BootStatus { initializing, ready, failed }
 
@@ -92,16 +91,17 @@ class BootController extends ChangeNotifier {
       }
     }
 
-    // Step 2: Restore VPN server selection (can fail gracefully)
+    // Step 2: Clear legacy server selection (the Linux beta has one
+    // WireGuard server and intentionally uses auto-selection).
     try {
       final selectedServer =
           await storage.getString(SecureStorage.selectedServerKey);
       if (selectedServer != null) {
-        _ref.read(vpnStateProvider.notifier).selectServer(selectedServer);
-        AppLogger.info('Boot: restored server $selectedServer');
+        await storage.delete(SecureStorage.selectedServerKey);
+        AppLogger.info('Boot: cleared legacy server selection');
       }
     } catch (error) {
-      AppLogger.warning('Boot: could not restore server selection');
+      AppLogger.warning('Boot: could not clear legacy server selection');
     }
 
     // Step 3: (reserved for future security posture initialization)

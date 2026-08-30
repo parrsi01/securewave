@@ -22,6 +22,7 @@
 namespace {
 
 const char* kChannelName = "securewave/vpn";
+const char* kLinksChannelName = "securewave/links";
 const char* kHelperSocketPath = "/run/securewave/helper.sock";
 const char* kHelperDaemonPath = "/usr/local/libexec/securewave-helperd";
 const char* kHelperContractPath = "/usr/local/libexec/securewave-wg-quick.contract";
@@ -53,6 +54,10 @@ typedef struct {
 } VpnChannelState;
 
 typedef struct {
+  FlMethodChannel* channel;
+} LinksChannelState;
+
+typedef struct {
   gboolean ok;
   Fields fields;
 } HelperResponse;
@@ -71,6 +76,14 @@ static void vpn_channel_state_free(VpnChannelState* state) {
   g_free(state);
 }
 
+static void links_channel_state_free(LinksChannelState* state) {
+  if (!state) {
+    return;
+  }
+  g_clear_object(&state->channel);
+  g_free(state);
+}
+
 static const gchar* get_string_arg(FlValue* args, const gchar* key) {
   if (!args || fl_value_get_type(args) != FL_VALUE_TYPE_MAP) {
     return nullptr;
@@ -82,6 +95,12 @@ static const gchar* get_string_arg(FlValue* args, const gchar* key) {
   return fl_value_get_string(value);
 }
 
+static void respond_error(
+    FlMethodCall* method_call,
+    const gchar* code,
+    const gchar* message,
+    FlValue* details);
+
 static gboolean get_bool_arg(FlValue* args, const gchar* key) {
   if (!args || fl_value_get_type(args) != FL_VALUE_TYPE_MAP) {
     return FALSE;
@@ -91,6 +110,57 @@ static gboolean get_bool_arg(FlValue* args, const gchar* key) {
     return FALSE;
   }
   return fl_value_get_bool(value);
+}
+
+static gboolean is_safe_external_url(const gchar* url) {
+  if (!url || *url == '\0') {
+    return FALSE;
+  }
+  g_autoptr(GError) error = nullptr;
+  g_autoptr(GUri) uri = g_uri_parse(url, G_URI_FLAGS_NONE, &error);
+  if (!uri || g_ascii_strcasecmp(g_uri_get_scheme(uri), "https") != 0 ||
+      !g_uri_get_host(uri) || g_uri_get_host(uri)[0] == '\0' ||
+      g_uri_get_userinfo(uri) != nullptr) {
+    return FALSE;
+  }
+  return TRUE;
+}
+
+static void handle_links_call(FlMethodChannel* channel,
+                              FlMethodCall* method_call,
+                              gpointer user_data) {
+  (void)channel;
+  (void)user_data;
+  if (g_strcmp0(fl_method_call_get_name(method_call), "openUrl") != 0) {
+    g_autoptr(FlMethodResponse) response = FL_METHOD_RESPONSE(
+        fl_method_not_implemented_response_new());
+    fl_method_call_respond(method_call, response, nullptr);
+    return;
+  }
+
+  const gchar* url = get_string_arg(fl_method_call_get_args(method_call), "url");
+  if (!is_safe_external_url(url)) {
+    respond_error(
+        method_call,
+        "invalid_url",
+        "Only external HTTPS URLs without user information are allowed.",
+        nullptr);
+    return;
+  }
+
+  g_autoptr(GError) error = nullptr;
+  if (!g_app_info_launch_default_for_uri(url, nullptr, &error)) {
+    respond_error(
+        method_call,
+        "link_open_failed",
+        error && error->message ? error->message : "Unable to open external link.",
+        nullptr);
+    return;
+  }
+
+  g_autoptr(FlMethodResponse) response = FL_METHOD_RESPONSE(
+      fl_method_success_response_new(fl_value_new_bool(TRUE)));
+  fl_method_call_respond(method_call, response, nullptr);
 }
 
 static std::string field(const Fields& fields, const std::string& key) {
@@ -1264,6 +1334,17 @@ static void my_application_activate(GApplication* application) {
       handle_vpn_call,
       vpn_state,
       reinterpret_cast<GDestroyNotify>(vpn_channel_state_free));
+
+  LinksChannelState* links_state = g_new0(LinksChannelState, 1);
+  links_state->channel = fl_method_channel_new(
+      fl_engine_get_binary_messenger(engine),
+      kLinksChannelName,
+      FL_METHOD_CODEC(fl_standard_method_codec_new()));
+  fl_method_channel_set_method_call_handler(
+      links_state->channel,
+      handle_links_call,
+      links_state,
+      reinterpret_cast<GDestroyNotify>(links_channel_state_free));
 
   gtk_widget_grab_focus(GTK_WIDGET(view));
   gtk_widget_show(GTK_WIDGET(window));

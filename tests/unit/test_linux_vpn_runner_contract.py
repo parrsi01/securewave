@@ -136,61 +136,42 @@ def test_runner_reports_portable_ui_only_and_deb_runtime_install_state():
     assert "the app will not request administrator privileges at connect time" in source
 
 
-def test_linux_package_installs_privileged_helper_service_and_dependencies():
+def test_linux_package_installs_wireguard_helper_service_and_dependencies():
     helper = HELPER.read_text(encoding="utf-8")
     helper_contract = HELPER_CONTRACT.read_text(encoding="utf-8").strip()
     build = BUILD_DEB.read_text(encoding="utf-8")
 
-    assert (
-        "securewave-wg-quick openvpn-start <config-path> <pid-path> <log-path> [auth-path]"
-        in helper
-    )
+    assert "securewave-wg-quick probe" in helper
+    assert "securewave-wg-quick up|down" not in helper
     assert "wireguard-transfer" in helper
     assert "xfrm-state" in helper
     assert "require_safe_config_path()" in helper
     assert "require_sw_wg_iface()" in helper
     assert 'if [[ "$iface" != "sw-wg" ]]' in helper
-    assert '--log "$log_file"' in helper
     assert "prepare_owned_runtime_file" in helper
-    assert 'prepare_owned_runtime_file "$pid_file" "pid" "$config"' in helper
-    assert 'prepare_owned_runtime_file "$log_file" "log" "$config"' in helper
     assert helper_contract == "13"
-    assert '--dev "$OPENVPN_INTERFACE"' in helper
-    assert 'resolvectl dns "$OPENVPN_INTERFACE"' in helper
-    assert "resolvectl domain \"$OPENVPN_INTERFACE\" '~.'" in helper
-    assert 'resolvectl revert "$OPENVPN_INTERFACE"' in helper
-    assert 'if [[ "$action" == "ikev2-set-dns" ]]' in helper
-    assert "ipv4.ignore-auto-dns yes" in helper
-    assert "ipv6.ignore-auto-dns yes" in helper
-    assert "ipv4.dns-priority -50" in helper
-    assert "ipv6.dns-priority -50" in helper
     assert "securewave-helper.service" in build
     assert "securewave-helper.tmpfiles" in build
     assert "securewave-helperd" in build
     assert "securewave-wg-quick.contract" in build
-    assert "securewave-strongswan-routing.conf" in build
-    assert "systemctl enable --now securewave-helper.service" in build
+    assert "systemctl enable securewave-helper.service" in build
+    assert "systemctl restart securewave-helper.service" in build
     assert "done < /etc/passwd" not in build
-    assert "helper_request wireguard.cleanup" in build
-    assert "helper_request ikev2.cleanup" in build
-    assert "helper_request openvpn.dns_revert" in build
-    assert '"$HELPERD" --request' in build
-    assert "securewave\\.ovpn$" in build
+    assert 'securewave-helperd" --request' in build
     assert "groupdel securewave" in build
     assert "rm -f /run/securewave/helper.sock" in build
     assert (
-        "Depends: wireguard-tools, openvpn, network-manager, network-manager-strongswan, strongswan-nm, libcharon-extra-plugins, libcharon-extauth-plugins, libstrongswan-standard-plugins, libstrongswan-extra-plugins, iproute2, iptables, nftables, acl, systemd, systemd-resolved"
+        "Depends: wireguard-tools, iproute2, iptables, systemd, systemd-resolved, libgtk-3-0t64, libsecret-1-0, libegl1, libgles2"
         in build
     )
-    assert "strongswan-swanctl" not in build
-    assert "strongswan-charon" not in build
-    assert "rm -f /etc/polkit-1/rules.d/50-securewave-wg.rules" in build
     assert "render_polkit_rule" not in build
-    assert "find_strongswan_fwmark_conflict" in build
-    assert "charon_nm_running" in build
     assert "DEBIAN/preinst" in build
-    assert "systemctl try-restart strongswan-starter.service" not in build
     assert "remove|purge" in build
+
+    control = build.split("cat <<CONTROL >", 1)[1].split("\nCONTROL\n", 1)[0]
+    assert "openvpn" not in control.lower()
+    assert "strongswan" not in control.lower()
+    assert "ikev2" not in control.lower()
 
 
 def test_ikev2_helper_reconciles_only_unqualified_dual_stack_charon_nm_rules():
