@@ -249,7 +249,7 @@ systemctl is-active --quiet securewave-helper.service || {
 probe_output=""
 for _ in $(seq 1 50); do
   if [[ -S "$RUNTIME_DIR/helper.sock" ]] &&
-     probe_output="$(printf 'version=1\nop=probe\n' | "$HELPER_DIR/securewave-helperd" --request 2>/dev/null)" &&
+     probe_output="$(printf 'version=1\nop=probe\nprotocol=wireguard\n' | "$HELPER_DIR/securewave-helperd" --request 2>/dev/null)" &&
      printf '%s\n' "$probe_output" | grep -qx 'ok=true'; then
     break
   fi
