@@ -35,4 +35,4 @@ email-validator==2.2.0
 
 # Security & Rate Limiting
 slowapi==0.1.9
-redis==5.0.1
+redis==8.1.0
