@@ -34,3 +34,15 @@ def test_native_deploy_prefers_shared_immutable_downloads() -> None:
     assert shared_source in script
     assert legacy_source in script
     assert script.index(shared_source) < script.index(legacy_source)
+
+
+def test_native_deploy_retries_service_startup_connection_refusals() -> None:
+    script = (PROJECT_ROOT / "scripts" / "deploy_native_production.sh").read_text(
+        encoding="utf-8"
+    )
+    workflow = (
+        PROJECT_ROOT / ".github" / "workflows" / "deploy-production.yml"
+    ).read_text(encoding="utf-8")
+
+    assert script.count("--retry-connrefused") >= 2
+    assert "--retry-connrefused" in workflow
