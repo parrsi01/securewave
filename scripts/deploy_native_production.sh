@@ -127,6 +127,7 @@ install -d "$release"
 tar -xzf "$archive" -C "$release"
 rm -f "$archive"
 printf '{"version":"%s","commit":"%s"}\n' "$release_version" "$release_sha" > "$release/.release.json"
+printf 'APP_VERSION=%s\nGIT_SHA=%s\n' "$release_version" "$release_sha" > "$release/.release.env"
 ln -s "$shared/.env" "$release/.env"
 
 # Preserve already-published immutable download bytes. Manifest metadata comes
