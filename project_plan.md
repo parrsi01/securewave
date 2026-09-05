@@ -82,16 +82,18 @@ platform work from expanding past what can be validated.
 
 ## Section 2 - OpenVPN Backend Auth-Mode Correctness
 
-**Status:** Verified complete
+**Status:** Blocked in this historical baseline
 
 **Objective:** Ensure OpenVPN provisioning, auth mode, and server material match
 the backend contract.
 
-**Why it matters:** OpenVPN dataplane evidence exists, but users need normal
-backend-issued profiles to work before it can be a release fallback.
+**Why it matters:** Historical dataplane artifacts do not prove the current
+backend/client contract; users need a normal authenticated profile path before
+OpenVPN can be a release fallback.
 
 **Key remaining tasks:**
-- N/A - Section 2 backend auth-mode correctness has been verified complete.
+- Re-establish authenticated credential issuance and current-source runtime
+  evidence before any availability promotion.
 - Keep broader OpenVPN public fallback promotion separate from the certified
   Linux runtime/helper dataplane v1 truth unless separately reopened.
 
@@ -111,7 +113,9 @@ backend-issued profiles to work before it can be a release fallback.
 - [x] No misleading release claims remain
 - [x] Remaining risks documented
 
-**Completion Verdict:** Verified complete
+**Completion Verdict:** Blocked: current-source credential issuance and
+authenticated runtime evidence are absent; legacy metadata must not enable the
+protocol.
 
 **Verification Evidence:**
 - `docs/guides/EXTERNAL_CLIENT_VALIDATION_REPORT_2026-02-27.md`
@@ -119,21 +123,21 @@ backend-issued profiles to work before it can be a release fallback.
 
 ## Section 3 - OpenVPN Live Linux Certification
 
-**Status:** Verified complete
+**Status:** Blocked in this historical baseline
 
 **Objective:** Certify OpenVPN as a real Linux fallback path.
 
 **Why it matters:** OpenVPN should only be exposed after live runtime proof
 through the same backend and client path users will use.
 
-**Completion note:** Verified complete for the Linux OpenVPN runtime/helper
-dataplane path on 2026-04-23. The certified run used a fresh normal API-issued
-OpenVPN mTLS profile, proved SecureWave-owned process/interface/route/traffic/
-egress behavior, and captured cleanup back to baseline. Flutter UI automation
-and reconnect-cycle proof were not part of this section's certification.
+**Completion note:** Historical runtime/helper artifacts are not current-source
+proof for this checkout. The current backend and Flutter/Linux paths do not
+issue or consume OpenVPN credentials, so the protocol remains unavailable until
+the normal authenticated API/client path is re-established and re-proven.
 
 **Key remaining tasks:**
-- N/A - Section 3 runtime/helper dataplane certification is complete.
+- Repeat the normal authenticated API/client tunnel proof from this source
+  revision, including egress and cleanup evidence.
 - Flutter UI automation proof, if required, should be tracked separately from
   this runtime/helper dataplane certification.
 - Reconnect-cycle certification, if required, should be tracked separately from
@@ -155,7 +159,8 @@ and reconnect-cycle proof were not part of this section's certification.
 - [x] No misleading release claims remain
 - [x] Remaining risks documented
 
-**Completion Verdict:** Verified complete
+**Completion Verdict:** Blocked: no current-source authenticated tunnel,
+egress, or cleanup proof is available.
 
 **Verification Evidence:**
 - `docs/guides/EXTERNAL_CLIENT_VALIDATION_REPORT_2026-02-27.md`

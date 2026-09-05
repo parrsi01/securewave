@@ -37,7 +37,11 @@ curl http://localhost:8000/health
 curl http://localhost:8000/api/health
 ```
 
-Expected: `{"status":"ok","service":"securewave-vpn-demo"}`
+Expected: `{"status":"ok","service":"securewave-vpn"}`
+
+Images built before 2026-07-19 (including the currently deployed production
+container) still report the legacy label `securewave-vpn-demo`; that string
+identifies an older build, not demo mode.
 
 ## Website Verification
 

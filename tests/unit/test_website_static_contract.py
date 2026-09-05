@@ -51,3 +51,14 @@ def test_public_assistant_has_runtime_styles_and_current_download_route():
     assert assistant.count("go:/download.html") == 3
     assert "/home.html" not in assistant
     assert "go:/#download" not in assistant
+
+
+def test_shared_spacing_and_text_grids_stay_responsive():
+    css = (ROOT / "static/css/web_ui_v1.css").read_text(encoding="utf-8")
+    subscription = (ROOT / "static/subscription.html").read_text(encoding="utf-8")
+
+    for token in ("--space-1", "--space-4", "--space-6", "--space-8"):
+        assert token in css
+    assert ".plans-grid, .support-grid" in css
+    assert ".plans-grid > *" in css
+    assert 'class="plans-grid" style=' not in subscription

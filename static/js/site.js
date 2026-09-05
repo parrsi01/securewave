@@ -1,27 +1,33 @@
 document.addEventListener('DOMContentLoaded', () => {
   /* ── Navigation toggle (mobile) ── */
-  const nav = document.querySelector('.nav');
+  const navbar = document.querySelector('.navbar');
+  const navPanel = document.querySelector('.nav-panel');
   const toggle = document.querySelector('[data-nav-toggle]');
-  if (nav && toggle) {
+  const closeNav = () => {
+    if (!navPanel || !toggle) return;
+    navPanel.classList.remove('nav-open');
+    toggle.setAttribute('aria-expanded', 'false');
+  };
+
+  if (navPanel && toggle) {
     toggle.setAttribute('aria-expanded', 'false');
     toggle.addEventListener('click', () => {
-      const isOpen = nav.classList.toggle('nav-open');
+      const isOpen = navPanel.classList.toggle('nav-open');
       toggle.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
     });
-    // Close mobile menu when a link is clicked
-    nav.querySelectorAll('.nav-mobile a:not(.btn)').forEach((link) => {
-      link.addEventListener('click', () => {
-        nav.classList.remove('nav-open');
-        toggle.setAttribute('aria-expanded', 'false');
-      });
+    navPanel.addEventListener('click', (event) => {
+      if (event.target.closest('a')) closeNav();
+    });
+    document.addEventListener('keydown', (event) => {
+      if (event.key === 'Escape') closeNav();
     });
   }
 
   /* ── Navbar scroll shadow ── */
   const onScroll = () => {
-    if (!nav) return;
-    if (window.scrollY > 10) nav.classList.add('scrolled');
-    else nav.classList.remove('scrolled');
+    if (!navbar) return;
+    if (window.scrollY > 10) navbar.classList.add('scrolled');
+    else navbar.classList.remove('scrolled');
   };
   window.addEventListener('scroll', onScroll, { passive: true });
   onScroll();
@@ -98,6 +104,8 @@ document.addEventListener('DOMContentLoaded', () => {
       { threshold: 0.1, rootMargin: '0px 0px -40px 0px' }
     );
     revealEls.forEach((el) => revealObserver.observe(el));
+  } else {
+    revealEls.forEach((el) => el.classList.add('visible'));
   }
 
   /* ── Accordion ── */
@@ -162,26 +170,26 @@ document.addEventListener('DOMContentLoaded', () => {
   /* ── Homepage: animated network diagram (CSP-safe external script) ── */
   const netviz = document.getElementById('netviz');
   if (netviz) {
-    const A = '#00b4ff', G = '#00e5a0', M = '#1a3055', S = '#4a72a8', B2 = '#1a3060';
+    const A = '#00b4ff', G = '#00e5a0', M = '#315581', S = '#4a72a8', B2 = '#1a3060';
 
     const node = (x, y, label, color, status, statusColor) =>
       '<g>' +
       '<circle cx="' + x + '" cy="' + y + '" r="28" fill="none" stroke="' + B2 + '" stroke-width="1"/>' +
       '<circle cx="' + x + '" cy="' + y + '" r="20" fill="#060c18" stroke="' + color + '" stroke-width="1.2"/>' +
-      '<text x="' + x + '" y="' + (y + 3) + '" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="9" fill="' + color + '">' + label + '</text>' +
-      '<text x="' + x + '" y="' + (y + 44) + '" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="8" fill="' + statusColor + '">' + status + '</text>' +
+      '<text x="' + x + '" y="' + (y + 4) + '" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="11" fill="' + (color === M ? S : color) + '">' + label + '</text>' +
+      '<text x="' + x + '" y="' + (y + 45) + '" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="10" fill="' + (statusColor === M ? S : statusColor) + '">' + status + '</text>' +
       '</g>';
 
     const protoLabel = (x, y, text, color) => {
       const w = text.length * 6 + 12;
       return '<g>' +
         '<rect x="' + (x - w / 2) + '" y="' + (y - 9) + '" width="' + w + '" height="18" fill="#060c18" stroke="' + color + '" stroke-width="1"/>' +
-        '<text x="' + x + '" y="' + (y + 3) + '" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="8" fill="' + color + '">' + text + '</text>' +
+        '<text x="' + x + '" y="' + (y + 4) + '" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="10" fill="' + color + '">' + text + '</text>' +
         '</g>';
     };
 
     netviz.innerHTML =
-      '<svg viewBox="0 0 600 560" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid slice">' +
+      '<svg viewBox="0 0 600 560" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet">' +
       '<defs>' +
       '<pattern id="nvgrid" width="32" height="32" patternUnits="userSpaceOnUse">' +
       '<path d="M32 0H0V32" fill="none" stroke="#0f1e3a" stroke-width="0.5"/>' +
@@ -216,8 +224,8 @@ document.addEventListener('DOMContentLoaded', () => {
       '<path d="M15 4L23.3 9V15.7C23.3 20.3 15 24 15 24C15 24 6.7 20.3 6.7 15.7V9L15 4Z" fill="#060c18" stroke="' + A + '" stroke-width="1"/>' +
       '<path d="M7.5 15 Q9.6 10.8 11.7 15 Q13.8 19.2 15.8 15 Q17.9 10.8 20 15 Q21.2 17.5 22.5 15" stroke="' + A + '" stroke-width="1.2" stroke-linecap="round" fill="none"/>' +
       '</g>' +
-      '<text x="300" y="292" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="9" fill="#d0e8ff">SECURE</text>' +
-      '<text x="300" y="304" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="9" fill="' + A + '">WAVE</text>' +
+      '<text x="300" y="292" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="10" fill="#d0e8ff">SECURE</text>' +
+      '<text x="300" y="305" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="10" fill="' + A + '">WAVE</text>' +
       node(300, 90, 'DNS', G, 'verified', G) +
       node(465, 185, 'SRV', S, 'standby', M) +
       node(465, 375, 'SRV', M, 'offline', M) +
@@ -226,7 +234,7 @@ document.addEventListener('DOMContentLoaded', () => {
       node(135, 185, 'CLIENT', A, 'active', A) +
       protoLabel(217, 232, 'WG', A) +
       protoLabel(300, 185, 'IKEv2', G) +
-      protoLabel(382, 232, 'OVPN', M) +
+      protoLabel(382, 232, 'OVPN', S) +
       '<circle r="4" fill="' + A + '" filter="url(#nvglow)"><animateMotion dur="2.4s" repeatCount="indefinite"><mpath href="#nv-client"/></animateMotion></circle>' +
       '<circle r="3.5" fill="' + G + '" filter="url(#nvglow)"><animateMotion dur="2s" begin="0.8s" repeatCount="indefinite"><mpath href="#nv-dns"/></animateMotion></circle>' +
       '<circle r="3" fill="' + A + '" opacity="0.6"><animateMotion dur="2.4s" begin="1.4s" repeatCount="indefinite"><mpath href="#nv-client-r"/></animateMotion></circle>' +
@@ -242,7 +250,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     if (document.querySelector('script[data-sw-assistant]')) return;
     const script = document.createElement('script');
-    script.src = '/js/chat_assistant.js?v=20260719-1';
+    script.src = '/js/chat_assistant.js?v=20260812-cleanup';
     script.defer = true;
     script.setAttribute('data-sw-assistant', '1');
     script.addEventListener('load', () => {

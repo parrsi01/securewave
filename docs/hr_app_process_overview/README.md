@@ -35,7 +35,8 @@ When the user presses Connect, the app asks the backend for a real VPN profile.
 The Linux runner then hands the profile to the relevant local tool:
 
 - WireGuard uses `wg-quick`.
-- OpenVPN uses `openvpn`.
+- OpenVPN is currently rejected until authenticated current-source runtime and
+  credential evidence exists; an installed `openvpn` binary is not enough.
 - IKEv2 is disabled in the Linux release app until strongSwan profile import,
   connection start, status verification, and cleanup are verified end to end.
 

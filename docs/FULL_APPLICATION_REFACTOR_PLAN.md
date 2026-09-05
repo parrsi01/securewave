@@ -43,11 +43,11 @@ static/*.html, static/js/*                   securewave_app/lib/*
        |                   +-- downloads, VPN, auth, devices, diagnostics
        +-- mounts static/ and exposes health/readiness/download endpoints
                                                     |
-                                                    | WireGuard/OpenVPN/IKEv2 profiles
+                                                    | WireGuard profile; gated fallback protocols
                                                     v
-Linux active path: GTK runner -> pkexec -> wg-quick / openvpn
-Linux dormant path: helperd socket/service -> privileged helper contract v9
-                         (currently no active runner IPC client)
+Linux source path: GTK runner -> helper IPC -> securewave-helperd -> wg-quick
+OpenVPN start is fail-closed; status/stop/cleanup remain for residue handling
+                         (helper source contract v9)
 
 Build / packaging / deployment:
 GitHub Actions -> Python tests, Flutter Linux build, Docker image build
@@ -150,7 +150,7 @@ or live network test. Redacted results live in `artifacts/full-app-baseline/`.
 | --- | --- | --- |
 | WireGuard/Linux | **Implemented but unproven** | Active runner calls `pkexec`/`wg-quick` and treats interface existence as connected. It has no helper-socket client. Local compile/source tests pass; routing, kill switch, cleanup, and live evidence do not. |
 | WireGuard helperd | **Implemented but unproven** | Contract v9, service, socket, stronger route/XFRM checks, and package payload compile. Runner uses `securewave.conf`/`securewave`; helper expects `sw-wg.conf`/`sw-wg`, so it is not safely interchangeable. |
-| OpenVPN/Linux | **Blocked** | Backend can issue a profile, but it uses `auth-user-pass` without an auth file; active runner also provides none and accepts a daemon PID after two seconds as success. Helper support is dormant. |
+| OpenVPN/Linux | **Blocked** | The historical route previously issued a metadata-only profile using `auth-user-pass` without a credential or auth file. The API, Flutter fallback, and Linux runner now fail closed; helper launch requires a mode-0600 auth file. Current-source authenticated runtime and credential evidence are still absent. |
 | IKEv2/Linux | **Blocked and correctly unavailable** | Backend excludes it from advertised Linux capability. Dormant backend/Dart/helper profile formats disagree and helper-required secret fields are absent. No signing/cert work was attempted. |
 | Android/iOS/Windows OpenVPN/IKEv2 | **Not implemented truthfully** | Dart exposes protocols more broadly than native handlers implement; Android/iOS/Windows consume WireGuard configuration only. |
 | Usage/rates | **Not implemented** | Flutter deliberately reports zero rates; no client traffic-counter or usage-report path is wired. |

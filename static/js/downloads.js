@@ -32,10 +32,11 @@ function renderCard(entry) {
     coming_soon: ['Coming soon', 'badge-muted'],
   };
   const [status, badgeClass] = statusMap[entry.status] || statusMap.coming_soon;
-  const size = entry.size_display ? ` • ${entry.size_display}` : '';
-  const notes = entry.notes ? `<p class="muted">${escapeHtml(entry.notes)}</p>` : '';
+  const release = entry.version ? `Version ${escapeHtml(entry.version)}` : 'Release artifact';
+  const size = entry.size_display ? ` · ${escapeHtml(entry.size_display)}` : '';
+  const notes = entry.notes ? `<p class="muted download-card-note">${escapeHtml(entry.notes)}</p>` : '';
   const checksum = entry.checksum_sha256
-    ? `<p class="muted" style="word-break: break-all">SHA256 ${escapeHtml(entry.checksum_sha256)}</p>`
+    ? `<p class="muted download-card-checksum">SHA256 ${escapeHtml(entry.checksum_sha256)}</p>`
     : '';
   const evidence = entry.evidence_url
     ? `<a class="btn btn-secondary btn-block" href="${escapeHtml(entry.evidence_url)}" rel="nofollow noopener">View ${escapeHtml(entry.evidence_label || 'build evidence')}</a>`
@@ -48,21 +49,21 @@ function renderCard(entry) {
       : `<button class="btn btn-secondary btn-block" type="button" disabled>Coming soon</button>`;
 
   return `
-    <div class="card card-elevated">
+    <article class="card card-elevated download-card">
       <div class="card-body">
-        <div style="display:flex; align-items:center; justify-content:space-between; gap: var(--space-3)">
+        <div class="download-card-head">
           <h4 style="margin:0">${escapeHtml(title)}</h4>
           <span class="badge ${badgeClass}">${escapeHtml(status)}</span>
         </div>
-        <p class="muted" style="margin-top: var(--space-2); margin-bottom: 0">
-          v${escapeHtml(entry.version || '--')}${escapeHtml(size)}
+        <p class="download-card-meta">
+          ${release}${size}
         </p>
-        <div style="margin-top: var(--space-3)">${notes}${checksum}</div>
-        <div style="margin-top: var(--space-3)">
+        <div class="download-card-notes">${notes}${checksum}</div>
+        <div class="download-card-action">
           ${action}
         </div>
       </div>
-    </div>
+    </article>
   `;
 }
 
@@ -149,12 +150,12 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     if (downloads.length === 0) {
       grid.innerHTML = `
-        <div class="card card-elevated">
+        <article class="card card-elevated download-card">
           <div class="card-body">
             <h4>No downloads published yet</h4>
             <p class="muted">Build artifacts were not found on the server. Check back soon.</p>
           </div>
-        </div>
+        </article>
       `;
       return;
     }
@@ -162,12 +163,12 @@ document.addEventListener('DOMContentLoaded', async () => {
   } catch (_) {
     if (grid) {
       grid.innerHTML = `
-        <div class="card card-elevated">
+        <article class="card card-elevated download-card">
           <div class="card-body">
             <h4>Downloads unavailable</h4>
             <p class="muted">Unable to fetch the download list from the backend.</p>
           </div>
-        </div>
+        </article>
       `;
     }
   }

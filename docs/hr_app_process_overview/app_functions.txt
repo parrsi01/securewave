@@ -18,9 +18,9 @@ SecureWave app functions in plain English
    the user sees an error.
 
 5. Pick protocol
-   The user can choose WireGuard, OpenVPN, or IKEv2. The app still requires the
-   backend and Linux tools to support the selected protocol before it can
-   connect.
+   The user can choose a protocol shown as available by the verified server
+   catalog. In this baseline, WireGuard is the only release-ready protocol;
+   OpenVPN and IKEv2 remain unavailable until their evidence gates pass.
 
 6. Connect VPN
    The app requests a real VPN profile from the backend, passes it to the Linux

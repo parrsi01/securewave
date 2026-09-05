@@ -68,8 +68,11 @@ kill $API_PID 2>/dev/null
 
 ### Linux VPN Bridge Check
 ```bash
-# Verify wg-quick integration exists
-grep -n "wg-quick" securewave_app/linux/runner/my_application.cc && echo "OK: wg-quick integration found"
+# Verify the Linux runner uses the authenticated helper and the packaged
+# privileged wrapper still delegates WireGuard operations to wg-quick.
+grep -n "kHelperSocketPath" securewave_app/linux/runner/my_application.cc \
+  && grep -n "wg-quick" securewave_app/packaging/linux/securewave-wg-quick \
+  && echo "OK: Linux helper bridge and wg-quick integration found"
 ```
 
 ---

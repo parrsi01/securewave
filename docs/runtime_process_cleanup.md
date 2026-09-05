@@ -44,7 +44,8 @@ python3 scripts/live_flutter_runtime_smoke.py --profile-repeats 3
 ```
 
 The script registers or reuses a disposable account, logs in, fetches account
-and usage state, lists servers, and requests WireGuard/OpenVPN/IKEv2 profiles.
-It never starts a local tunnel and does not print bearer tokens. Treat any
-non-200 WireGuard or OpenVPN profile result as a release blocker. IKEv2 may
-still return a typed non-200 until the Linux strongSwan path is implemented.
+and usage state, lists servers, requests a WireGuard profile, and verifies that
+OpenVPN remains unavailable. It never starts a local tunnel and does not print
+bearer tokens. A non-200 WireGuard profile result is a release blocker; the
+expected OpenVPN result in this baseline is a typed 400/503 rejection. IKEv2
+may still return a typed non-200 until the Linux strongSwan path is implemented.
