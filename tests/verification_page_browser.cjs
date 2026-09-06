@@ -42,7 +42,7 @@ const root = path.resolve(__dirname, '..');
       assert.equal(page.url(), 'https://verification.test/verify-email');
       assert.equal(requests, suffix ? 1 : 0);
       assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
-      if (status === 503 || status === 0) assert.equal(await page.locator('#verification-retry').isVisible(), true);
+      assert.equal(await page.locator('#verification-retry').isVisible(), status === 503 || status === 0);
       await page.close();
     }
     console.log('PASS: 7 browser cases, token privacy, API contract, loading/results, mobile layout');
