@@ -3,39 +3,39 @@
 # Install without ML for fastest deployment, or with ML for enhanced performance
 
 # FastAPI and ASGI server
-fastapi==0.138.2
-uvicorn[standard]==0.32.1
+fastapi==0.141.1
+uvicorn[standard]==0.52.4
 gunicorn==23.0.0
 python-multipart==0.0.32
 
 # Database
-SQLAlchemy==2.0.30
-psycopg2-binary==2.9.9
-alembic==1.13.1
+SQLAlchemy==2.0.52
+psycopg2-binary==2.9.12
+alembic==1.19.1
 
 # Authentication & Security
 PyJWT==2.13.0
 python-jose[cryptography]==3.5.0
 passlib==1.7.4
 bcrypt==3.2.2
-cryptography==50.0.0
-pyotp==2.9.0
+cryptography==50.0.1
+pyotp==2.10.0
 
 # Payment Processing
 stripe>=14.0.0,<15.0.0
-httpx==0.27.0
+httpx==0.28.1
 
 # VPN & Networking
 qrcode==7.4.2
 pillow==12.3.0
 
 # Environment & Configuration
-python-dotenv==1.2.2
-pydantic==2.10.6
-pydantic-settings==2.7.0
-email-validator==2.2.0
+python-dotenv==1.2.3
+pydantic==2.13.5
+pydantic-settings==2.15.0
+email-validator==2.3.0
 Jinja2==3.1.6
 
 # Security & Rate Limiting
-slowapi==0.1.9
+slowapi==0.1.10
 redis==5.0.1
