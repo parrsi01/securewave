@@ -206,7 +206,7 @@ async def add_security_headers(request: Request, call_next):
         "form-action 'self'; "
         "frame-ancestors 'none'"
     )
-    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    response.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
     response.headers["Permissions-Policy"] = "geolocation=(), microphone=(), camera=()"
     return response
 
@@ -534,6 +534,14 @@ def version():
 
 
 static_directory = Path(__file__).resolve().parent / "static"
+
+
+@app.get("/verify-email", include_in_schema=False)
+async def verification_page():
+    return FileResponse(
+        static_directory / "verify-email.html",
+        headers={"Cache-Control": "no-store", "Referrer-Policy": "no-referrer"},
+    )
 
 page_routes = {
     "/home": "index.html",

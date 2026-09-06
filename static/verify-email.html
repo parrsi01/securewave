@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="build-timestamp" content="BUILD_TIMESTAMP">
+  <meta name="ui-version" content="UI_VERSION v1.0">
+  <meta name="referrer" content="no-referrer">
+  <title>Verify email — SecureWave</title>
+  <script src="/js/verify-email.js" defer></script>
+  <link rel="stylesheet" href="/css/web_ui_v1.css?v=20260719">
+</head>
+<body>
+  <main class="form-shell">
+    <section class="form-card" aria-labelledby="verification-title">
+      <h1 id="verification-title">Verify your email</h1>
+      <p id="verification-status" role="status" aria-live="polite">Checking your verification link…</p>
+      <button id="verification-retry" class="btn btn-primary" type="button" hidden>Try again</button>
+      <p>After verification, return to the SecureWave app and log in.</p>
+      <a class="btn btn-secondary" href="/login.html">Website login</a>
+      <noscript><p>Enable JavaScript to verify your email using this link.</p></noscript>
+    </section>
+  </main>
+</body>
+</html>

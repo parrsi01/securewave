@@ -227,7 +227,8 @@ class EmailService:
         Returns:
             True if successful
         """
-        verification_url = f"{APP_URL}/verify-email?token={verification_token}"
+        # Fragments stay in the browser, keeping bearer tokens out of proxy logs.
+        verification_url = f"{APP_URL.rstrip('/')}/verify-email#token={verification_token}"
 
         html_content = f"""
 <!DOCTYPE html>
