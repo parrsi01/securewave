@@ -2,6 +2,9 @@
 
 SecureWave is a full-stack VPN platform repository that combines a Python/FastAPI backend, a Flutter client app, VPN provisioning logic, payment flows, and infrastructure automation.
 
+See [current release status](docs/current_release_status.md) for the dated
+production/package snapshot, Beta scope, and remaining acceptance work.
+
 Current app truth is Linux desktop first. WireGuard, OpenVPN, and IKEv2 share
 the contract-13 Linux helper boundary, but each protocol remains unavailable
 until its local runtime, backend evidence, and live data-plane checks pass.

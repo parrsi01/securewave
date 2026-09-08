@@ -1,167 +1,80 @@
 # SecureWave - Current Release Status
 
-Last updated: 2026-08-30 UTC
+Verified snapshot: 2026-09-08 UTC. This is a dated observation, not continuous
+monitoring. GitHub, production identity, and public package bytes were checked
+independently.
 
-## Local Linux ARM64 Beta candidate
+## Project and app
 
-- Branch: `codex/linux-beta-release-candidate`
-- Candidate base before internal remediation: `9c5921af75dd2478cb6c57b33e26a088c410faba`
-- Base: `origin/master` at `f558d0337d5bd20d52cb94e8112746a4d818ab99`
-- Application/package version: `4.0.0+10`
-- Existing package: `securewave_app/build/packaging/securewave-vpn_4.0.0+10_arm64.deb`
-- Existing package SHA-256: `749e8c4e37fea27023d9030181e5cc36c46ff2e5d60e00519fa16082853d540a`
-- Package metadata: `securewave-vpn`, version `4.0.0+10`, architecture `arm64`
-- Embedded package source state: clean source at `a4fcf9419d98d6b4fd78e8806993fb499ac408a7`
-- Helper contract: `13`
-- The corrected package is represented independently in download metadata;
-  public publication and external acceptance remain separate release actions.
+SecureWave combines FastAPI, PostgreSQL, Flutter, a static website, and Hetzner
+deployment tooling. The release target is the Ubuntu 24.04 ARM64 WireGuard Beta.
+The client implements Home, Account, and Diagnostics surfaces, authentication,
+session handling, connection controls, usage, and visible error states.
+Implementation and CI do not establish installed-product acceptance.
 
-The current automation changes do not rebuild the package or alter its bytes.
-Backend deployments preserve the native systemd/Gunicorn release architecture.
+OpenVPN and IKEv2 are outside this Beta scope. Payment integrations and other
+platform source code do not establish public runtime readiness.
 
-## Intended scope
+## Production and GitHub
 
-This candidate targets Ubuntu 24.04 ARM64 with the native Flutter Linux client,
-the light SecureWave UI, one authenticated WireGuard server/runtime, and the
-real backend/PostgreSQL path. The intended acceptance flow is registration,
-login, connect, disconnect, reconnect/session restoration, and logout.
+- Remote `master` and [public version](https://api.securewaveapp.com/version)
+  identify `f6c1ee143a794bb99c7e31cbc23d1661d5593287`, version `4.0.0+10`.
+- [Health](https://api.securewaveapp.com/api/health) returned success;
+  [readiness](https://api.securewaveapp.com/api/ready) reported database connected.
+- [Downloads API](https://api.securewaveapp.com/api/downloads) returned the catalog.
+  The public homepage returned HTTP 200.
+- GitHub CI and Deploy Production succeeded for this revision on September 6.
+  Native deployment is defined in `.github/workflows/deploy-production.yml`.
+- PRs [#98](https://github.com/parrsi01/securewave/pull/98) and
+  [#99](https://github.com/parrsi01/securewave/pull/99) restored email verification
+  and fixed retry visibility. The [page](https://securewaveapp.com/verify-email)
+  returned HTTP 200 with `no-store` and `no-referrer` headers.
 
-OpenVPN, IKEv2, payments, SMTP/email verification, additional server catalogs,
-other architectures, and formal release governance are outside this Beta
-candidate. The Debian package declares only the WireGuard/Linux runtime
-dependencies and does not carry the legacy secondary-protocol payload files.
+Earlier pending-deployment and downloads-404 statements are superseded. Their
+investigation is preserved in [historical evidence](release_status_20260830_historical.md).
 
-## `/api/downloads` root cause and remediation
+## Public ARM64 package
 
-The established repository contract is `GET /api/downloads`. The website client
-requests that path, `routes/downloads.py` defines it, `main.py` mounts the router,
-and the production Dockerfiles copy both `main.py` and `routes/` into the image.
-The public `/downloads/manifest.json` URL remains a backward-compatible route;
-it is not a replacement API contract.
+| Field | Verified value |
+| --- | --- |
+| Filename | `securewave-vpn_4.0.0+10_arm64.deb` |
+| Package/version/architecture | `securewave-vpn` / `4.0.0+10` / `arm64` |
+| Downloaded SHA-256 | `749e8c4e37fea27023d9030181e5cc36c46ff2e5d60e00519fa16082853d540a` |
+| Embedded source SHA | `a4fcf9419d98d6b4fd78e8806993fb499ac408a7` |
+| Embedded source state | `clean` |
+| Helper contract | `13` |
 
-The live service is not running this candidate backend. Read-only live evidence
-returned version `4.0.0+9` and commit
-`b741a21aa53c80825405cd1797993d0ebcfed734`. Repository inspection of that exact
-commit shows the old slim Linux Beta entrypoint: it imports and mounts only the
-auth and VPN routers, and that commit does not contain `routes/downloads.py`.
-The live OpenAPI paths likewise omit every `/api/downloads` route. This is the
-exact deployed-source mismatch behind the 404.
+Downloaded bytes match the public catalog checksum. Backend and client revisions
+are independent; differing SHAs alone are not a defect. Exact-source release
+gates must compare the client against its explicitly approved revision.
 
-The deployment could remain nominally healthy because the image healthcheck
-required only `/api/health`, while the Compose healthcheck required
-`/api/health` and `/downloads/manifest.json`. Both paths return 200 from the old
-slim image even though `/api/downloads` is absent.
+The catalog also advertises a Linux x64 tarball and macOS ARM64 UI demo; their
+bytes and runtime were not checked here. Linux x64 `.deb`/AppImage, Windows,
+Android, and iOS distribution remain `coming_soon`. The Apple handoff kit is
+packaging support, not a signed VPN app.
 
-The smallest backward-compatible remediation is applied locally:
+## Remaining acceptance
 
-- `Dockerfile` and `Dockerfile.simple` now require both `/api/health` and
-  `/api/downloads` in their image healthchecks.
-- `deploy/hetzner/compose.yaml` now requires `/api/downloads` in addition to the
-  existing health and public-manifest checks.
-- focused smoke and packaging-contract tests lock the endpoint and healthcheck
-  expectations.
-- `routes/downloads.py`, `main.py`, the website client, and the public manifest
-  were not changed because their current contracts already agree.
+1. Verify actual email delivery and the existing verification-to-login flow.
+   SMTP and receiving-mailbox acceptance were not tested in this snapshot.
+2. Complete installation, GUI launch, registration/login, WireGuard connect,
+   routed egress, disconnect cleanup, reconnect/session restoration, and logout
+   using the public package on an authorized Ubuntu 24.04 ARM64 desktop.
+3. Record the approved client revision, downloaded checksum, test environment,
+   and acceptance evidence together before declaring the Beta accepted.
 
-## Legacy test reconciliation
+Earlier session evidence recorded successful installation/helper checks, but
+acceptance stopped before GUI/authenticated VPN because the test container
+lacked a graphical session/polkit agent and usable WireGuard interface capability.
+Those conditions were not rechecked on September 8. No fresh GUI, SMTP, tunnel,
+or payment acceptance is claimed here.
 
-The initial full Python run had 26 failures. They were classified as follows:
+## Concurrent Linux and Mac work
 
-- 25 obsolete package-lifecycle expectations for OpenVPN, IKEv2, strongSwan,
-  charon-nm, and legacy offline cleanup were removed or rewritten.
-- 1 package-contract test was rewritten around the current WireGuard helper,
-  systemd lifecycle, helper contract 13, and current Debian dependency line.
-- No genuine regression was found.
-
-The revised tests retain Bash syntax validation, dpkg rollback boundaries,
-allowlist preservation, helper probing, systemd ownership, active `sw-wg`
-removal protection, and the WireGuard-only Debian control contract. No excluded
-protocol or dependency was restored.
-
-## Verification evidence
-
-- Focused downloads/API tests: 44 passed.
-- Focused package lifecycle tests: 24 passed.
-- Full Python suite: 778 passed, 2 skipped, 4 migration warnings.
-- Linux and website contract tests: 384 passed.
-- Candidate in-process API: `/api/downloads`, `/api/downloads/list`,
-  `/api/downloads/detect`, and `/downloads/manifest.json` each returned 200.
-- Local container image `securewave-downloads-remediation:local` built
-  successfully as image
-  `sha256:f33618e208dd7446a3779f02ab276d10065658acb2efcd0f09bfd0c76005f3af`.
-- The local container's `/api/downloads` returned 200 with the expected
-  `version`, `detected_platform`, and `downloads` fields and 10 manifest rows.
-- Docker build-definition check: passed with no warnings.
-- Compose YAML parse and healthcheck contract assertion: passed.
-- Flutter analyzer: no issues.
-- Flutter tests: 50 passed.
-- Current light UI guard: passed.
-- Release guards: passed.
-- Repository hygiene: passed for 1,607 tracked files.
-- Redacted tracked-source/config secret scan: passed; no values were printed.
-- Tracked shell syntax, Python compile, and `git diff --check`: passed.
-- Public manifest diff: unchanged.
-- Existing package checksum and adjacent sidecar both verify as
-  `9b170999845b6f53d22288058b314d42eda70938f4c1b37126ea20cef1ebc8fc`.
-
-## Live endpoint boundary
-
-Read-only verification on 2026-08-21 UTC produced:
-
-- `https://api.securewaveapp.com/api/health`: HTTP 200,
-  `service=securewave-linux-beta`.
-- `https://api.securewaveapp.com/api/ready`: HTTP 200,
-  `database=connected`.
-- `https://api.securewaveapp.com/version`: version `4.0.0+9`, commit
-  `b741a21aa53c80825405cd1797993d0ebcfed734`.
-- `https://api.securewaveapp.com/openapi.json`: no `/api/downloads` paths.
-- `https://api.securewaveapp.com/api/downloads`: HTTP 404 with the website HTML
-  not-found page.
-- `https://api.securewaveapp.com/downloads/manifest.json`: HTTP 200.
-
-No deployment was authorized or performed, so the public endpoint remains 404.
-Fixing it requires building an immutable backend image from the remediated
-candidate source and deploying that image with the updated Compose template.
-After deployment, the service must become healthy under the new contract and an
-external unauthenticated GET to `/api/downloads` must return HTTP 200 with the
-documented response fields. The deployed `/version` commit must also identify
-the newly built source rather than `b741a21a...`.
-
-## Deployment inputs prepared without deployment
-
-- Existing mechanism: `scripts/deploy_production.sh`.
-- Image input: `SECUREWAVE_PRODUCTION_IMAGE`, required and validated as an
-  immutable tag or `@sha256` digest; no image reference was inferred.
-- Host input: `SECUREWAVE_PRODUCTION_HOST`, required; optional existing inputs
-  are `SECUREWAVE_PRODUCTION_USER` and `SECUREWAVE_REMOTE_APP_DIR` (default
-  `/opt/securewave`).
-- Confirmation gate: `CONFIRM_DEPLOY=securewave-production` is required by the
-  script and was not supplied.
-- Remote configuration: the existing remote `.env` must be non-empty; Compose
-  requires the existing production environment values and `SECUREWAVE_IMAGE`.
-  Values were not inspected or printed.
-- Mechanism: copy the reviewed Compose template, pull the immutable image,
-  run `docker compose --env-file .env config --quiet`, then `up -d --pull always`
-  and `docker compose ps` on the authorized host.
-- Rollback: use the previous known-good immutable application image through the
-  same Compose `SECUREWAVE_IMAGE` input, following the existing operations
-  runbook. No rollback action was run.
-- Post-deployment proof: verify `/api/health`, `/api/ready`, `/api/downloads`,
-  `/version`, and the new source identity externally; the updated Compose
-  healthcheck also fails closed if `/api/downloads` is absent.
-
-## Remaining release blockers
-
-No internal pre-deployment blockers remain. Deployment, public endpoint
-verification, clean-device installation, and authenticated VPN acceptance remain
-intentionally pending because this task explicitly stops before those external
-operations.
-
-## Local inspection
-
-```bash
-cd /home/sp/cyber-course/projects/securewave-linux-beta-release-candidate/securewave_app
-sha256sum build/packaging/securewave-vpn_4.0.0+10_arm64.deb
-dpkg-deb -f build/packaging/securewave-vpn_4.0.0+10_arm64.deb \
-  Package Version Architecture Depends
-```
+Use a unique branch and isolated checkout per session, based on freshly fetched
+`origin/master`. Inspect remote changes and open PRs before selecting overlapping
+files. Publish explicit paths and document touched files and validation in the PR.
+Recheck the base before integration and coordinate overlapping changes in review.
+Do not reset, clean, force-push, or reuse another session's branch/worktree.
+Unpushed Mac changes are invisible from Linux; remote inspection cannot prove a
+file is unowned. A documentation PR does not certify or deploy the application.
