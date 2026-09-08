@@ -69,14 +69,14 @@ if [[ ! -f "$ROOT_DIR/.env" ]]; then
 fi
 
 cd "$ROOT_DIR"
-flutter pub get
+FLUTTER_SWIFT_PACKAGE_MANAGER=false flutter pub get --enforce-lockfile
 
 cd "$MACOS_DIR"
 pod install
 bash "$MACOS_DIR/scripts/ensure_workspace.sh"
 
 cd "$ROOT_DIR"
-flutter build macos --release
+FLUTTER_SWIFT_PACKAGE_MANAGER=false flutter build macos --release --no-pub
 
 APP_BUNDLE="$(find "$BUILD_DIR" -maxdepth 1 -type d -name "*.app" | sort | head -n 1)"
 if [[ -z "$APP_BUNDLE" || ! -d "$APP_BUNDLE" ]]; then
@@ -91,6 +91,7 @@ else
   echo "[STEP] Applying ad-hoc signature for local demo testing"
   codesign --force --deep --sign - "$APP_BUNDLE"
 fi
+codesign --verify --deep --strict "$APP_BUNDLE"
 
 mkdir -p "$(dirname "$OUT_FILE")"
 rm -f "$OUT_FILE"
@@ -101,20 +102,28 @@ echo "Output: $OUT_FILE"
 shasum -a 256 "$OUT_FILE"
 
 if [[ "$OUT_FILE" == "$DEFAULT_OUT_FILE" && -f "$MANIFEST_PATH" ]]; then
-  python3 - "$MANIFEST_PATH" "$ARCH_LABEL" <<'PY'
+  python3 - "$MANIFEST_PATH" "$ARCH_LABEL" "$APP_BUNDLE" <<'PY'
+import hashlib
 import json
+import plistlib
 import sys
 from pathlib import Path
 
 manifest_path = Path(sys.argv[1])
 arch = sys.argv[2]
 filename = f"securewave-macos-{arch}-ui-demo.zip"
+with (Path(sys.argv[3]) / "Contents/Info.plist").open("rb") as stream:
+    info = plistlib.load(stream)
+version = f"{info['CFBundleShortVersionString']}+{info['CFBundleVersion']}"
+checksum = hashlib.sha256((manifest_path.parent / filename).read_bytes()).hexdigest()
 payload = json.loads(manifest_path.read_text(encoding="utf-8"))
 
 for entry in payload.get("downloads", []):
     if entry.get("platform") == "macos" and entry.get("filename") == filename:
         entry["status"] = "available"
         entry["url"] = f"/downloads/{filename}"
+        entry["version"] = version
+        entry["checksum_sha256"] = checksum
         break
 else:
     raise SystemExit(f"macOS demo entry not found in manifest: {filename}")
