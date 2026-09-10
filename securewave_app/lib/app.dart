@@ -74,7 +74,7 @@ class _SecureWaveAppState extends ConsumerState<SecureWaveApp> {
     return MaterialApp(
       title: 'SecureWave',
       debugShowCheckedModeBanner: false,
-      theme: SwTheme.light,
+      theme: SwTheme.dark,
       home: const _AppRoot(),
     );
   }
@@ -189,6 +189,14 @@ class _AuthScreenState extends ConsumerState<_AuthScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
+                  if (MediaQuery.sizeOf(context).width < 900) ...[
+                    const Row(children: [
+                      SwLogo(size: 32),
+                      SizedBox(width: 12),
+                      Text('SecureWave', style: SwType.wordmark),
+                    ]),
+                    const SizedBox(height: SwSpacing.lg),
+                  ],
                   SwSegmentedControl(
                     segments: const ['Log in', 'Create account'],
                     index: _register ? 1 : 0,
@@ -393,7 +401,10 @@ class _AuthBrandPanel extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       width: SwLayout.authPanelWidth,
-      color: SwColors.primarySoft,
+      decoration: const BoxDecoration(
+        color: SwColors.background,
+        border: Border(right: BorderSide(color: SwColors.border)),
+      ),
       padding:
           const EdgeInsets.symmetric(horizontal: SwSpacing.xl, vertical: 56),
       child: Column(
@@ -407,7 +418,7 @@ class _AuthBrandPanel extends StatelessWidget {
             ],
           ),
           const Spacer(),
-          const Text('Private\nconnection.\nOne click.',
+          const Text('Private routing.\nYour connection.',
               style: SwType.headline),
           const SizedBox(height: 14),
           const Text(
@@ -535,14 +546,13 @@ class _TopBar extends ConsumerWidget {
             const SizedBox(width: 10),
           ],
           // Flexible so a very narrow window ellipsises instead of overflowing.
-          const Flexible(
+          const Expanded(
             child: Text(
               'SecureWave',
               overflow: TextOverflow.ellipsis,
               style: SwType.wordmark,
             ),
           ),
-          const Spacer(),
           TextButton(
             onPressed: () => unawaited(_openExternalLink(
               context,

@@ -20,6 +20,18 @@ void main() {
     );
   });
 
+  test('dark controls and notices keep readable foreground contrast', () {
+    for (final pair in [
+      (SwColors.onPrimary, SwColors.primaryStrong),
+      (SwColors.textPrimary, SwColors.surface),
+      (SwColors.textPrimary, SwColors.warningSoft),
+      (SwColors.textPrimary, SwColors.errorSoft),
+      (SwColors.error, SwColors.surface),
+    ]) {
+      expect(_contrast(pair.$1, pair.$2), greaterThanOrEqualTo(4.5));
+    }
+  });
+
   test('shared small labels remain readable', () {
     expect(SwType.micro.fontSize, greaterThanOrEqualTo(11));
     expect(SwType.label.fontSize, greaterThanOrEqualTo(12));
