@@ -301,7 +301,7 @@ class _RailItem extends StatelessWidget {
         child: AnimatedContainer(
           duration: SwMotion.fast,
           curve: SwMotion.curve,
-          width: 72,
+          width: SwLayout.railWidth - 16,
           height: 56,
           decoration: BoxDecoration(
             color: selected ? SwColors.primarySoft : Colors.transparent,
