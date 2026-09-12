@@ -22,6 +22,21 @@ WireGuard state, and cleanup. Fixture screenshots and widget tests establish
 presentation behavior only. Real beta acceptance still requires the installed
 package, an authorized verified account, and actual tunnel/egress/cleanup proof.
 
+## Design lock enforcement
+
+The black/blue identity is a release invariant, not a preference. The
+repository guard checks the exact palette, typography, dark-theme wiring, and
+the absence of the retired purple/light tokens:
+
+```sh
+python3 scripts/verify_flutter_design_lock.py
+bash scripts/verify_ui_v1.sh
+```
+
+The UI guard runs in CI before Flutter analysis/tests. Any intentional visual
+identity change must update this document, the locked token test, and the
+guard in the same reviewed change; otherwise the check fails closed.
+
 ## Checks and review images
 
 From `securewave_app`, run `flutter analyze` and `flutter test`.

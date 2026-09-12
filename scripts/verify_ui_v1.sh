@@ -130,4 +130,6 @@ else
   fi
 fi
 
+python3 scripts/verify_flutter_design_lock.py
+
 echo "Current Flutter black/blue UI guard checks passed"

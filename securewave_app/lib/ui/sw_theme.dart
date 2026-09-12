@@ -8,6 +8,9 @@ import 'package:flutter/material.dart';
 class SwColors {
   const SwColors._();
 
+  /// Stable design-system identifier enforced by the repository UI guard.
+  static const designSystem = 'securewave-black-blue-v1';
+
   static const background = Color(0xFF03060D);
   static const surface = Color(0xFF080F20);
   static const surfaceSecondary = Color(0xFF060C18);
