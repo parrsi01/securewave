@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-/// SecureWave design tokens.
+/// Black/blue tokens aligned with docs/WEBSITE_DESIGN_LOCK.md.
 ///
 /// This file is the single source of truth for the application's visual
 /// identity. Recolouring the whole app means editing [SwColors] here and
@@ -8,30 +8,34 @@ import 'package:flutter/material.dart';
 class SwColors {
   const SwColors._();
 
-  static const background = Color(0xFFF6FAF7);
-  static const surface = Color(0xFFFFFFFF);
-  static const surfaceSecondary = Color(0xFFEEF5F0);
+  /// Stable design-system identifier enforced by the repository UI guard.
+  static const designSystem = 'securewave-black-blue-v1';
 
-  static const primary = Color(0xFF9B8CF2);
-  static const primaryStrong = Color(0xFF674FD9);
-  static const primarySoft = Color(0xFFEDE9FD);
-  static const accent = Color(0xFF9B8CF2);
+  static const background = Color(0xFF03060D);
+  static const surface = Color(0xFF080F20);
+  static const surfaceSecondary = Color(0xFF060C18);
 
-  static const textPrimary = Color(0xFF171B19);
-  static const textSecondary = Color(0xFF65707D);
+  static const primary = Color(0xFF00B4FF);
+  static const primaryStrong = Color(0xFF00B4FF);
+  static const primarySoft = Color(0xFF0A2340);
+  static const accent = Color(0xFF00B4FF);
 
-  static const border = Color(0xFFE1E9E3);
+  static const textPrimary = Color(0xFFD0E8FF);
+  static const textSecondary = Color(0xFF8BA9C7);
 
-  static const success = Color(0xFF674FD9);
-  static const warning = Color(0xFFB8862B);
-  static const error = Color(0xFFC0453B);
+  static const border = Color(0xFF1A3060);
+
+  static const success = Color(0xFF00B4FF);
+  static const warning = Color(0xFFF0BE64);
+  static const error = Color(0xFFFF8F86);
 
   /// Neutral indicator used for the disconnected/idle state.
-  static const idle = Color(0xFF9AA4AF);
+  static const idle = Color(0xFF8BA9C7);
 
-  static const onPrimary = Color(0xFFFFFFFF);
-  static const warningSoft = Color(0xFFFBF3E2);
-  static const errorSoft = Color(0xFFFBECEA);
+  static const onPrimary = background;
+  static const secondary = Color(0xFF0066CC);
+  static const warningSoft = Color(0xFF292012);
+  static const errorSoft = Color(0xFF301A20);
 }
 
 class SwSpacing {
@@ -47,9 +51,9 @@ class SwSpacing {
 class SwRadius {
   const SwRadius._();
 
-  static const sm = 8.0;
-  static const md = 10.0;
-  static const lg = 12.0;
+  static const sm = 4.0;
+  static const md = 6.0;
+  static const lg = 8.0;
   static const pill = 999.0;
 }
 
@@ -58,7 +62,7 @@ class SwLayout {
 
   /// Below this width the left navigation rail is replaced by a bottom bar.
   static const compactMax = 720.0;
-  static const railWidth = 88.0;
+  static const railWidth = 120.0;
   static const topBarHeight = 64.0;
   static const authPanelWidth = 460.0;
   static const contentMaxWidth = 560.0;
@@ -72,7 +76,7 @@ class SwShadow {
 
   static List<BoxShadow> get card => [
         BoxShadow(
-          color: SwColors.textPrimary.withValues(alpha: 0.06),
+          color: Colors.black.withValues(alpha: 0.06),
           blurRadius: 8,
           offset: const Offset(0, 2),
         ),
@@ -80,7 +84,7 @@ class SwShadow {
 
   static List<BoxShadow> get connected => [
         BoxShadow(
-          color: SwColors.textPrimary.withValues(alpha: 0.10),
+          color: Colors.black.withValues(alpha: 0.10),
           blurRadius: 8,
           offset: const Offset(0, 2),
         ),
@@ -88,7 +92,7 @@ class SwShadow {
 
   static List<BoxShadow> get segment => [
         BoxShadow(
-          color: SwColors.textPrimary.withValues(alpha: 0.08),
+          color: Colors.black.withValues(alpha: 0.08),
           blurRadius: 3,
           offset: const Offset(0, 1),
         ),
@@ -98,7 +102,8 @@ class SwShadow {
 class SwType {
   const SwType._();
 
-  static const family = 'PlusJakartaSans';
+  static const family = 'SpaceGrotesk';
+  static const mono = 'JetBrainsMono';
 
   static const headline = TextStyle(
     fontFamily: family,
@@ -126,7 +131,7 @@ class SwType {
   );
 
   static const label = TextStyle(
-    fontFamily: family,
+    fontFamily: mono,
     fontSize: 12,
     fontWeight: FontWeight.w700,
     letterSpacing: 0.48,
@@ -134,7 +139,7 @@ class SwType {
   );
 
   static const micro = TextStyle(
-    fontFamily: family,
+    fontFamily: mono,
     fontSize: 11,
     fontWeight: FontWeight.w700,
     letterSpacing: 0.35,
@@ -142,7 +147,7 @@ class SwType {
   );
 
   static const statValue = TextStyle(
-    fontFamily: family,
+    fontFamily: mono,
     fontSize: 18,
     fontWeight: FontWeight.w700,
     height: 1.2,
@@ -150,7 +155,7 @@ class SwType {
   );
 
   static const connectLabel = TextStyle(
-    fontFamily: family,
+    fontFamily: mono,
     fontSize: 14,
     fontWeight: FontWeight.w800,
     letterSpacing: 1.12,
@@ -192,12 +197,12 @@ class SwMotion {
 class SwTheme {
   const SwTheme._();
 
-  static ThemeData get light {
-    const scheme = ColorScheme.light(
+  static ThemeData get dark {
+    const scheme = ColorScheme.dark(
       primary: SwColors.primaryStrong,
       onPrimary: SwColors.onPrimary,
-      secondary: SwColors.primary,
-      onSecondary: SwColors.onPrimary,
+      secondary: SwColors.secondary,
+      onSecondary: SwColors.textPrimary,
       surface: SwColors.surface,
       onSurface: SwColors.textPrimary,
       error: SwColors.error,
@@ -207,6 +212,7 @@ class SwTheme {
 
     return ThemeData(
       useMaterial3: true,
+      brightness: Brightness.dark,
       colorScheme: scheme,
       fontFamily: SwType.family,
       scaffoldBackgroundColor: SwColors.background,

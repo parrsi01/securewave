@@ -1,3 +1,8 @@
+import 'dart:io';
+import 'dart:ui' as ui;
+
+import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -15,6 +20,22 @@ import 'package:securewave_app/services/api_client.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+
+  setUpAll(() async {
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(
+      const MethodChannel('dev.fluttercommunity.plus/connectivity_status'),
+      (_) async => null,
+    );
+    final icons = FontLoader('MaterialIcons')
+      ..addFont(rootBundle.load('fonts/MaterialIcons-Regular.otf'));
+    await icons.load();
+    for (final family in ['SpaceGrotesk', 'JetBrainsMono']) {
+      final loader = FontLoader(family)
+        ..addFont(rootBundle.load('assets/fonts/$family-Variable.ttf'));
+      await loader.load();
+    }
+  });
 
   late Map<String, String?> store;
   late List<MethodCall> linkCalls;
@@ -74,6 +95,39 @@ void main() {
       null,
     );
   });
+
+  for (final size in [const Size(360, 800), const Size(1280, 900)]) {
+    testWidgets('black-blue screens fit ${size.width} with enlarged text',
+        (tester) async {
+      tester.platformDispatcher.textScaleFactorTestValue = 1.3;
+      addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+      await _pumpApp(tester, size: size);
+      expect(Theme.of(tester.element(find.byType(Scaffold).first)).brightness,
+          Brightness.dark);
+      expect(tester.takeException(), isNull);
+      await _capture(tester, 'home-${size.width.toInt()}');
+      for (final tab in ['Account', 'Diagnostics']) {
+        await tester
+            .tap(size.width >= 720 ? find.text(tab.toUpperCase()).first : find.text(tab).last);
+        await tester.pumpAndSettle();
+        expect(tester.takeException(), isNull);
+        await _capture(tester, '${tab.toLowerCase()}-${size.width.toInt()}');
+      }
+    });
+
+    testWidgets('black-blue auth forms fit ${size.width}', (tester) async {
+      store.clear();
+      await _pumpApp(tester, size: size);
+      expect(find.text('Welcome back'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+      await _capture(tester, 'login-${size.width.toInt()}');
+      await tester.tap(find.text('Create account').first);
+      await tester.pumpAndSettle();
+      expect(find.text('Create your account'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+      await _capture(tester, 'register-${size.width.toInt()}');
+    });
+  }
 
   testWidgets('home surfaces the empty catalog state', (tester) async {
     await _pumpApp(
@@ -211,8 +265,9 @@ Future<void> _pumpApp(
   Override? vpnServiceOverride,
   Override? apiClientOverride,
   bool settle = true,
+  Size size = const Size(390, 844),
 }) async {
-  tester.view.physicalSize = const Size(390, 844);
+  tester.view.physicalSize = size;
   tester.view.devicePixelRatio = 1;
   addTearDown(tester.view.resetPhysicalSize);
   addTearDown(tester.view.resetDevicePixelRatio);
@@ -265,7 +320,10 @@ Future<void> _pumpApp(
               ],
             ),
       ],
-      child: const SecureWaveApp(),
+      child: const RepaintBoundary(
+        key: ValueKey('app-preview'),
+        child: SecureWaveApp(),
+      ),
     ),
   );
   if (settle) {
@@ -388,4 +446,19 @@ class _NoopApiClient extends ApiClient {
     String? serverId,
     VpnProtocol? protocol,
   }) async {}
+}
+
+// Optional review images use test fixtures, never live-account or VPN evidence.
+Future<void> _capture(WidgetTester tester, String name) async {
+  const output = String.fromEnvironment('SW_UI_CAPTURE_DIR');
+  if (output.isEmpty) return;
+  final boundary = tester.renderObject<RenderRepaintBoundary>(
+      find.byKey(const ValueKey('app-preview')));
+  await tester.runAsync(() async {
+    final image = await boundary.toImage(pixelRatio: 1);
+    final bytes = await image.toByteData(format: ui.ImageByteFormat.png);
+    await Directory(output).create(recursive: true);
+    await File('$output/$name.png').writeAsBytes(bytes!.buffer.asUint8List());
+    image.dispose();
+  });
 }

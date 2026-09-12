@@ -5,6 +5,18 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:securewave_app/ui/sw_theme.dart';
 
 void main() {
+  test('locks the approved black/blue design system', () {
+    expect(SwColors.designSystem, 'securewave-black-blue-v1');
+    expect(SwColors.background, const Color(0xFF03060D));
+    expect(SwColors.surfaceSecondary, const Color(0xFF060C18));
+    expect(SwColors.surface, const Color(0xFF080F20));
+    expect(SwColors.primary, const Color(0xFF00B4FF));
+    expect(SwColors.secondary, const Color(0xFF0066CC));
+    expect(SwType.family, 'SpaceGrotesk');
+    expect(SwType.mono, 'JetBrainsMono');
+    expect(SwTheme.dark.brightness, Brightness.dark);
+  });
+
   test('small-text token pairs meet WCAG AA contrast', () {
     expect(
       _contrast(SwColors.textSecondary, SwColors.background),
@@ -18,6 +30,18 @@ void main() {
       _contrast(SwColors.primaryStrong, SwColors.primarySoft),
       greaterThanOrEqualTo(4.5),
     );
+  });
+
+  test('dark controls and notices keep readable foreground contrast', () {
+    for (final pair in [
+      (SwColors.onPrimary, SwColors.primaryStrong),
+      (SwColors.textPrimary, SwColors.surface),
+      (SwColors.textPrimary, SwColors.warningSoft),
+      (SwColors.textPrimary, SwColors.errorSoft),
+      (SwColors.error, SwColors.surface),
+    ]) {
+      expect(_contrast(pair.$1, pair.$2), greaterThanOrEqualTo(4.5));
+    }
   });
 
   test('shared small labels remain readable', () {

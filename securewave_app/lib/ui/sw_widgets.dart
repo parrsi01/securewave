@@ -8,7 +8,7 @@ import 'sw_theme.dart';
 /// Brand mark
 /// ---------------------------------------------------------------------------
 
-/// Rounded-square badge containing a shield outline and a signal wave.
+/// Website hexagon, shield and wave mark, drawn at native resolution.
 class SwLogo extends StatelessWidget {
   const SwLogo({super.key, this.size = 24});
 
@@ -27,18 +27,24 @@ class _SwLogoPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final s = size.width;
-    final radius = s * 0.5;
-
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(
-        Rect.fromLTWH(0, 0, s, s),
-        Radius.circular(radius.clamp(0.0, s * 0.5)),
-      ),
-      Paint()..color = SwColors.primaryStrong,
-    );
+    final outline = Path()
+      ..moveTo(s * 0.5, s * 0.04)
+      ..lineTo(s * 0.90, s * 0.27)
+      ..lineTo(s * 0.90, s * 0.73)
+      ..lineTo(s * 0.5, s * 0.96)
+      ..lineTo(s * 0.10, s * 0.73)
+      ..lineTo(s * 0.10, s * 0.27)
+      ..close();
+    canvas.drawPath(outline, Paint()..color = SwColors.surfaceSecondary);
+    canvas.drawPath(
+        outline,
+        Paint()
+          ..color = SwColors.primary
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = math.max(1, s / 32));
 
     final stroke = Paint()
-      ..color = SwColors.onPrimary
+      ..color = SwColors.primary
       ..style = PaintingStyle.stroke
       ..strokeCap = StrokeCap.round
       ..strokeJoin = StrokeJoin.round
@@ -69,7 +75,7 @@ class _SwLogoPainter extends CustomPainter {
     canvas.drawPath(
       wave,
       Paint()
-        ..color = SwColors.onPrimary
+        ..color = SwColors.primary
         ..style = PaintingStyle.stroke
         ..strokeCap = StrokeCap.round
         ..strokeJoin = StrokeJoin.round
@@ -295,7 +301,7 @@ class _RailItem extends StatelessWidget {
         child: AnimatedContainer(
           duration: SwMotion.fast,
           curve: SwMotion.curve,
-          width: 72,
+          width: SwLayout.railWidth - 16,
           height: 56,
           decoration: BoxDecoration(
             color: selected ? SwColors.primarySoft : Colors.transparent,
@@ -363,7 +369,7 @@ class SwStatusPill extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 6),
       decoration: BoxDecoration(
         color: success ? SwColors.primarySoft : SwColors.surfaceSecondary,
-        borderRadius: BorderRadius.circular(SwRadius.pill),
+        borderRadius: BorderRadius.circular(SwRadius.sm),
       ),
       child: Text(
         text,
@@ -393,7 +399,7 @@ class SwNotice extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Text stays on the near-black ink so every tone clears WCAG AA; the tone
+    // Text stays light on dark surfaces for readable contrast; the tone
     // itself is carried by the tint and the accent bar, never by text colour.
     final (Color bg, Color accent) = switch (tone) {
       SwNoticeTone.info => (SwColors.surfaceSecondary, SwColors.idle),
@@ -477,14 +483,13 @@ class SwConnectButton extends StatelessWidget {
                   color: connected ? SwColors.primaryStrong : SwColors.surface,
                   border: connected
                       ? null
-                      : Border.all(color: SwColors.border, width: 2),
-                  boxShadow: connected ? SwShadow.connected : SwShadow.card,
+                      : Border.all(color: SwColors.primaryStrong, width: 2),
                 ),
                 child: AnimatedSwitcher(
                   duration: SwMotion.fast,
                   transitionBuilder: (child, animation) => FadeTransition(
                     opacity: animation,
-                    child: ScaleTransition(scale: animation, child: child),
+                    child: child,
                   ),
                   child: Column(
                     key: ValueKey('${connected}_$busy'),
@@ -707,15 +712,14 @@ class SwRow extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 18),
       child: Row(
         children: [
-          // Intentionally not flexible: labels are short fixed strings, and
-          // giving them a flex slot would cap the value at half the row and
-          // ellipsise it against empty space.
-          Text(
-            label,
-            style: SwType.body.copyWith(
-              color: SwColors.textPrimary,
-              fontWeight: FontWeight.w600,
-              height: 1.3,
+          Expanded(
+            child: Text(
+              label,
+              style: SwType.body.copyWith(
+                color: SwColors.textPrimary,
+                fontWeight: FontWeight.w600,
+                height: 1.3,
+              ),
             ),
           ),
           if (value != null) ...[
@@ -728,8 +732,7 @@ class SwRow extends StatelessWidget {
                 style: SwType.body.copyWith(height: 1.3),
               ),
             ),
-          ] else
-            const Spacer(),
+          ],
           if (trailing != null) ...[
             const SizedBox(width: 10),
             trailing!,
@@ -787,7 +790,9 @@ class SwSegmentedControl extends StatelessWidget {
                     height: 38,
                     alignment: Alignment.center,
                     decoration: BoxDecoration(
-                      color: index == i ? SwColors.surface : Colors.transparent,
+                      color: index == i
+                          ? SwColors.primarySoft
+                          : Colors.transparent,
                       borderRadius: BorderRadius.circular(SwRadius.sm + 2),
                       boxShadow: index == i ? SwShadow.segment : null,
                     ),
