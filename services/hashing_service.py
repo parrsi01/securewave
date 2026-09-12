@@ -46,10 +46,16 @@ def hash_password(password: str) -> str:
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
     """Verify a password against its bcrypt hash"""
+    # Invalid or unsupported stored values must never authenticate, and must
+    # not turn an otherwise normal login rejection into an HTTP 500.
+    if not isinstance(hashed_password, str) or not hashed_password:
+        return False
     # Limit password length to 72 characters (bcrypt limit)
     if len(plain_password) > 72:
         plain_password = plain_password[:72]
     if pwd_context:
+        if pwd_context.identify(hashed_password) is None:
+            return False
         return pwd_context.verify(plain_password, hashed_password)
     return _crypt_verify(plain_password, hashed_password)
 
