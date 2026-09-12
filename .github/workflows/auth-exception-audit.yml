@@ -1,0 +1,35 @@
+name: Production Auth Exception Audit
+on:
+  push:
+    branches: [codex/auth-diagnostic-20260912]
+    paths:
+      - scripts/auth_exception_audit.py
+      - .github/workflows/auth-exception-audit.yml
+permissions:
+  contents: read
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    environment: production
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+        with:
+          persist-credentials: false
+      - name: Read redacted exception categories
+        env:
+          SSH_KEY: ${{ secrets.SECUREWAVE_PRODUCTION_SSH_KEY }}
+          KNOWN_HOSTS: ${{ secrets.SECUREWAVE_PRODUCTION_KNOWN_HOSTS }}
+          TARGET_HOST: ${{ vars.SECUREWAVE_PRODUCTION_HOST }}
+          TARGET_USER: ${{ vars.SECUREWAVE_PRODUCTION_USER }}
+        run: |
+          set -euo pipefail
+          umask 077
+          test "$TARGET_USER" = securewave
+          test -n "$TARGET_HOST"
+          test -n "$SSH_KEY"
+          test -n "$KNOWN_HOSTS"
+          printf '%s\n' "$SSH_KEY" > "$RUNNER_TEMP/auth_key"
+          printf '%s\n' "$KNOWN_HOSTS" > "$RUNNER_TEMP/auth_hosts"
+          unset SSH_KEY KNOWN_HOSTS
+          ssh -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=10 -o "UserKnownHostsFile=$RUNNER_TEMP/auth_hosts" -i "$RUNNER_TEMP/auth_key" "$TARGET_USER@$TARGET_HOST" 'python3 -' < scripts/auth_exception_audit.py
