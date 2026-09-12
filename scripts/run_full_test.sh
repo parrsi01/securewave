@@ -39,12 +39,12 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-if [[ -n "${PYTHON_BIN:-}" ]]; then
-  PYTHON_BIN="$PYTHON_BIN"
-elif [[ -x "$ROOT_DIR/venv/bin/python" ]]; then
-  PYTHON_BIN="$ROOT_DIR/venv/bin/python"
-else
-  PYTHON_BIN="$(command -v python3 || true)"
+if [[ -z "${PYTHON_BIN:-}" ]]; then
+  if [[ -x "$ROOT_DIR/venv/bin/python" ]]; then
+    PYTHON_BIN="$ROOT_DIR/venv/bin/python"
+  else
+    PYTHON_BIN="$(command -v python3 || true)"
+  fi
 fi
 SYSTEM_PYTHON="$(command -v python3 || true)"
 if [[ -z "$PYTHON_BIN" || -z "$SYSTEM_PYTHON" ]]; then
