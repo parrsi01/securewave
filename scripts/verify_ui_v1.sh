@@ -105,7 +105,7 @@ PY
 
 if ! test -f securewave_app/lib/ui/sw_theme.dart ||
    ! test -f securewave_app/lib/ui/sw_widgets.dart; then
-  echo "Missing current Flutter light UI files" >&2
+  echo "Missing current Flutter UI files" >&2
   exit 1
 fi
 
@@ -119,15 +119,17 @@ if [[ -n "${EXTRA_THEME_FILES}" ]]; then
 fi
 
 if command -v rg >/dev/null 2>&1; then
-  if ! rg -q "SwTheme.light" securewave_app/lib/app.dart; then
-    echo "Flutter app is not using the current light theme" >&2
+  if ! rg -q "SwTheme.dark" securewave_app/lib/app.dart; then
+    echo "Flutter app is not using the current black/blue theme" >&2
     exit 1
   fi
 else
-  if ! grep -q "SwTheme.light" securewave_app/lib/app.dart; then
-    echo "Flutter app is not using the current light theme" >&2
+  if ! grep -q "SwTheme.dark" securewave_app/lib/app.dart; then
+    echo "Flutter app is not using the current black/blue theme" >&2
     exit 1
   fi
 fi
 
-echo "Current Flutter light UI guard checks passed"
+python3 scripts/verify_flutter_design_lock.py
+
+echo "Current Flutter black/blue UI guard checks passed"
