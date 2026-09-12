@@ -1,4 +1,4 @@
-.PHONY: flutter-get flutter-run flutter-build-linux linux-package linux-runtime-install linux-runtime-check linux-live-auth-init linux-live-debug
+.PHONY: flutter-get flutter-run flutter-build-linux linux-package linux-runtime-install linux-runtime-check linux-live-auth-init linux-live-debug full-test
 
 APP_DIR := securewave_app
 
@@ -28,3 +28,6 @@ linux-live-auth-init:
 
 linux-live-debug:
 	bash scripts/live_linux_no_prompt_proof.sh
+
+full-test:
+	bash scripts/run_full_test.sh
