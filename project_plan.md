@@ -6,6 +6,13 @@ This is the canonical lightweight tracker for remaining SecureWave work,
 release direction, blocker status, and section verification. Keep it current so
 future Codex runs can distinguish verified work from intended work.
 
+Current checkpoint (2026-09-08): backend/website `4.0.0+10` at `f6c1ee14` is
+deployed and the public ARM64 checksum is verified. Installed app acceptance
+and email delivery remain unproven in this checkpoint. Consult
+[current release status](docs/current_release_status.md) before treating the
+historical section checklists below as release evidence. Concurrent Linux and
+Mac sessions should use separate branches and checkouts.
+
 ## Current v1 Release Target
 
 SecureWave v1 is Linux desktop first with WireGuard as the primary protocol.
