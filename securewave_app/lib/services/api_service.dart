@@ -239,6 +239,14 @@ class ApiService {
     if (payload is Map) {
       final detail = payload['detail'] ?? payload['message'];
       if (detail is String && detail.trim().isNotEmpty) return detail;
+
+      // FastAPI production errors are sanitized into this envelope. Keep the
+      // safe public message visible instead of falling back to a generic one.
+      final error = payload['error'];
+      if (error is Map) {
+        final message = error['message'];
+        if (message is String && message.trim().isNotEmpty) return message;
+      }
     }
     return 'The SecureWave API request failed.';
   }
