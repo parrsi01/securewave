@@ -27,11 +27,6 @@ const char* kHelperSocketPath = "/run/securewave/helper.sock";
 const char* kHelperDaemonPath = "/usr/local/libexec/securewave-helperd";
 const char* kHelperContractPath = "/usr/local/libexec/securewave-wg-quick.contract";
 const char* kWireGuardConfigFileName = "sw-wg.conf";
-const char* kOpenVpnConfigFileName = "securewave.ovpn";
-const char* kOpenVpnPidFileName = "securewave-openvpn.pid";
-const char* kOpenVpnLogFileName = "securewave-openvpn.log";
-const char* kOpenVpnAuthFileName = "securewave-openvpn.auth";
-const char* kIkev2ConfigFileName = "securewave-ikev2.conf";
 const char* kActiveProtocolFileName = "securewave-active-protocol";
 const char* kBundledHelperScriptRelativePath = "packaging/linux/securewave-wg-quick";
 const char* kBundledHelperDaemonRelativePath = "packaging/linux/securewave-helperd";
@@ -46,9 +41,6 @@ using Fields = std::map<std::string, std::string>;
 typedef struct {
   FlMethodChannel* channel;
   gchar* config_path;
-  gchar* openvpn_pid_path;
-  gchar* openvpn_log_path;
-  gchar* openvpn_auth_path;
   gchar* active_protocol_path;
   gchar* active_protocol;
 } VpnChannelState;
@@ -68,9 +60,6 @@ static void vpn_channel_state_free(VpnChannelState* state) {
   }
   g_clear_object(&state->channel);
   g_clear_pointer(&state->config_path, g_free);
-  g_clear_pointer(&state->openvpn_pid_path, g_free);
-  g_clear_pointer(&state->openvpn_log_path, g_free);
-  g_clear_pointer(&state->openvpn_auth_path, g_free);
   g_clear_pointer(&state->active_protocol_path, g_free);
   g_clear_pointer(&state->active_protocol, g_free);
   g_free(state);
@@ -100,17 +89,6 @@ static void respond_error(
     const gchar* code,
     const gchar* message,
     FlValue* details);
-
-static gboolean get_bool_arg(FlValue* args, const gchar* key) {
-  if (!args || fl_value_get_type(args) != FL_VALUE_TYPE_MAP) {
-    return FALSE;
-  }
-  FlValue* value = fl_value_lookup_string(args, key);
-  if (!value || fl_value_get_type(value) != FL_VALUE_TYPE_BOOL) {
-    return FALSE;
-  }
-  return fl_value_get_bool(value);
-}
 
 static gboolean is_safe_external_url(const gchar* url) {
   if (!url || *url == '\0') {
@@ -487,7 +465,7 @@ static gboolean helper_daemon_installed() {
 }
 
 static gboolean linux_native_runtime_available(gchar** detail) {
-  const gchar* protocols[] = {"wireguard", "openvpn", "ikev2"};
+  const gchar* protocols[] = {"wireguard"};
   g_autofree gchar* last_detail = nullptr;
   gboolean service_seen = FALSE;
   for (const gchar* protocol : protocols) {
@@ -511,7 +489,7 @@ static gboolean linux_native_runtime_available(gchar** detail) {
                              ? last_detail
                              : "SecureWave helper service is unavailable.");
     } else {
-      *detail = g_strdup("No supported Linux VPN runtime tools are available. Install WireGuard, OpenVPN, or NetworkManager strongSwan support.");
+      *detail = g_strdup("No supported Linux VPN runtime tools are available. Install WireGuard support.");
     }
   }
   return FALSE;
@@ -556,55 +534,24 @@ static const gchar* load_active_protocol(VpnChannelState* state) {
     return "wireguard";
   }
   g_strstrip(stored);
-  if (g_strcmp0(stored, "openvpn") == 0 ||
-      g_strcmp0(stored, "ikev2") == 0 ||
-      g_strcmp0(stored, "wireguard") == 0) {
+  if (g_strcmp0(stored, "wireguard") == 0) {
     state->active_protocol = g_strdup(stored);
     return state->active_protocol;
   }
   return "wireguard";
 }
 
-static void ensure_protocol_paths(VpnChannelState* state, const gchar* protocol) {
-  if (g_strcmp0(protocol, "openvpn") == 0) {
-    if (!state->config_path) {
-      state->config_path = build_state_path(kOpenVpnConfigFileName);
-    }
-    if (!state->openvpn_pid_path) {
-      state->openvpn_pid_path = build_state_path(kOpenVpnPidFileName);
-    }
-    if (!state->openvpn_log_path) {
-      state->openvpn_log_path = build_state_path(kOpenVpnLogFileName);
-    }
-    if (!state->openvpn_auth_path) {
-      state->openvpn_auth_path = build_state_path(kOpenVpnAuthFileName);
-    }
-    return;
-  }
+static void ensure_protocol_paths(VpnChannelState* state) {
   if (!state->config_path) {
-    state->config_path = build_state_path(
-        g_strcmp0(protocol, "ikev2") == 0
-            ? kIkev2ConfigFileName
-            : kWireGuardConfigFileName);
+    state->config_path = build_state_path(kWireGuardConfigFileName);
   }
 }
 
-static Fields helper_args_for_protocol(VpnChannelState* state, const gchar* protocol) {
-  ensure_protocol_paths(state, protocol);
+static Fields helper_args_for_wireguard(VpnChannelState* state) {
+  ensure_protocol_paths(state);
   Fields args;
   if (state->config_path) {
     args["config_path"] = state->config_path;
-  }
-  if (g_strcmp0(protocol, "openvpn") == 0) {
-    if (state->openvpn_pid_path) {
-      args["pid_path"] = state->openvpn_pid_path;
-    }
-    if (state->openvpn_log_path) {
-      args["log_path"] = state->openvpn_log_path;
-    }
-    if (state->openvpn_auth_path) {
-      args["auth_path"] = state->openvpn_auth_path;
-    }
   }
   return args;
 }
@@ -631,10 +578,8 @@ static void respond_runtime_install_state(FlMethodCall* method_call) {
   const guint contract_version = installed_contract_version();
   gboolean service_seen = FALSE;
   gboolean wireguard_helper_probe = FALSE;
-  gboolean openvpn_helper_probe = FALSE;
-  gboolean ikev2_helper_probe = FALSE;
   g_autofree gchar* probe_detail = nullptr;
-  const gchar* protocols[] = {"wireguard", "openvpn", "ikev2"};
+  const gchar* protocols[] = {"wireguard"};
   for (const gchar* protocol : protocols) {
     HelperResponse probe_response {};
     g_autofree gchar* op_detail = nullptr;
@@ -646,10 +591,6 @@ static void respond_runtime_install_state(FlMethodCall* method_call) {
     }
     if (ok && g_strcmp0(protocol, "wireguard") == 0) {
       wireguard_helper_probe = TRUE;
-    } else if (ok && g_strcmp0(protocol, "openvpn") == 0) {
-      openvpn_helper_probe = TRUE;
-    } else if (ok && g_strcmp0(protocol, "ikev2") == 0) {
-      ikev2_helper_probe = TRUE;
     }
     if (probe_detail == nullptr && op_detail != nullptr) {
       probe_detail = g_strdup(op_detail);
@@ -691,11 +632,7 @@ static void respond_runtime_install_state(FlMethodCall* method_call) {
       response,
       "required_contract",
       fl_value_new_int(static_cast<int64_t>(kSecureWaveHelperContractVersion)));
-  // These are local helper probes only. Backend runtime and data-plane
-  // evidence is required before OpenVPN/IKEv2 can be release-enabled.
   fl_value_set_string_take(response, "wireguard_helper_probe", fl_value_new_bool(wireguard_helper_probe));
-  fl_value_set_string_take(response, "openvpn_helper_probe", fl_value_new_bool(openvpn_helper_probe));
-  fl_value_set_string_take(response, "ikev2_helper_probe", fl_value_new_bool(ikev2_helper_probe));
   fl_value_set_string_take(response, "message", fl_value_new_string(message));
   g_autoptr(FlMethodResponse) method_response = FL_METHOD_RESPONSE(
       fl_method_success_response_new(response));
@@ -740,32 +677,6 @@ static HelperTaskContext* helper_task_context_new(
   return ctx;
 }
 
-static void remove_ephemeral_credentialed_profile(const HelperTaskContext* ctx) {
-  if (!ctx) {
-    return;
-  }
-  const std::string config_path = field(ctx->args, "config_path");
-  if (!config_path.empty()) {
-    g_unlink(config_path.c_str());
-  }
-  if (g_strcmp0(ctx->op, "openvpn.stop") == 0 ||
-      g_strcmp0(ctx->op, "openvpn.start") == 0) {
-    const std::string auth_path = field(ctx->args, "auth_path");
-    if (!auth_path.empty()) {
-      g_unlink(auth_path.c_str());
-    }
-  }
-  if (g_strcmp0(ctx->op, "ikev2.stop") == 0 ||
-      g_strcmp0(ctx->op, "ikev2.start") == 0) {
-    g_autofree gchar* directory = g_path_get_dirname(config_path.c_str());
-    if (directory && *directory) {
-      g_autofree gchar* ca_path =
-          g_build_filename(directory, "securewave-ikev2-ca.pem", nullptr);
-      g_unlink(ca_path);
-    }
-  }
-}
-
 static void helper_operation_worker(GTask* task,
                                     gpointer source_object,
                                     gpointer task_data,
@@ -795,19 +706,8 @@ static void helper_operation_complete(GObject* source_object,
   g_autoptr(GError) error = nullptr;
   const gboolean ok = g_task_propagate_boolean(G_TASK(result), &error);
   if (ok) {
-    if (g_strcmp0(ctx->op, "openvpn.stop") == 0 ||
-        g_strcmp0(ctx->op, "ikev2.stop") == 0) {
-      remove_ephemeral_credentialed_profile(ctx);
-    }
     respond_success(ctx->method_call);
   } else {
-    if (g_strcmp0(ctx->op, "openvpn.start") == 0 ||
-        g_strcmp0(ctx->op, "ikev2.start") == 0) {
-      // The helper has already attempted fail-closed runtime rollback. The
-      // untrusted user-owned config and any copied IKE CA must not outlive a
-      // failed credentialed connection attempt.
-      remove_ephemeral_credentialed_profile(ctx);
-    }
     respond_error(
         ctx->method_call,
         ctx->error_code,
@@ -886,21 +786,16 @@ static gboolean parse_wireguard_transfer(const std::string& output,
 }
 
 static void respond_traffic_stats(FlMethodCall* method_call,
-                                  VpnChannelState* state,
-                                  const gchar* protocol) {
+                                  VpnChannelState* state) {
   HelperResponse response {};
   g_autofree gchar* detail = nullptr;
-  Fields args = helper_args_for_protocol(state, protocol);
+  Fields args = helper_args_for_wireguard(state);
   guint64 rx_bytes = 0;
   guint64 tx_bytes = 0;
   gboolean counters_available = FALSE;
-  std::string interface_name =
-      g_strcmp0(protocol, "openvpn") == 0
-          ? "tun-securewave"
-          : (g_strcmp0(protocol, "ikev2") == 0 ? "xfrm" : "sw-wg");
+  std::string interface_name = "sw-wg";
 
-  if (g_strcmp0(protocol, "wireguard") == 0 &&
-      helper_operation("wireguard.counters", args, &response, &detail)) {
+  if (helper_operation("wireguard.counters", args, &response, &detail)) {
     counters_available = parse_wireguard_transfer(
         field(response.fields, "stdout"),
         &rx_bytes,
@@ -908,12 +803,8 @@ static void respond_traffic_stats(FlMethodCall* method_call,
   }
 
   if (!counters_available) {
-    const gchar* op =
-        g_strcmp0(protocol, "openvpn") == 0
-            ? "openvpn.status"
-            : (g_strcmp0(protocol, "ikev2") == 0 ? "ikev2.status" : "wireguard.status");
     g_clear_pointer(&detail, g_free);
-    if (helper_operation(op, args, &response, &detail)) {
+    if (helper_operation("wireguard.status", args, &response, &detail)) {
       interface_name = field(response.fields, "interface");
       rx_bytes = field_uint64(response.fields, "rx_bytes");
       tx_bytes = field_uint64(response.fields, "tx_bytes");
@@ -941,14 +832,10 @@ static void respond_runtime_status(
     FlMethodCall* method_call,
     VpnChannelState* state) {
   const gchar* protocol = load_active_protocol(state);
-  Fields args = helper_args_for_protocol(state, protocol);
-  const gchar* op =
-      g_strcmp0(protocol, "openvpn") == 0
-          ? "openvpn.status"
-          : (g_strcmp0(protocol, "ikev2") == 0 ? "ikev2.status" : "wireguard.status");
+  Fields args = helper_args_for_wireguard(state);
   HelperResponse response {};
   g_autofree gchar* detail = nullptr;
-  const gboolean ok = helper_operation(op, args, &response, &detail);
+  const gboolean ok = helper_operation("wireguard.status", args, &response, &detail);
   const std::string status = ok ? field(response.fields, "status") : "disconnected";
 
   g_autoptr(FlValue) value = fl_value_new_map();
@@ -965,98 +852,8 @@ static void respond_runtime_status(
   fl_method_call_respond(method_call, method_response, nullptr);
 }
 
-static const gchar* connect_op_for_protocol(const gchar* protocol) {
-  if (g_strcmp0(protocol, "openvpn") == 0) {
-    return "openvpn.start";
-  }
-  if (g_strcmp0(protocol, "ikev2") == 0) {
-    return "ikev2.start";
-  }
-  return "wireguard.up";
-}
-
-static const gchar* disconnect_op_for_protocol(const gchar* protocol) {
-  if (g_strcmp0(protocol, "openvpn") == 0) {
-    return "openvpn.stop";
-  }
-  if (g_strcmp0(protocol, "ikev2") == 0) {
-    return "ikev2.stop";
-  }
-  return "wireguard.down";
-}
-
-static const gchar* config_file_for_protocol(const gchar* protocol) {
-  if (g_strcmp0(protocol, "openvpn") == 0) {
-    return kOpenVpnConfigFileName;
-  }
-  if (g_strcmp0(protocol, "ikev2") == 0) {
-    return kIkev2ConfigFileName;
-  }
-  return kWireGuardConfigFileName;
-}
-
 static gboolean supported_protocol(const gchar* protocol) {
-  return g_strcmp0(protocol, "wireguard") == 0 ||
-         g_strcmp0(protocol, "openvpn") == 0 ||
-         g_strcmp0(protocol, "ikev2") == 0;
-}
-
-static gboolean safe_openvpn_username(const gchar* value) {
-  if (!value) {
-    return FALSE;
-  }
-  const size_t length = strlen(value);
-  if (g_str_has_prefix(value, "swovpn-") && length == 38) {
-    for (const gchar* cursor = value + 6; *cursor; cursor++) {
-      if (!g_ascii_isxdigit(*cursor) || g_ascii_isupper(*cursor)) {
-        return FALSE;
-      }
-    }
-    return TRUE;
-  }
-  // The deployed user/password control plane predates the opaque swovpn UUID
-  // format and issues bounded lowercase sw-ovpn-* identifiers. They are
-  // written only to an owner-only auth file and are never shell-interpreted.
-  if (!g_str_has_prefix(value, "sw-ovpn-") || length < 9 || length > 64) {
-    return FALSE;
-  }
-  for (const gchar* cursor = value + 8; *cursor; cursor++) {
-    if (!(g_ascii_islower(*cursor) || g_ascii_isdigit(*cursor) ||
-          *cursor == '-')) {
-      return FALSE;
-    }
-  }
-  return TRUE;
-}
-
-static gboolean safe_openvpn_password(const gchar* value) {
-  if (!value || *value == '\0' || strlen(value) > 256) {
-    return FALSE;
-  }
-  for (const gchar* cursor = value; *cursor; cursor++) {
-    if (!(g_ascii_isalnum(*cursor) || *cursor == '-' || *cursor == '_')) {
-      return FALSE;
-    }
-  }
-  return TRUE;
-}
-
-static gboolean write_openvpn_auth_file(FlMethodCall* method_call,
-                                        const gchar* path,
-                                        const gchar* username,
-                                        const gchar* password) {
-  if (!path || !safe_openvpn_username(username) || !safe_openvpn_password(password)) {
-    respond_error(method_call, "invalid_config", "OpenVPN credential is invalid.", nullptr);
-    return FALSE;
-  }
-  g_autofree gchar* contents = g_strdup_printf("%s\n%s\n", username, password);
-  g_autoptr(GError) error = nullptr;
-  if (!g_file_set_contents(path, contents, -1, &error) || g_chmod(path, 0600) != 0) {
-    g_unlink(path);
-    respond_error(method_call, "vpn_config_write_failed", "Unable to write the OpenVPN credential file.", nullptr);
-    return FALSE;
-  }
-  return TRUE;
+  return g_strcmp0(protocol, "wireguard") == 0;
 }
 
 static void handle_vpn_call(FlMethodChannel* channel,
@@ -1087,24 +884,6 @@ static void handle_vpn_call(FlMethodChannel* channel,
             nullptr);
         return;
       }
-      if (g_strcmp0(protocol, "ikev2") == 0) {
-        respond_error(
-            method_call,
-            "protocol_unavailable",
-            "IKEv2 is temporarily unavailable while its dedicated gateway is not provisioned.",
-            nullptr);
-        return;
-      }
-      if (g_strcmp0(protocol, "wireguard") != 0 &&
-          !get_bool_arg(args, "backend_evidence") &&
-          !get_bool_arg(args, "runtime_only")) {
-        respond_error(
-            method_call,
-            "protocol_unavailable",
-            "OpenVPN and IKEv2 require fresh backend runtime and data-plane evidence.",
-            nullptr);
-        return;
-      }
       Fields probe_args;
       probe_args["protocol"] = protocol;
       HelperResponse probe_response {};
@@ -1132,10 +911,15 @@ static void handle_vpn_call(FlMethodChannel* channel,
   if (g_strcmp0(method, "getTrafficStats") == 0) {
     FlValue* args = fl_method_call_get_args(method_call);
     const gchar* protocol = get_string_arg(args, "protocol");
-    if (!protocol || *protocol == '\0' || !supported_protocol(protocol)) {
-      protocol = load_active_protocol(state);
+    if (protocol && *protocol != '\0' && !supported_protocol(protocol)) {
+      respond_error(
+          method_call,
+          "protocol_unavailable",
+          "SecureWave is WireGuard-only in this build.",
+          nullptr);
+      return;
     }
-    respond_traffic_stats(method_call, state, protocol);
+    respond_traffic_stats(method_call, state);
     return;
   }
 
@@ -1156,23 +940,10 @@ static void handle_vpn_call(FlMethodChannel* channel,
       protocol = "wireguard";
     }
     if (!supported_protocol(protocol)) {
-      respond_error(method_call, "protocol_unavailable", "Unsupported VPN protocol.", nullptr);
-      return;
-    }
-    if (g_strcmp0(protocol, "ikev2") == 0) {
       respond_error(
           method_call,
           "protocol_unavailable",
-          "IKEv2 is temporarily unavailable while its dedicated gateway is not provisioned.",
-          nullptr);
-      return;
-    }
-    if (g_strcmp0(protocol, "wireguard") != 0 &&
-        !get_bool_arg(args, "backend_evidence")) {
-      respond_error(
-          method_call,
-          "protocol_unavailable",
-          "OpenVPN and IKEv2 require fresh backend runtime and data-plane evidence.",
+          "SecureWave is WireGuard-only in this build.",
           nullptr);
       return;
     }
@@ -1195,44 +966,26 @@ static void handle_vpn_call(FlMethodChannel* channel,
     }
 
     g_clear_pointer(&state->config_path, g_free);
-    g_clear_pointer(&state->openvpn_pid_path, g_free);
-    g_clear_pointer(&state->openvpn_log_path, g_free);
-    g_clear_pointer(&state->openvpn_auth_path, g_free);
-    state->config_path = build_state_path(config_file_for_protocol(protocol));
-    if (g_strcmp0(protocol, "openvpn") == 0) {
-      state->openvpn_pid_path = build_state_path(kOpenVpnPidFileName);
-      state->openvpn_log_path = build_state_path(kOpenVpnLogFileName);
-      state->openvpn_auth_path = build_state_path(kOpenVpnAuthFileName);
-    }
+    state->config_path = build_state_path(kWireGuardConfigFileName);
     if (!write_config_file(method_call, state->config_path, config)) {
       return;
     }
-    if (g_strcmp0(protocol, "openvpn") == 0) {
-      const gchar* username = get_string_arg(args, "openvpn_username");
-      const gchar* password = get_string_arg(args, "openvpn_password");
-      if (!write_openvpn_auth_file(
-              method_call, state->openvpn_auth_path, username, password)) {
-        g_unlink(state->config_path);
-        return;
-      }
-    }
     persist_active_protocol(state, protocol);
-    Fields helper_args = helper_args_for_protocol(state, protocol);
+    Fields helper_args = helper_args_for_wireguard(state);
     run_helper_operation_async(
         method_call,
         "vpn_connect_failed",
-        connect_op_for_protocol(protocol),
+        "wireguard.up",
         helper_args);
     return;
   }
 
   if (g_strcmp0(method, "disconnect") == 0) {
-    const gchar* protocol = load_active_protocol(state);
-    Fields helper_args = helper_args_for_protocol(state, protocol);
+    Fields helper_args = helper_args_for_wireguard(state);
     run_helper_operation_async(
         method_call,
         "vpn_disconnect_failed",
-        disconnect_op_for_protocol(protocol),
+        "wireguard.down",
         helper_args);
     return;
   }

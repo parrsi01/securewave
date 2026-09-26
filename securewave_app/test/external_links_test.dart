@@ -24,7 +24,7 @@ void main() {
 
   test('opens a valid HTTPS URL through the platform channel', () async {
     final opened = await ExternalLinksService().openUrl(
-      'https://securewaveapp.com/contact.html',
+      'https://api.securewaveapp.com/health',
     );
 
     expect(opened, isTrue);

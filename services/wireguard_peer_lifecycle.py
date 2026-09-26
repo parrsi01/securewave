@@ -9,8 +9,6 @@ profile after an unconfirmed remote operation.
 from __future__ import annotations
 
 import logging
-import os
-
 from sqlalchemy.orm import Session
 
 from models.vpn_server import VPNServer
@@ -20,7 +18,6 @@ from services.wireguard_server_manager import (
     get_wireguard_server_manager,
     server_connection_from_db,
 )
-from utils.env_validation import demo_mode_enabled, wg_mock_mode_enabled
 
 
 logger = logging.getLogger(__name__)
@@ -32,11 +29,7 @@ class WireGuardPeerSyncError(RuntimeError):
 
 def remote_peer_sync_required() -> bool:
     """Return whether this process may perform real server peer operations."""
-    return not (
-        os.getenv("TESTING", "").lower() == "true"
-        or demo_mode_enabled()
-        or wg_mock_mode_enabled()
-    )
+    return True
 
 
 async def _add_peer(server: VPNServer, public_key: str, allowed_ips: str) -> bool:
@@ -68,7 +61,8 @@ async def confirm_peer_assignment(
 
     A real assignment adds the target peer before removing the previous peer.
     If any step fails, the new remote key is removed and the old local record
-    remains intact.  Test/demo/mock modes deliberately do not contact hosts.
+    remains intact.  A private-key-bearing profile is returned only after the
+    remote server operation confirms successfully.
     """
     old_public_key = peer.public_key
     old_server = peer.server

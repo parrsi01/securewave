@@ -1,4 +1,4 @@
-.PHONY: flutter-get flutter-run flutter-build-linux linux-package linux-runtime-install linux-runtime-check linux-live-auth-init linux-live-debug
+.PHONY: flutter-get flutter-run flutter-build-linux linux-package linux-runtime-install backend-run
 
 APP_DIR := securewave_app
 
@@ -20,11 +20,5 @@ linux-package:
 linux-runtime-install:
 	bash scripts/setup_linux_runtime.sh
 
-linux-runtime-check:
-	python3 scripts/linux_vpn_runtime_verifier.py --json
-
-linux-live-auth-init:
-	python3 scripts/init_linux_live_auth.py
-
-linux-live-debug:
-	bash scripts/live_linux_no_prompt_proof.sh
+backend-run:
+	bash scripts/run_backend.sh

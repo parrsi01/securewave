@@ -1,53 +1,12 @@
-# SecureWave App
+# SecureWave Linux App
 
-SecureWave is a Flutter control-plane app that integrates with the SecureWave API
-and provisions ephemeral VPN profiles for native Linux tunnel providers.
+This Flutter app is Linux + WireGuard only.
 
-Users should not manually download or manage VPN profiles. The app fetches
-profiles from the backend after login, stores the active profile in secure
-storage, and hands it to the Linux runner.
+The app expects a live backend at `SECUREWAVE_API_BASE_URL`, a registered WireGuard server in the database, and the local SecureWave helper service installed on the VM.
 
-## What Works Without Xcode
+```bash
+make linux-runtime-install
+SECUREWAVE_API_BASE_URL=http://localhost:8000/api make flutter-run
+```
 
-- Fresh Flutter UI with Connect, Servers, Account, and Settings tabs
-- Auth + session persistence
-- Server list, account state, and usage gauge
-- WireGuard/OpenVPN profile fetch from API and handoff to native bridge
-
-## What Requires Xcode (iOS/macOS)
-
-- Network Extension target configuration
-- Code signing + entitlements
-- WireGuardKit package fetch
-
-## Diagnostics
-
-- **Connection diagnostics (small):** Home → "Connection diagnostics" (read-only checks: backend, auth, profile, tunnel).
-- **Full diagnostics:** Settings → "Run diagnostics" (includes copyable logs + cache clear).
-
-## Quick Start (Linux/macOS with Flutter)
-
-1. Install Flutter SDK and run `flutter doctor`.
-2. From the repository root:
-   - `make flutter-run`
-   - Add `--dart-define=SECUREWAVE_USE_MOCK_API=true` only for isolated demo UI work.
-3. For Linux VPN connect/disconnect, install the privileged runtime once:
-   - `make linux-runtime-install`
-   - rerun `make flutter-run`
-4. `flutter run -d macos` is UI-only; VPN tunneling is unavailable on macOS yet.
-
-## iOS Setup
-
-Follow `IOS_VPN_SETUP.md` to finish the Network Extension configuration in Xcode.
-Always open `securewave_app/ios/Runner.xcworkspace` (never `Runner.xcodeproj`).
-
-## Android Setup
-
-Follow `ANDROID_VPN_SETUP.md` to integrate the WireGuard backend.
-
-## Windows Setup
-
-Follow `WINDOWS_VPN_SETUP.md` to integrate the WireGuard backend.
-
----
-© 2026 SecureWave. All rights reserved.
+The app is intentionally scoped to the live Linux WireGuard path.

@@ -68,14 +68,10 @@ class WireGuardServerManager:
     def remote_operations_enabled() -> bool:
         """Return whether this process may contact a WireGuard server.
 
-        Test and mock runs must remain local.  In particular, fixture server
-        addresses are documentation-only values and must never trigger SSH or
-        HTTP traffic during backend lifecycle tests.
+        Runtime operations are live-only. Unit tests should inject a fake
+        manager instead of relying on production code to simulate success.
         """
-        return not (
-            os.getenv("TESTING", "").lower() == "true"
-            or os.getenv("WG_MOCK_MODE", "").lower() == "true"
-        )
+        return True
 
     def _load_fernet(self) -> Optional[Fernet]:
         """Load Fernet encryption key for API keys"""
@@ -133,9 +129,6 @@ class WireGuardServerManager:
         """
         logger.info("Adding peer to server_id=%s", conn.server_id)
 
-        if not self.remote_operations_enabled():
-            return True, "Peer addition simulated (local test/mock mode)"
-
         if conn.method == "http_api":
             return await self._add_peer_via_api(conn, public_key, allowed_ips)
         elif conn.method == "ssh":
@@ -160,9 +153,6 @@ class WireGuardServerManager:
         """
         logger.info("Removing peer from server_id=%s", conn.server_id)
 
-        if not self.remote_operations_enabled():
-            return True, "Peer removal simulated (local test/mock mode)"
-
         if conn.method == "http_api":
             return await self._remove_peer_via_api(conn, public_key)
         elif conn.method == "ssh":
@@ -183,9 +173,6 @@ class WireGuardServerManager:
         Returns:
             Tuple of (success, list of peer dicts)
         """
-        if not self.remote_operations_enabled():
-            return True, []
-
         if conn.method == "http_api":
             return await self._list_peers_via_api(conn)
         elif conn.method == "ssh":
@@ -206,9 +193,6 @@ class WireGuardServerManager:
         Returns:
             Tuple of (success, status dict)
         """
-        if not self.remote_operations_enabled():
-            return True, {"status": "mock"}
-
         if conn.method == "http_api":
             return await self._get_status_via_api(conn)
         elif conn.method == "ssh":
@@ -243,9 +227,6 @@ class WireGuardServerManager:
         configured API key and an accepted authenticated response; SSH probes
         require the remote command itself to execute successfully.
         """
-        if not self.remote_operations_enabled():
-            return True, False, "WireGuard server probe simulated (local test/mock mode)"
-
         if conn.method == "http_api":
             return await self._authenticated_health_check_via_api(conn)
         if conn.method == "ssh":
@@ -430,10 +411,8 @@ class WireGuardServerManager:
                 "-o", f"UserKnownHostsFile={known_hosts_path}",
             ]
         else:
-            # Historical WireGuard/OpenVPN provisioning currently supplies no
-            # pinned host-key material.  IKEv2 uses the strict branch above
-            # because its credential lifecycle is a separate authenticated
-            # control plane.
+            # WireGuard server bootstrap currently supplies no pinned host-key
+            # material unless WG_KNOWN_HOSTS is configured by the operator.
             ssh_cmd[3:3] = [
                 "-o", "StrictHostKeyChecking=no",
                 "-o", "UserKnownHostsFile=/dev/null",

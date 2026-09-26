@@ -17,7 +17,7 @@ for command in flutter wg wg-quick dpkg-deb dpkg sha256sum; do
 done
 
 # Keep package metadata reproducible. Flutter bundle contents are copied into
-# the staging tree, so normalize every filesystem timestamp before dpkg-deb
+# the package root, so normalize every filesystem timestamp before dpkg-deb
 # creates the control/data archives. SOURCE_DATE_EPOCH may be supplied by a
 # release job; local builds use a stable epoch so the published checksum does
 # not change merely because the candidate was committed after the package was
@@ -48,7 +48,7 @@ source_commit="unversioned"
 source_tree_state="unversioned"
 if git -C "$REPO_ROOT" rev-parse HEAD >/dev/null 2>&1; then
   source_commit="$(git -C "$REPO_ROOT" rev-parse HEAD)"
-  if [[ -n "$(git -C "$REPO_ROOT" status --porcelain --untracked-files=all -- . ':!securewave_app/build' ':!static/downloads/*.deb')" ]]; then
+  if [[ -n "$(git -C "$REPO_ROOT" status --porcelain --untracked-files=all -- . ':!securewave_app/build')" ]]; then
     source_tree_state="dirty"
   else
     source_tree_state="clean"
@@ -75,7 +75,7 @@ version="$(awk '/^version:/ {print $2; exit}' pubspec.yaml)"
 
 arch="$(dpkg --print-architecture)"
 package_name="securewave-vpn"
-staging_dir="$ROOT_DIR/build/packaging/deb"
+package_root="$ROOT_DIR/build/packaging/deb"
 output_dir="$ROOT_DIR/build/packaging"
 output_file="$output_dir/${package_name}_${version}_${arch}.deb"
 
@@ -85,48 +85,43 @@ helperd_source="$bundle_dir/packaging/linux/securewave-helperd"
   exit 1
 }
 
-rm -rf "$staging_dir"
+rm -rf "$package_root"
 mkdir -p \
-  "$staging_dir/DEBIAN" \
-  "$staging_dir/usr/lib/securewave" \
-  "$staging_dir/usr/bin" \
-  "$staging_dir/usr/lib/tmpfiles.d" \
-  "$staging_dir/usr/share/applications" \
-  "$staging_dir/usr/share/icons/hicolor/256x256/apps" \
-  "$staging_dir/usr/share/securewave/packaging/linux" \
-  "$staging_dir/usr/share/securewave/release"
+  "$package_root/DEBIAN" \
+  "$package_root/usr/lib/securewave" \
+  "$package_root/usr/bin" \
+  "$package_root/usr/lib/tmpfiles.d" \
+  "$package_root/usr/share/applications" \
+  "$package_root/usr/share/icons/hicolor/256x256/apps" \
+  "$package_root/usr/share/securewave/packaging/linux" \
+  "$package_root/usr/share/securewave/release"
 
-cp -a "$bundle_dir/." "$staging_dir/usr/lib/securewave/"
-# The Flutter bundle also carries legacy portable-install payloads for other
-# protocol experiments. The authenticated Linux beta package is WireGuard
-# only; its postinst owns the helper lifecycle and must not ship those files.
-rm -f \
-  "$staging_dir/usr/lib/securewave/packaging/linux/securewave-strongswan-routing.conf" \
-  "$staging_dir/usr/lib/securewave/scripts/install_linux_helper.sh"
+cp -a "$bundle_dir/." "$package_root/usr/lib/securewave/"
+rm -f "$package_root/usr/lib/securewave/scripts/install_linux_helper.sh"
 install -m 0755 "$ROOT_DIR/packaging/linux/securewave-wg-quick" \
-  "$staging_dir/usr/share/securewave/packaging/linux/securewave-wg-quick"
+  "$package_root/usr/share/securewave/packaging/linux/securewave-wg-quick"
 install -m 0755 "$helperd_source" \
-  "$staging_dir/usr/share/securewave/packaging/linux/securewave-helperd"
+  "$package_root/usr/share/securewave/packaging/linux/securewave-helperd"
 install -m 0644 \
   "$ROOT_DIR/packaging/linux/securewave-helper.service" \
   "$ROOT_DIR/packaging/linux/securewave-helper.tmpfiles" \
   "$ROOT_DIR/packaging/linux/securewave-wg-quick.contract" \
-  "$staging_dir/usr/share/securewave/packaging/linux/"
+  "$package_root/usr/share/securewave/packaging/linux/"
 install -m 0644 "$ROOT_DIR/packaging/linux/securewave-helper.tmpfiles" \
-  "$staging_dir/usr/lib/tmpfiles.d/securewave-helper.conf"
+  "$package_root/usr/lib/tmpfiles.d/securewave-helper.conf"
 
 helper_contract="$(tr -d '[:space:]' < "$ROOT_DIR/packaging/linux/securewave-wg-quick.contract")"
 [[ "$helper_contract" == "13" ]] || {
   echo "ERROR: Beta 1 requires helper contract 13, got $helper_contract" >&2
   exit 1
 }
-printf '%s\n' "$version" > "$staging_dir/usr/share/securewave/release/app-version"
-printf '%s\n' "$arch" > "$staging_dir/usr/share/securewave/release/package-architecture"
-printf '%s\n' "$helper_contract" > "$staging_dir/usr/share/securewave/release/helper-contract"
-printf '%s\n' "$source_commit" > "$staging_dir/usr/share/securewave/release/source-sha"
-printf '%s\n' "$source_tree_state" > "$staging_dir/usr/share/securewave/release/source-tree-state"
+printf '%s\n' "$version" > "$package_root/usr/share/securewave/release/app-version"
+printf '%s\n' "$arch" > "$package_root/usr/share/securewave/release/package-architecture"
+printf '%s\n' "$helper_contract" > "$package_root/usr/share/securewave/release/helper-contract"
+printf '%s\n' "$source_commit" > "$package_root/usr/share/securewave/release/source-sha"
+printf '%s\n' "$source_tree_state" > "$package_root/usr/share/securewave/release/source-tree-state"
 
-cat <<CONTROL > "$staging_dir/DEBIAN/control"
+cat <<CONTROL > "$package_root/DEBIAN/control"
 Package: $package_name
 Version: $version
 Section: net
@@ -138,7 +133,7 @@ Description: SecureWave WireGuard Linux beta client
  A small Linux beta client with one authenticated WireGuard runtime.
 CONTROL
 
-cat <<'DESKTOP' > "$staging_dir/usr/share/applications/securewave-vpn.desktop"
+cat <<'DESKTOP' > "$package_root/usr/share/applications/securewave-vpn.desktop"
 [Desktop Entry]
 Name=SecureWave VPN
 Exec=securewave-vpn
@@ -150,17 +145,17 @@ DESKTOP
 
 if [[ -f "$ROOT_DIR/assets/icon.png" ]]; then
   install -m 0644 "$ROOT_DIR/assets/icon.png" \
-    "$staging_dir/usr/share/icons/hicolor/256x256/apps/securewave-vpn.png"
+    "$package_root/usr/share/icons/hicolor/256x256/apps/securewave-vpn.png"
 fi
 
-cat <<'WRAPPER' > "$staging_dir/usr/bin/securewave-vpn"
+cat <<'WRAPPER' > "$package_root/usr/bin/securewave-vpn"
 #!/usr/bin/env bash
 set -euo pipefail
 exec /usr/lib/securewave/securewave_app "$@"
 WRAPPER
-chmod 0755 "$staging_dir/usr/bin/securewave-vpn"
+chmod 0755 "$package_root/usr/bin/securewave-vpn"
 
-cat <<'PREINST' > "$staging_dir/DEBIAN/preinst"
+cat <<'PREINST' > "$package_root/DEBIAN/preinst"
 #!/bin/sh
 set -eu
 case "${1:-}" in
@@ -169,7 +164,7 @@ case "${1:-}" in
 esac
 PREINST
 
-cat <<'POSTINST' > "$staging_dir/DEBIAN/postinst"
+cat <<'POSTINST' > "$package_root/DEBIAN/postinst"
 #!/bin/bash
 set -euo pipefail
 
@@ -261,7 +256,7 @@ printf '%s\n' "$probe_output" | grep -qx 'ok=true' || {
 }
 POSTINST
 
-cat <<'PRERM' > "$staging_dir/DEBIAN/prerm"
+cat <<'PRERM' > "$package_root/DEBIAN/prerm"
 #!/bin/bash
 set -euo pipefail
 
@@ -280,7 +275,7 @@ if command -v systemctl >/dev/null 2>&1 && [[ -d /run/systemd/system ]]; then
 fi
 PRERM
 
-cat <<'POSTRM' > "$staging_dir/DEBIAN/postrm"
+cat <<'POSTRM' > "$package_root/DEBIAN/postrm"
 #!/bin/bash
 set -euo pipefail
 
@@ -312,21 +307,21 @@ if [[ "${1:-}" == purge ]]; then
 fi
 POSTRM
 
-chmod 0755 "$staging_dir/DEBIAN/preinst" "$staging_dir/DEBIAN/postinst" \
-  "$staging_dir/DEBIAN/prerm" "$staging_dir/DEBIAN/postrm"
+chmod 0755 "$package_root/DEBIAN/preinst" "$package_root/DEBIAN/postinst" \
+  "$package_root/DEBIAN/prerm" "$package_root/DEBIAN/postrm"
 
-# dpkg-deb preserves mtimes from the staging tree. Normalize files and
+# dpkg-deb preserves mtimes from the package root. Normalize files and
 # directories alike so repeated builds from the same source are byte-stable.
-find "$staging_dir" -exec touch -h -d "@$SOURCE_DATE_EPOCH" {} +
+find "$package_root" -exec touch -h -d "@$SOURCE_DATE_EPOCH" {} +
 
 mkdir -p "$output_dir"
-dpkg-deb --root-owner-group --build "$staging_dir" "$output_file" >/dev/null
+dpkg-deb --root-owner-group --build "$package_root" "$output_file" >/dev/null
 sha256sum "$output_file" > "$output_file.sha256"
 if [[ "$source_commit" != "unversioned" ]]; then
   if [[ "$source_tree_state" == "dirty" ]]; then
-    tracked_diff_sha256="$({ git -C "$REPO_ROOT" diff --binary HEAD -- . ':!securewave_app/build' ':!static/downloads/*.deb'; git -C "$REPO_ROOT" diff --binary --cached -- . ':!securewave_app/build' ':!static/downloads/*.deb'; } | sha256sum | awk '{print $1}')"
+    tracked_diff_sha256="$({ git -C "$REPO_ROOT" diff --binary HEAD -- . ':!securewave_app/build'; git -C "$REPO_ROOT" diff --binary --cached -- . ':!securewave_app/build'; } | sha256sum | awk '{print $1}')"
     untracked_files_sha256="$(
-      git -C "$REPO_ROOT" ls-files -z --others --exclude-standard -- . ':!securewave_app/build' ':!static/downloads/*.deb' |
+      git -C "$REPO_ROOT" ls-files -z --others --exclude-standard -- . ':!securewave_app/build' |
         while IFS= read -r -d '' path; do
           [[ -f "$REPO_ROOT/$path" ]] || continue
           printf '%s\0' "$path"

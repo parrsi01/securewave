@@ -11,8 +11,6 @@ class AppConfig {
     required this.apiBaseUrl,
     required this.portalUrl,
     required this.upgradeUrl,
-    required this.useMockApi,
-    this.skipLoginForDevelopment = false,
     required this.resetSessionOnBoot,
     this.autoLoginForTesting = false,
   });
@@ -20,15 +18,11 @@ class AppConfig {
   final String apiBaseUrl;
   final String portalUrl;
   final String upgradeUrl;
-  final bool useMockApi;
-  final bool skipLoginForDevelopment;
   final bool resetSessionOnBoot;
   final bool autoLoginForTesting;
   static AppConfig? _cached;
 
   factory AppConfig.defaults() {
-    // Daily-use builds default to the live control plane. Mock data is opt-in
-    // through SECUREWAVE_USE_MOCK_API for isolated UI tests and demos.
     return AppConfig(
       apiBaseUrl: _compileTimeOrFallback(
         'SECUREWAVE_API_BASE_URL',
@@ -42,13 +36,6 @@ class AppConfig {
         'SECUREWAVE_UPGRADE_URL',
         AppConstants.upgradeUrlFallback,
       ),
-      useMockApi: _parseBool(
-        const String.fromEnvironment(
-          'SECUREWAVE_USE_MOCK_API',
-          defaultValue: 'false',
-        ),
-      ),
-      skipLoginForDevelopment: false,
       resetSessionOnBoot: false,
       autoLoginForTesting: _parseBool(const String.fromEnvironment(
         'SECUREWAVE_AUTO_LOGIN',
@@ -96,24 +83,6 @@ class AppConfig {
         AppConstants.upgradeUrlFallback,
       ),
     );
-    // Mock API must be explicitly requested in every build mode.
-    const bool kIsReleaseMode = bool.fromEnvironment('dart.vm.product');
-    var useMock = _parseBool(
-      env['SECUREWAVE_USE_MOCK_API'] ??
-          const String.fromEnvironment('SECUREWAVE_USE_MOCK_API',
-              defaultValue: 'false'),
-    );
-    final skipLoginRequested = _parseBool(
-      env['SECUREWAVE_SKIP_LOGIN'] ??
-          const String.fromEnvironment('SECUREWAVE_SKIP_LOGIN',
-              defaultValue: 'false'),
-    );
-    if (kIsReleaseMode && useMock) {
-      AppLogger.warning('Config: mock API disabled in release builds.');
-      useMock = false;
-    }
-    final skipLoginForDevelopment =
-        !kIsReleaseMode && useMock && skipLoginRequested;
     final resetSessionOnBoot = _parseBool(
       env['SECUREWAVE_RESET_SESSION_ON_BOOT'] ??
           const String.fromEnvironment(
@@ -133,8 +102,6 @@ class AppConfig {
       apiBaseUrl: baseUrl,
       portalUrl: portalUrl,
       upgradeUrl: upgradeUrl,
-      useMockApi: useMock,
-      skipLoginForDevelopment: skipLoginForDevelopment,
       resetSessionOnBoot: resetSessionOnBoot,
       autoLoginForTesting: autoLoginForTesting,
     );

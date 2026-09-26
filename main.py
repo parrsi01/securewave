@@ -1,5 +1,4 @@
 import os
-import shutil
 import asyncio
 import logging
 import json
@@ -14,31 +13,28 @@ from fastapi import FastAPI, Request, HTTPException
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import JSONResponse
 from fastapi.middleware.gzip import GZipMiddleware
-from fastapi.staticfiles import StaticFiles
 from release_metadata import get_app_version
 from sqlalchemy import text
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
-from utils.release_identity import get_release_identity
 from slowapi.middleware import SlowAPIMiddleware
 
 from database.session import SessionLocal
 # Import all models for SQLAlchemy registration - needed for ORM
-from models import audit_log, ikev2_credential, openvpn_credential, subscription, user, vpn_connection, vpn_demo_session, vpn_server  # noqa: F401
-from routers import contact, dashboard, optimizer, payment_paypal, payment_stripe, admin, security
-from routes import auth as new_auth, billing, diagnostics, vpn as new_vpn, servers, devices, vpn_tests, downloads, tools, user
-from services.wireguard_service import WireGuardService
-from services.email_service import EmailService
-from utils.env_validation import (
-    email_config_issues,
-    validate_fernet_key,
-    is_production,
-    demo_mode_enabled,
-    wg_mock_mode_enabled,
+from models import (  # noqa: F401
+    subscription,
+    user,
+    vpn_connection,
+    vpn_server,
+    vpn_usage_event,
+    wireguard_peer,
 )
+from routes import auth as new_auth, user, vpn as new_vpn
+from services.wireguard_service import WireGuardService
+from utils.env_validation import validate_fernet_key, is_production
 from utils.sensitive_data import redact_text, safe_validation_errors, sanitize_for_evidence
 
 # Request ID context
@@ -84,9 +80,10 @@ handler.setFormatter(JsonFormatter())
 handler.addFilter(RedactFilter())
 logging.basicConfig(level=LOG_LEVEL, handlers=[handler])
 
-# NOTE: Table creation is handled exclusively by Alembic migrations.
+# Alembic remains the production schema path; local/dev startup also ensures
+# tables exist so the Linux app can be exercised without the old bootstrap maze.
 
-docs_enabled = os.getenv("ENVIRONMENT") != "production" or os.getenv("DEMO_OK", "false").lower() == "true"
+docs_enabled = os.getenv("ENVIRONMENT") != "production"
 
 
 @asynccontextmanager
@@ -117,17 +114,7 @@ async def lifespan(app: FastAPI):
 
     yield  # Application runs here
 
-    # Shutdown
     logger.info("FastAPI shutdown initiated")
-    try:
-        from background_tasks import get_task_manager
-        task_manager = get_task_manager()
-        await task_manager.stop_all()
-        logger.info("Background tasks stopped successfully")
-    except ModuleNotFoundError:
-        pass  # Background tasks weren't loaded, nothing to stop
-    except Exception as e:
-        logger.warning(f"Failed to stop background tasks: {e}")
 
 
 app = FastAPI(
@@ -229,9 +216,6 @@ CSRF_SAFE_METHODS = {"GET", "HEAD", "OPTIONS"}
 CSRF_EXEMPT_PATHS = {
     "/api/auth/login",
     "/api/auth/register",
-    "/api/auth/refresh",
-    "/api/auth/password-reset/request",
-    "/api/auth/password-reset/confirm",
 }
 
 
@@ -261,23 +245,8 @@ def get_db():
     finally:
         db.close()
 
-
-def sync_static_assets():
-    backend_dir = Path(__file__).resolve().parent
-    frontend_dir = backend_dir / "frontend"
-    static_dir = backend_dir / "static"
-    static_dir.mkdir(parents=True, exist_ok=True)
-    if frontend_dir.exists():
-        shutil.copytree(frontend_dir, static_dir, dirs_exist_ok=True)
-
-
 def validate_wireguard_production_config(logger: logging.Logger, server_count: int) -> None:
     """Log warnings for missing WireGuard production configuration."""
-    if wg_mock_mode_enabled():
-        return
-    if demo_mode_enabled():
-        return
-
     if not os.getenv("WG_ENCRYPTION_KEY"):
         logger.warning("WG_ENCRYPTION_KEY not set; private keys will not be encrypted at rest.")
 
@@ -336,19 +305,6 @@ def require_production_config(logger: logging.Logger) -> None:
         return
 
     errors = []
-    if os.getenv("EMAIL_PROVIDER") is None:
-        errors.append("EMAIL_PROVIDER must be explicitly set in production")
-    provider, missing = email_config_issues()
-    if missing:
-        errors.append(f"EMAIL_PROVIDER({provider}) missing: {', '.join(missing)}")
-
-    for flag in ("DEMO_MODE", "WG_MOCK_MODE"):
-        value = os.getenv(flag)
-        if value is None:
-            errors.append(f"{flag} must be set to false in production")
-        elif value.strip().lower() != "false":
-            errors.append(f"{flag} must be false in production (got {value})")
-
     database_url = os.getenv("DATABASE_URL", "").strip().lower()
     if not database_url or database_url.startswith("sqlite"):
         errors.append("DATABASE_URL must point to a non-SQLite production database")
@@ -363,23 +319,23 @@ def require_production_config(logger: logging.Logger) -> None:
         raise RuntimeError(message)
 
 async def initialize_app_background():
-    """Background initialization that happens AFTER the app starts responding to health checks"""
+    """Initialize only the app pieces needed by the Linux VPN client."""
     logger = logging.getLogger(__name__)
 
     if os.getenv("TESTING", "").lower() == "true":
         logger.info("Skipping background initialization in test mode")
         return
 
-    # Wait a bit to ensure app is fully started
-    await asyncio.sleep(2)
-
     logger.info("Starting background initialization...")
 
     try:
-        sync_static_assets()
-        logger.info("Static assets synced")
+        from database import base
+        from database.session import engine
+
+        base.Base.metadata.create_all(bind=engine)
+        logger.info("Database tables ensured")
     except Exception as e:
-        logger.warning(f"Static asset sync failed: {e}")
+        logger.warning(f"Database table initialization failed: {e}")
 
     try:
         app.state.wireguard = WireGuardService()
@@ -387,88 +343,22 @@ async def initialize_app_background():
     except Exception as e:
         logger.warning(f"WireGuard service init failed: {e}")
 
-    # Initialize VPN optimizer with database servers (auto-detects ML availability)
     try:
-        from services.vpn_optimizer import get_vpn_optimizer, load_servers_from_database
-
-        optimizer = get_vpn_optimizer()
-        db = SessionLocal()
-
-        # Load servers from database
-        try:
-            server_count = load_servers_from_database(optimizer, db)
-            ml_status = "with ML" if optimizer.use_ml else "without ML (dependencies not available)"
-            logger.info(f"VPN Optimizer initialized {ml_status} - {server_count} servers from database")
-
-            # If no servers in database, log warning
-            if server_count == 0:
-                logger.warning("No VPN servers in database.")
-                demo_mode = demo_mode_enabled()
-                wg_mock = wg_mock_mode_enabled()
-                if demo_mode or wg_mock:
-                    logger.info("Seeding demo VPN servers for demo mode...")
-                    try:
-                        from infrastructure.init_demo_servers import init_demo_servers
-                        init_demo_servers()
-                        server_count = load_servers_from_database(optimizer, db)
-                        logger.info(f"Demo servers initialized: {server_count}")
-                    except Exception as seed_err:
-                        logger.warning(f"Demo server seeding failed: {seed_err}")
-                else:
-                    logger.warning("Run: python3 infrastructure/init_demo_servers.py")
-
+        with SessionLocal() as db:
+            server_count = db.query(vpn_server.VPNServer).count()
             validate_wireguard_production_config(logger, server_count)
-        except Exception as db_err:
-            logger.warning(f"Could not load servers from database: {db_err}. VPN optimizer will start empty.")
-
-        db.close()
-    except Exception as e:
-        logger.warning(f"VPN Optimizer initialization failed: {e}. Continuing without optimizer.")
-
-    try:
         validate_production_env(logger)
     except Exception as e:
         logger.warning(f"Production env validation failed: {e}")
-
-    # Start background tasks
-    try:
-        from background_tasks import get_task_manager
-
-        task_manager = get_task_manager()
-        await task_manager.start_all()
-        logger.info("Background tasks started successfully")
-    except ModuleNotFoundError as e:
-        logger.warning(f"Background tasks module not found: {e}. Skipping background tasks.")
-    except Exception as e:
-        logger.warning(f"Background tasks initialization failed: {e}. Continuing without background tasks.")
 
     logger.info("Background initialization completed")
 
 
 
 
-# New enhanced routes with email verification, 2FA, password reset
+# App routes
 app.include_router(new_auth.router, tags=["auth"])  # Already has /api/auth prefix
-app.include_router(billing.router, tags=["billing"])  # Already has /api/billing prefix
-
-# New VPN routes (real WireGuard support)
 app.include_router(new_vpn.router, tags=["vpn"])  # Already has /api/vpn prefix
-app.include_router(vpn_tests.router, tags=["vpn-tests"])  # VPN performance testing
-app.include_router(devices.router, tags=["devices"])  # Already has /api/vpn/devices prefix
-app.include_router(servers.router, tags=["admin-servers"])  # Already has /api/admin/servers prefix
-app.include_router(admin.router, prefix="/api/admin", tags=["admin"])  # Admin peer management
-
-# Supporting routes
-app.include_router(optimizer.router, prefix="/api/optimizer", tags=["optimizer"])
-app.include_router(dashboard.router, prefix="/api/dashboard", tags=["dashboard"])
-app.include_router(payment_stripe.router, prefix="/api/payments", tags=["payments"])
-app.include_router(payment_paypal.router, prefix="/api/payments", tags=["payments"])
-app.include_router(contact.router, prefix="/api/contact", tags=["contact"])
-app.include_router(security.router, prefix="/api/security", tags=["security"])
-app.include_router(diagnostics.router, tags=["diagnostics"])
-app.include_router(downloads.router, tags=["downloads"])
-app.include_router(downloads.public_router, tags=["downloads"])
-app.include_router(tools.router, tags=["tools"])
 app.include_router(user.router, tags=["user"])
 
 
@@ -488,21 +378,12 @@ def api_error(code: str, message: str, details=None, status_code: int = 400):
 
 @app.get("/health")
 def healthcheck():
-    return {"status": "ok", "service": "securewave-vpn-demo"}
+    return {"status": "ok", "service": "securewave-vpn"}
 
 
 @app.get("/api/health")
 def api_healthcheck():
-    return {"status": "ok", "service": "securewave-vpn-demo"}
-
-
-@app.get("/api/health/email")
-def email_healthcheck():
-    service = EmailService()
-    status = service.config_status()
-    if status["enabled"]:
-        return {"status": "ok", "email": status}
-    return JSONResponse(status_code=503, content={"status": "not_configured", "email": status})
+    return {"status": "ok", "service": "securewave-vpn"}
 
 
 @app.get("/api/ready")
@@ -525,147 +406,41 @@ def readiness():
 
 @app.get("/version")
 def version():
-    release_version, release_commit = get_release_identity()
     return {
-        "version": release_version,
-        "commit": release_commit,
+        "version": get_app_version(),
         "environment": os.getenv("ENVIRONMENT", "development"),
     }
 
 
-static_directory = Path(__file__).resolve().parent / "static"
-
-
-@app.get("/verify-email", include_in_schema=False)
-async def verification_page():
-    return FileResponse(
-        static_directory / "verify-email.html",
-        headers={"Cache-Control": "no-store", "Referrer-Policy": "no-referrer"},
-    )
-
-page_routes = {
-    "/home": "index.html",
-    "/home.html": "index.html",
-    "/favicon.svg": "favicon.svg",
-    "/login": "login.html",
-    "/register": "register.html",
-    "/dashboard": "dashboard.html",
-    "/vpn": "vpn.html",
-    # Legacy "VPN dashboard control" routes now point to diagnostics/support.
-    "/vpn/test": "diagnostics.html",
-    "/vpn/results": "diagnostics.html",
-    "/settings": "settings.html",
-    "/diagnostics": "diagnostics.html",
-    "/download": "download.html",
-    "/leak-test": "leak_test.html",
-    "/subscription": "subscription.html",
-    "/services": "services.html",
-    "/about": "about.html",
-    "/contact": "contact.html",
-    "/privacy": "privacy.html",
-    "/terms": "terms.html",
-}
-
-html_pages = [
-    "index.html", "login.html", "register.html",
-    "dashboard.html", "vpn.html", "services.html", "subscription.html", "download.html", "leak_test.html",
-    "about.html", "contact.html", "privacy.html", "terms.html",
-    "settings.html", "diagnostics.html"
-]
-
-
-def make_page_handler(filepath):
-    async def handler():
-        if filepath.exists():
-            return FileResponse(filepath)
-        return JSONResponse({"detail": "Not found"}, status_code=404)
-    return handler
-
-
-for route_path, page in page_routes.items():
-    app.get(route_path, include_in_schema=False)(make_page_handler(static_directory / page))
-
-
-for page in html_pages:
-    app.get(f"/{page}", include_in_schema=False)(make_page_handler(static_directory / page))
-
-# Mount static assets (CSS, JS, images, etc.) under /static and root
-# Note: We mount unconditionally - Starlette will handle missing directories gracefully
-_logger = logging.getLogger(__name__)
-_logger.info(f"Static directory path: {static_directory}")
-_logger.info(f"Static directory exists: {static_directory.exists()}")
-if static_directory.exists():
-    _logger.info(f"Static directory contents: {list(static_directory.iterdir()) if static_directory.exists() else 'N/A'}")
-
-try:
-    app.mount("/static", StaticFiles(directory=str(static_directory)), name="static")
-    css_dir = static_directory / "css"
-    js_dir = static_directory / "js"
-    img_dir = static_directory / "img"
-    if css_dir.exists():
-        app.mount("/css", StaticFiles(directory=str(css_dir)), name="css")
-    if js_dir.exists():
-        app.mount("/js", StaticFiles(directory=str(js_dir)), name="js")
-    if img_dir.exists():
-        app.mount("/img", StaticFiles(directory=str(img_dir)), name="img")
-    _logger.info("Static files mounted successfully")
-except Exception as e:
-    _logger.warning(f"Failed to mount static files: {e}")
-
-
 @app.get("/", include_in_schema=False)
 async def root():
-    index_file = static_directory / "index.html"
-    if index_file.exists():
-        return FileResponse(index_file)
     return {"message": "SecureWave VPN API", "docs": "/api/docs"}
 
 
 @app.exception_handler(404)
 async def not_found_handler(request: Request, exc):
-    # Check if it's an API request
-    if request.url.path.startswith("/api"):
-        return api_error("not_found", "Not found", status_code=404)
-
-    # For web requests, show custom 404 page
-    error_404 = static_directory / "404.html"
-    if error_404.exists():
-        return FileResponse(error_404, status_code=404)
-    return JSONResponse({"detail": "Not found"}, status_code=404)
+    return api_error("not_found", "Not found", status_code=404)
 
 
 @app.exception_handler(500)
 async def internal_error_handler(request: Request, exc):
-    _logger.error(
+    logging.getLogger(__name__).error(
         "Internal server error request_id=%s exception_type=%s",
         request_id_ctx.get("-"),
         type(exc).__name__,
     )
-
-    # For API requests, return JSON
-    if request.url.path.startswith("/api"):
-        return api_error("internal_error", "Internal server error", status_code=500)
-
-    # For web requests, show error page
-    error_page = static_directory / "error.html"
-    if error_page.exists():
-        return FileResponse(error_page, status_code=500)
-    return JSONResponse({"detail": "Internal server error"}, status_code=500)
+    return api_error("internal_error", "Internal server error", status_code=500)
 
 
 @app.exception_handler(HTTPException)
 async def http_exception_handler(request: Request, exc: HTTPException):
-    if request.url.path.startswith("/api"):
-        return api_error("http_error", exc.detail, status_code=exc.status_code)
-    return JSONResponse({"detail": exc.detail}, status_code=exc.status_code)
+    return api_error("http_error", exc.detail, status_code=exc.status_code)
 
 
 @app.exception_handler(RequestValidationError)
 async def validation_exception_handler(request: Request, exc: RequestValidationError):
     details = safe_validation_errors(exc.errors())
-    if request.url.path.startswith("/api"):
-        return api_error("validation_error", "Invalid request", details=details, status_code=422)
-    return JSONResponse({"detail": "Invalid request"}, status_code=422)
+    return api_error("validation_error", "Invalid request", details=details, status_code=422)
 
 
 """

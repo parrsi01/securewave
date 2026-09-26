@@ -1,2 +1,0 @@
-status=blocked
-reason=Hetzner token environment variables are unset; no Hetzner API calls were attempted.

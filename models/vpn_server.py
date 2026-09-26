@@ -47,22 +47,6 @@ class VPNServer(Base):
     # Protocol capability metadata. Public v1 exposes WireGuard only.
     protocol = Column(String, default="wireguard")
     supports_wireguard = Column(Boolean, default=True)
-    supports_openvpn = Column(Boolean, default=False)
-    supports_ikev2 = Column(Boolean, default=False)
-    openvpn_endpoint = Column(String, nullable=True)
-    openvpn_port = Column(Integer, default=1194)
-    openvpn_transport = Column(String, default="udp")
-    openvpn_ca_cert_pem = Column(String, nullable=True)
-    # OpenVPN is credentialed with the packaged user/password helper.  These
-    # flags are explicit capability metadata; a legacy row with NULL values
-    # therefore remains fail-closed until the server is re-synced.
-    openvpn_requires_client_cert = Column(Boolean, default=True, nullable=True)
-    openvpn_supports_userpass = Column(Boolean, default=False, nullable=True)
-    ikev2_remote_id = Column(String, nullable=True)
-    ikev2_ca_cert_pem = Column(String, nullable=True)
-    # Operator/monitor-provided protocol probes.  Endpoint metadata is never
-    # sufficient by itself to advertise a protocol to clients.
-    protocol_runtime_evidence = Column(JSON, nullable=True)
 
     # Capacity and limits
     max_connections = Column(Integer, default=1000)
@@ -88,7 +72,7 @@ class VPNServer(Base):
     disk_usage = Column(Float, default=0.0)  # 0.0 to 1.0
     bandwidth_in_mbps = Column(Float, default=0.0)
     bandwidth_out_mbps = Column(Float, default=0.0)
-    total_bandwidth_gb = Column(Float, default=0.0)  # Total bandwidth used (billing)
+    total_bandwidth_gb = Column(Float, default=0.0)  # Total bandwidth used
     latency_ms = Column(Float, default=0.0)
     packet_loss = Column(Float, default=0.0)  # 0.0 to 1.0
     jitter_ms = Column(Float, default=0.0)
@@ -163,10 +147,6 @@ class VPNServer(Base):
             "endpoint": self.endpoint,
             "protocol": self.protocol,
             "supports_wireguard": self.supports_wireguard,
-            "supports_openvpn": self.supports_openvpn,
-            # IKEv2 is deliberately withheld from every public inventory
-            # shape until its dedicated gateway is separately certified.
-            "supports_ikev2": False,
             "status": self.status,
             "health_status": self.health_status,
             "current_connections": self.current_connections,
@@ -205,10 +185,6 @@ class VPNServer(Base):
             "dns_servers": self.dns_servers,
             "allowed_ips": self.allowed_ips,
             "hcloud_server_type": self.hcloud_server_type,
-            "openvpn_endpoint": self.openvpn_endpoint,
-            "openvpn_port": self.openvpn_port,
-            "openvpn_transport": self.openvpn_transport,
-            "ikev2_remote_id": self.ikev2_remote_id,
             "priority": self.priority,
             "auto_scale_enabled": self.auto_scale_enabled,
             "is_auto_scaled": self.is_auto_scaled,

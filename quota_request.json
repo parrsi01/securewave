@@ -1,9 +1,0 @@
-{
-  "properties": {
-    "limit": 10,
-    "name": {
-      "value": "cores"
-    },
-    "resourceType": "Microsoft.Web/serverfarms"
-  }
-}

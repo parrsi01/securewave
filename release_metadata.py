@@ -1,4 +1,4 @@
-"""Shared application release metadata for backend and website surfaces."""
+"""Shared application release metadata for backend and Linux app surfaces."""
 
 import os
 

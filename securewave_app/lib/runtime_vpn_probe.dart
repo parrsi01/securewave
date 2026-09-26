@@ -22,11 +22,6 @@ Future<void> main() async {
         apiBase == null || apiBase.isEmpty ? defaults.apiBaseUrl : apiBase,
     portalUrl: defaults.portalUrl,
     upgradeUrl: defaults.upgradeUrl,
-    useMockApi: _environmentBool(
-      environment,
-      'SECUREWAVE_USE_MOCK_API',
-      defaults.useMockApi,
-    ),
     resetSessionOnBoot: false,
   );
   runApp(
@@ -95,7 +90,7 @@ class _RuntimeProbeAppState extends ConsumerState<_RuntimeProbeApp> {
       final protocol = vpnProtocolFromStorage(protocolName);
       if (vpnProtocolStorageValue(protocol) != protocolName.toLowerCase()) {
         throw StateError(
-          'SECUREWAVE_RUNTIME_PROBE_PROTOCOL must be wireguard, openvpn, or ikev2.',
+          'SECUREWAVE_RUNTIME_PROBE_PROTOCOL must be wireguard.',
         );
       }
       final authMode = environment['SECUREWAVE_RUNTIME_PROBE_AUTH_MODE']
@@ -120,12 +115,6 @@ class _RuntimeProbeAppState extends ConsumerState<_RuntimeProbeApp> {
           'SECUREWAVE_RUNTIME_PROBE_DISCONNECT_AFTER must remain true for proof runs.',
         );
       }
-
-      final allowUnadvertisedOpenVpnCertification = _environmentBool(
-        environment,
-        'SECUREWAVE_RUNTIME_PROBE_ALLOW_UNADVERTISED_OPENVPN',
-        false,
-      );
 
       final resetRuntimeReferences = _environmentBool(
         environment,
@@ -157,10 +146,7 @@ class _RuntimeProbeAppState extends ConsumerState<_RuntimeProbeApp> {
         notifier.selectServer(serverId);
       }
 
-      await notifier.connect(
-        allowUnadvertisedOpenVpnCertification:
-            allowUnadvertisedOpenVpnCertification,
-      );
+      await notifier.connect();
       final connectedState = ref.read(vpnStateProvider);
       _printProbeEvent('connect_result', connectedState);
       if (connectedState.status != VpnStatus.connected ||

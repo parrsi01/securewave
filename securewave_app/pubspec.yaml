@@ -37,14 +37,6 @@ flutter:
         - asset: assets/fonts/JetBrainsMono-Variable.ttf
 
 flutter_launcher_icons:
-  android: true
-  ios: true
   image_path: assets/icon.png
-  remove_alpha_ios: true
-  macos:
-    generate: true
-  windows:
-    generate: true
-    icon_size: 256
   linux:
     generate: true

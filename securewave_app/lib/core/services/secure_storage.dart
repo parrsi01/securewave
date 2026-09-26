@@ -42,8 +42,6 @@ class SecureStorage {
     await _storage.delete(key: vpnProtocolKey);
     await _storage.delete(key: vpnProfileExpiresAtKey);
     await _storage.delete(key: vpnProfileConfigKeyFor('wireguard'));
-    await _storage.delete(key: vpnProfileConfigKeyFor('openvpn'));
-    await _storage.delete(key: vpnProfileConfigKeyFor('ikev2'));
   }
 
   Future<void> saveString(String key, String value) =>

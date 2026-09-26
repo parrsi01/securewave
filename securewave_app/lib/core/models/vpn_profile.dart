@@ -11,10 +11,6 @@ class VpnProfile {
     required this.issuedAt,
     required this.expiresAt,
     required this.wireguardConfig,
-    required this.openVpnConfig,
-    required this.openVpnUsername,
-    required this.openVpnPassword,
-    required this.ikev2Config,
     required this.dnsServers,
     required this.adMalwareBlocking,
     required this.dnsEnforcement,
@@ -33,10 +29,6 @@ class VpnProfile {
   final DateTime? issuedAt;
   final DateTime? expiresAt;
   final String wireguardConfig;
-  final String openVpnConfig;
-  final String? openVpnUsername;
-  final String? openVpnPassword;
-  final String ikev2Config;
 
   final List<String> dnsServers;
   final String adMalwareBlocking;
@@ -48,20 +40,8 @@ class VpnProfile {
   final bool peerRegistered;
   final String? registrationStatus;
 
-  String configForProtocol(VpnProtocol protocol) {
-    switch (protocol) {
-      case VpnProtocol.wireGuard:
-        // Linux helpers own routes, DNS, and kill-switch policy. Older
-        // control planes may still attach wg-quick hook directives to an
-        // otherwise valid profile; do not execute those backend-supplied
-        // privileged commands in the client process.
-        return _withoutLegacyWireGuardPrivilegedDirectives(wireguardConfig);
-      case VpnProtocol.openVpn:
-        return openVpnConfig;
-      case VpnProtocol.ikev2:
-        return ikev2Config;
-    }
-  }
+  String configForProtocol(VpnProtocol protocol) =>
+      _withoutLegacyWireGuardPrivilegedDirectives(wireguardConfig);
 
   factory VpnProfile.fromJson(Map<String, dynamic> json) {
     final nestedProfile = json['profile'] is Map
@@ -101,23 +81,6 @@ class VpnProfile {
       wireguardConfig: json['wireguard_config']?.toString() ??
           nestedProfile['wireguard_config']?.toString() ??
           '',
-      openVpnConfig: json['openvpn_config']?.toString() ??
-          nestedProfile['openvpn_config']?.toString() ??
-          nestedProfile['ovpn_config']?.toString() ??
-          '',
-      // The current API returns protocol-specific credentials inside the
-      // nested `profile` object. Keep the top-level fields for the established
-      // schema and fall back to the nested shape without logging or persisting
-      // the values.
-      openVpnUsername: json['openvpn_username']?.toString() ??
-          nestedProfile['openvpn_username']?.toString() ??
-          nestedProfile['username']?.toString(),
-      openVpnPassword: json['openvpn_password']?.toString() ??
-          nestedProfile['openvpn_password']?.toString() ??
-          nestedProfile['password']?.toString(),
-      ikev2Config: json['ikev2_config']?.toString() ??
-          nestedProfile['ikev2_config']?.toString() ??
-          _ikev2ProfileToConfig(nestedProfile),
       dnsServers: dnsServers,
       adMalwareBlocking: dns['ad_malware_blocking']?.toString() ?? 'on',
       dnsEnforcement: dns['enforcement']?.toString() ?? 'best_effort',
@@ -160,57 +123,3 @@ String _withoutLegacyWireGuardPrivilegedDirectives(String config) {
   }
   return kept.join('\n');
 }
-
-String _ikev2ProfileToConfig(Map<String, dynamic> profile) {
-  if (profile['type']?.toString().toLowerCase() != 'ikev2') return '';
-  final server = profile['server']?.toString() ?? '';
-  final username = profile['username']?.toString() ?? '';
-  final password = profile['password']?.toString() ?? '';
-  if (server.isEmpty || username.isEmpty || password.isEmpty) return '';
-  final remoteId = profile['remote_id']?.toString() ?? server;
-  final ca = profile['ca_cert_pem']?.toString() ?? '';
-  if ([server, username, password, remoteId].any(_containsLineBreak)) return '';
-  final secretId = username.replaceAll(RegExp(r'[^A-Za-z0-9_.-]+'), '-');
-  return [
-    'connections {',
-    '  securewave {',
-    '    version = 2',
-    '    remote_addrs = $server',
-    '    proposals = aes256-sha256-modp2048',
-    '    local {',
-    '      auth = eap-mschapv2',
-    '      eap_id = "${_swanctlQuote(username)}"',
-    '    }',
-    '    remote {',
-    '      auth = pubkey',
-    '      id = "${_swanctlQuote(remoteId)}"',
-    '      cacerts = securewave-ikev2-ca.pem',
-    '    }',
-    '    children {',
-    '      securewave {',
-    '        remote_ts = 0.0.0.0/0,::/0',
-    '        esp_proposals = aes256-sha256-modp2048',
-    '      }',
-    '    }',
-    '  }',
-    '}',
-    'secrets {',
-    '  eap-${secretId.isEmpty ? 'securewave-user' : secretId} {',
-    '    id = "${_swanctlQuote(username)}"',
-    '    ${'secret'} = "${_swanctlQuote(password)}"',
-    '  }',
-    '}',
-    if (ca.isNotEmpty) ...[
-      '# ca_cert_pem_begin',
-      ca,
-      '# ca_cert_pem_end',
-    ],
-  ].join('\n');
-}
-
-String _swanctlQuote(String value) {
-  return value.replaceAll('\\', '\\\\').replaceAll('"', '\\"');
-}
-
-bool _containsLineBreak(String value) =>
-    value.contains('\n') || value.contains('\r');

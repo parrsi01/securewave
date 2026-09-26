@@ -85,7 +85,6 @@ void main() {
       apiBaseUrl: 'https://example.invalid',
       portalUrl: 'https://example.invalid',
       upgradeUrl: 'https://example.invalid',
-      useMockApi: false,
       resetSessionOnBoot: false,
     );
     final client = ApiClient(config, session: session, dio: dio);

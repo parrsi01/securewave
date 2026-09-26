@@ -9,9 +9,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:securewave_app/app.dart';
 import 'package:securewave_app/core/config/app_config.dart';
 import 'package:securewave_app/core/constants/app_constants.dart';
+import 'package:securewave_app/core/models/protocol_availability.dart';
 import 'package:securewave_app/core/models/server_region.dart';
 import 'package:securewave_app/core/models/user_account.dart';
 import 'package:securewave_app/core/models/user_plan.dart';
+import 'package:securewave_app/core/models/vpn_profile.dart';
 import 'package:securewave_app/core/models/vpn_protocol.dart';
 import 'package:securewave_app/core/models/vpn_status.dart';
 import 'package:securewave_app/core/services/vpn_service.dart';
@@ -107,8 +109,9 @@ void main() {
       expect(tester.takeException(), isNull);
       await _capture(tester, 'home-${size.width.toInt()}');
       for (final tab in ['Account', 'Diagnostics']) {
-        await tester
-            .tap(size.width >= 720 ? find.text(tab.toUpperCase()).first : find.text(tab).last);
+        await tester.tap(size.width >= 720
+            ? find.text(tab.toUpperCase()).first
+            : find.text(tab).last);
         await tester.pumpAndSettle();
         expect(tester.takeException(), isNull);
         await _capture(tester, '${tab.toLowerCase()}-${size.width.toInt()}');
@@ -203,9 +206,9 @@ void main() {
     );
   });
 
-  testWidgets('legacy hidden selections cannot leave Connect disabled',
+  testWidgets('removed hidden selections cannot leave Connect disabled',
       (tester) async {
-    store['vpn_protocol'] = 'openvpn';
+    store['vpn_protocol'] = 'removed-protocol';
     store['selected_server_id'] = 'retired-server';
     final vpnService = _ConnectTrackingVpnService();
 
@@ -276,7 +279,7 @@ Future<void> _pumpApp(
     ProviderScope(
       overrides: [
         vpnServiceOverride ??
-            vpnServiceProvider.overrideWithValue(MockVpnService()),
+            vpnServiceProvider.overrideWithValue(_IdleVpnService()),
         apiClientOverride ??
             apiClientProvider
                 .overrideWithValue(ApiClient(AppConfig.defaults())),
@@ -285,7 +288,6 @@ Future<void> _pumpApp(
             apiBaseUrl: 'https://api.example.test',
             portalUrl: 'https://portal.example.test',
             upgradeUrl: 'https://upgrade.example.test',
-            useMockApi: false,
             resetSessionOnBoot: false,
           ),
         ),
@@ -350,8 +352,6 @@ class _ConnectedVpnService extends VpnService {
   Future<VpnStatus> connect({
     required VpnProtocol protocol,
     String? config,
-    String? openVpnUsername,
-    String? openVpnPassword,
     bool backendEvidence = false,
   }) async =>
       VpnStatus.connected;
@@ -379,8 +379,6 @@ class _SignOutTrackingVpnService extends VpnService {
   Future<VpnStatus> connect({
     required VpnProtocol protocol,
     String? config,
-    String? openVpnUsername,
-    String? openVpnPassword,
     bool backendEvidence = false,
   }) async =>
       VpnStatus.connected;
@@ -415,8 +413,6 @@ class _ConnectTrackingVpnService extends VpnService {
   Future<VpnStatus> connect({
     required VpnProtocol protocol,
     String? config,
-    String? openVpnUsername,
-    String? openVpnPassword,
     bool backendEvidence = false,
   }) async {
     connectCalls += 1;
@@ -446,6 +442,89 @@ class _NoopApiClient extends ApiClient {
     String? serverId,
     VpnProtocol? protocol,
   }) async {}
+
+  @override
+  Future<Map<VpnProtocol, ProtocolAvailability>> fetchProtocolAvailability({
+    String? deviceType,
+  }) async =>
+      {
+        VpnProtocol.wireGuard: const ProtocolAvailability(
+          protocol: VpnProtocol.wireGuard,
+          enabled: true,
+          serverEnabled: true,
+          platformSupported: true,
+        ),
+      };
+
+  @override
+  Future<VpnProfile> fetchVpnProfile({
+    int? deviceId,
+    required String deviceName,
+    required String deviceType,
+    required VpnProtocol protocol,
+    String? serverId,
+    bool forceRotateKeys = false,
+  }) async {
+    return VpnProfile.fromJson({
+      'device_id': deviceId ?? 10,
+      'device_name': deviceName,
+      'device_type': deviceType,
+      'protocol': 'wireguard',
+      'server_id': serverId ?? 'current-server',
+      'server_location': 'Current region',
+      'issued_at': DateTime.now().toIso8601String(),
+      'expires_at':
+          DateTime.now().add(const Duration(hours: 1)).toIso8601String(),
+      'wireguard_config':
+          '[Interface]\nPrivateKey = test\n[Peer]\nPublicKey = test\n',
+      'dns': {
+        'servers': ['94.140.14.14'],
+      },
+      'peer_registered': true,
+    });
+  }
+
+  @override
+  Future<int?> startUsageSession({
+    required int deviceId,
+    required String serverId,
+    required VpnProtocol protocol,
+    required String idempotencyKey,
+  }) async =>
+      null;
+}
+
+class _IdleVpnService extends VpnService {
+  var _status = VpnStatus.disconnected;
+
+  @override
+  bool get isNativeAvailable => true;
+
+  @override
+  bool canConnectProtocol(VpnProtocol protocol) =>
+      protocol == VpnProtocol.wireGuard;
+
+  @override
+  String? protocolUnavailableReason(VpnProtocol protocol) => null;
+
+  @override
+  Future<VpnStatus> connect({
+    required VpnProtocol protocol,
+    String? config,
+    bool backendEvidence = false,
+  }) async {
+    _status = VpnStatus.connected;
+    return _status;
+  }
+
+  @override
+  Future<VpnStatus> disconnect() async {
+    _status = VpnStatus.disconnected;
+    return _status;
+  }
+
+  @override
+  VpnStatus getStatus() => _status;
 }
 
 // Optional review images use test fixtures, never live-account or VPN evidence.

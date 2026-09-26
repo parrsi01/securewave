@@ -8,43 +8,39 @@ import 'package:securewave_app/core/models/vpn_protocol.dart';
 import 'package:securewave_app/services/api_client.dart';
 
 void main() {
-  test('stale protocol payload cannot advertise OpenVPN', () async {
+  test('protocol availability keeps only WireGuard rows', () async {
     final dio = Dio(BaseOptions(baseUrl: 'https://example.invalid'))
-      ..httpClientAdapter = _ProtocolAdapter(runtimeContract: 'legacy');
+      ..httpClientAdapter = _ProtocolAdapter(includeWireGuard: true);
     final client = ApiClient(AppConfig.defaults(), dio: dio);
 
     final availability =
         await client.fetchProtocolAvailability(deviceType: 'linux');
 
+    expect(availability.keys, [VpnProtocol.wireGuard]);
     expect(availability[VpnProtocol.wireGuard]?.enabled, isTrue);
-    expect(availability[VpnProtocol.openVpn]?.enabled, isFalse);
-    expect(
-      availability[VpnProtocol.openVpn]?.reason,
-      contains('stale'),
-    );
-    expect(availability[VpnProtocol.ikev2]?.enabled, isFalse);
   });
 
-  test('current evidence contract preserves OpenVPN availability metadata',
-      () async {
+  test('missing WireGuard row fails closed', () async {
     final dio = Dio(BaseOptions(baseUrl: 'https://example.invalid'))
-      ..httpClientAdapter = _ProtocolAdapter(
-        runtimeContract: ApiClient.openVpnRuntimeContract,
-      );
+      ..httpClientAdapter = _ProtocolAdapter(includeWireGuard: false);
     final client = ApiClient(AppConfig.defaults(), dio: dio);
 
     final availability =
         await client.fetchProtocolAvailability(deviceType: 'linux');
 
-    expect(availability[VpnProtocol.openVpn]?.enabled, isTrue);
-    expect(availability[VpnProtocol.ikev2]?.platformSupported, isFalse);
+    expect(availability.keys, [VpnProtocol.wireGuard]);
+    expect(availability[VpnProtocol.wireGuard]?.enabled, isFalse);
+    expect(
+      availability[VpnProtocol.wireGuard]?.reason,
+      contains('WireGuard availability was not returned'),
+    );
   });
 }
 
 class _ProtocolAdapter implements HttpClientAdapter {
-  _ProtocolAdapter({required this.runtimeContract});
+  _ProtocolAdapter({required this.includeWireGuard});
 
-  final String runtimeContract;
+  final bool includeWireGuard;
 
   @override
   Future<ResponseBody> fetch(
@@ -53,22 +49,16 @@ class _ProtocolAdapter implements HttpClientAdapter {
     Future<void>? cancelFuture,
   ) async {
     final body = jsonEncode({
-      'runtime_contract': runtimeContract,
       'protocols': [
+        if (includeWireGuard)
+          {
+            'protocol': 'wireguard',
+            'enabled': true,
+            'server_enabled': true,
+            'platform_supported': true,
+          },
         {
-          'protocol': 'wireguard',
-          'enabled': true,
-          'server_enabled': true,
-          'platform_supported': true,
-        },
-        {
-          'protocol': 'openvpn',
-          'enabled': true,
-          'server_enabled': true,
-          'platform_supported': true,
-        },
-        {
-          'protocol': 'ikev2',
+          'protocol': 'removed-protocol',
           'enabled': true,
           'server_enabled': true,
           'platform_supported': true,

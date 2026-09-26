@@ -180,10 +180,15 @@ def get_db() -> Generator[Session, None, None]:
 
 
 def create_tables():
-    """Deprecated safety guard: runtime schema creation is intentionally disabled."""
-    raise RuntimeError(
-        "Runtime ORM schema creation is disabled. Apply Alembic migrations with `alembic upgrade head`."
-    )
+    """Create tables for local/dev runs.
+
+    The current project keeps one compact ORM schema.
+    Production should still point DATABASE_URL at the already prepared
+    Hetzner PostgreSQL database.
+    """
+    from database.base import Base
+
+    Base.metadata.create_all(bind=engine)
 
 
 def check_database_connection() -> bool:

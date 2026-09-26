@@ -136,9 +136,7 @@ install(CODE "
 install(DIRECTORY "${PROJECT_BUILD_DIR}/${FLUTTER_ASSET_DIR_NAME}"
   DESTINATION "${INSTALL_BUNDLE_DATA_DIR}" COMPONENT Runtime)
 
-# Keep raw Flutter Linux bundles aligned with the website/download packages.
-# The app still installs the privileged helper into /usr/local/libexec through
-# the installer, but the payload must travel with debug and release bundles.
+# Keep raw Flutter Linux bundles aligned with the local helper installer.
 install(PROGRAMS
   "${CMAKE_SOURCE_DIR}/../packaging/linux/securewave-wg-quick"
   DESTINATION "${CMAKE_INSTALL_PREFIX}/packaging/linux"
@@ -154,7 +152,6 @@ install(FILES
   "${CMAKE_SOURCE_DIR}/../packaging/linux/securewave-wg-quick.contract"
   "${CMAKE_SOURCE_DIR}/../packaging/linux/securewave-helper.service"
   "${CMAKE_SOURCE_DIR}/../packaging/linux/securewave-helper.tmpfiles"
-  "${CMAKE_SOURCE_DIR}/../packaging/linux/securewave-strongswan-routing.conf"
   DESTINATION "${CMAKE_INSTALL_PREFIX}/packaging/linux"
   COMPONENT Runtime)
 

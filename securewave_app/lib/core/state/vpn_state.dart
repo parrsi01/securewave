@@ -8,7 +8,6 @@ import '../models/vpn_profile.dart';
 import '../models/vpn_protocol.dart';
 import '../models/vpn_runtime_policy.dart';
 import '../models/vpn_status.dart';
-import '../optimization/marlxgb.dart';
 import '../services/device_identity.dart';
 import '../services/secure_storage.dart';
 import '../../services/api_client.dart';
@@ -115,7 +114,6 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
 
   final Ref _ref;
   late final Future<void> _initialization;
-  final _predictor = const MarLXGBPredictor();
   int _stabilitySuccesses = 0;
   int _stabilityFailures = 0;
   DateTime? _lastAutoReconnectAt;
@@ -192,13 +190,11 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
     final storage = SecureStorage();
     final stored = await storage.getString(SecureStorage.vpnProtocolKey);
     if (!mounted) return;
-    final protocol = vpnProtocolFromStorage(stored);
-    if (protocol != VpnProtocol.wireGuard) {
+    if (stored != null && stored.toLowerCase() != 'wireguard') {
       await storage.delete(SecureStorage.vpnProtocolKey);
-      if (!mounted) return;
-      state = state.copyWith(protocol: VpnProtocol.wireGuard);
-      return;
     }
+    if (!mounted) return;
+    final protocol = vpnProtocolFromStorage(stored);
     state = state.copyWith(protocol: protocol);
   }
 
@@ -235,9 +231,7 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
     );
   }
 
-  Future<void> connect({
-    bool allowUnadvertisedOpenVpnCertification = false,
-  }) async {
+  Future<void> connect() async {
     if (state.isBusy) return;
 
     // User intent: VPN should be on.
@@ -260,224 +254,90 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
           VpnRuntimePolicy.unavailableReason(state.protocol),
         );
       }
+      final identity = await DeviceIdentity.load();
+      final backendProtocols = await api.fetchProtocolAvailability(
+        deviceType: identity.type,
+      );
+      final readiness = backendProtocols[state.protocol];
+      if (readiness == null || !readiness.enabled) {
+        throw VpnServiceException(
+          'protocol_unavailable',
+          readiness?.reason ??
+              '${vpnProtocolLabel(state.protocol)} has no usable backend runtime evidence.',
+        );
+      }
+      final nativeProtocolReady = await service.refreshProtocolAvailability(
+        state.protocol,
+        backendEvidence: true,
+      );
+      if (!nativeProtocolReady) {
+        throw VpnServiceException(
+          'protocol_unavailable',
+          service.protocolUnavailableReason(state.protocol) ??
+              '${vpnProtocolLabel(state.protocol)} is unavailable on this Linux runtime.',
+        );
+      }
+      final storage = SecureStorage();
+      final deviceId = await storage.getInt(SecureStorage.vpnDeviceIdKey);
+      final protocolKey = vpnProtocolStorageValue(state.protocol);
+      final profileConfigKey = SecureStorage.vpnProfileConfigKeyFor(
+        protocolKey,
+      );
       String? config;
-      String? openVpnUsername;
-      String? openVpnPassword;
-      String? credentialedEgressBaseline;
-      String? externalEgressBaseline;
-      String? credentialedServerId;
-      int? credentialedDeviceId;
-      final requiresCredentialedEgress =
-          VpnRuntimePolicy.requiresFreshEgressProof(state.protocol);
-      var backendEvidence = false;
-
-      if (service.isNativeAvailable) {
-        final identity = await DeviceIdentity.load();
-        final backendProtocols = await api.fetchProtocolAvailability(
+      try {
+        final profile = await _fetchProfileWithReferenceRecovery(
+          api: api,
+          storage: storage,
+          deviceId: deviceId,
+          deviceName: identity.name,
           deviceType: identity.type,
+          profileConfigKey: profileConfigKey,
         );
-        final readiness = backendProtocols[state.protocol];
-        final certificationBootstrap = allowUnadvertisedOpenVpnCertification &&
-            state.protocol == VpnProtocol.openVpn &&
-            readiness?.reason ==
-                'OpenVPN data-plane evidence has not been recorded.';
-        if (readiness == null ||
-            (!readiness.enabled && !certificationBootstrap)) {
+        config = profile.configForProtocol(state.protocol);
+        if (config.trim().isEmpty) {
           throw VpnServiceException(
             'protocol_unavailable',
-            readiness?.reason ??
-                '${vpnProtocolLabel(state.protocol)} has no usable backend runtime evidence.',
+            '${vpnProtocolLabel(state.protocol)} profile did not include a runnable Linux configuration.',
           );
         }
-        backendEvidence = true;
-        final nativeProtocolReady = await service.refreshProtocolAvailability(
-          state.protocol,
-          backendEvidence: true,
+        if (profile.deviceId > 0) {
+          _activeDeviceId = profile.deviceId;
+          await storage.saveInt(
+            SecureStorage.vpnDeviceIdKey,
+            profile.deviceId,
+          );
+        }
+        _activeServerId = profile.serverId;
+        await storage.saveString(profileConfigKey, config);
+        if (profile.expiresAt != null) {
+          await storage.saveString(
+            SecureStorage.vpnProfileExpiresAtKey,
+            profile.expiresAt!.toIso8601String(),
+          );
+        }
+        if (!profile.peerRegistered && profile.registrationStatus != null) {
+          AppLogger.warning(
+            'Peer registration: ${profile.registrationStatus}',
+          );
+        }
+      } catch (error) {
+        state = state.copyWith(
+          lastProfileFetchAt: DateTime.now(),
+          lastProfileFetchOk: false,
         );
-        if (!nativeProtocolReady) {
-          throw VpnServiceException(
-            'protocol_unavailable',
-            service.protocolUnavailableReason(state.protocol) ??
-                '${vpnProtocolLabel(state.protocol)} is unavailable on this Linux runtime.',
-          );
+        if (_isProfileReferenceNotFound(error)) {
+          await storage.delete(SecureStorage.vpnDeviceIdKey);
+          await storage.delete(profileConfigKey);
         }
-        if (requiresCredentialedEgress) {
-          // Capture the public source before any routes change. The backend
-          // returns only an HMAC fingerprint, never an address. IKEv2 and
-          // OpenVPN must both prove encrypted HTTPS egress before UI state is
-          // allowed to become connected.
-          credentialedEgressBaseline = await api.captureVpnEgressBaseline();
-          if (state.protocol == VpnProtocol.openVpn) {
-            externalEgressBaseline = await api.captureExternalExitIp();
-          }
-        }
-        final storage = SecureStorage();
-        final deviceId = await storage.getInt(SecureStorage.vpnDeviceIdKey);
-        final protocolKey = vpnProtocolStorageValue(state.protocol);
-        final profileConfigKey = SecureStorage.vpnProfileConfigKeyFor(
-          protocolKey,
-        );
-        try {
-          final profile = await _fetchProfileWithReferenceRecovery(
-            api: api,
-            storage: storage,
-            deviceId: deviceId,
-            deviceName: identity.name,
-            deviceType: identity.type,
-            profileConfigKey: profileConfigKey,
-          );
-          config = profile.configForProtocol(state.protocol);
-          if (config.trim().isEmpty) {
-            throw VpnServiceException(
-              'protocol_unavailable',
-              '${vpnProtocolLabel(state.protocol)} profile did not include a runnable Linux configuration.',
-            );
-          }
-          if (state.protocol == VpnProtocol.openVpn) {
-            openVpnUsername = profile.openVpnUsername;
-            openVpnPassword = profile.openVpnPassword;
-            if (openVpnUsername == null ||
-                openVpnUsername.trim().isEmpty ||
-                openVpnPassword == null ||
-                openVpnPassword.isEmpty) {
-              throw VpnServiceException(
-                'protocol_unavailable',
-                'OpenVPN profile did not include a fresh device credential.',
-              );
-            }
-          }
-          if (profile.deviceId > 0) {
-            _activeDeviceId = profile.deviceId;
-            await storage.saveInt(
-              SecureStorage.vpnDeviceIdKey,
-              profile.deviceId,
-            );
-          }
-          _activeServerId = profile.serverId;
-          if (requiresCredentialedEgress) {
-            credentialedServerId = profile.serverId;
-            credentialedDeviceId = profile.deviceId;
-          }
-          if (requiresCredentialedEgress) {
-            // Credentialed profiles contain short-lived authorization data and
-            // are deliberately never persisted for reconnect after expiry,
-            // rotation, revocation, or a process restart.
-            await storage.delete(profileConfigKey);
-          } else {
-            await storage.saveString(profileConfigKey, config);
-          }
-          if (profile.expiresAt != null) {
-            await storage.saveString(
-              SecureStorage.vpnProfileExpiresAtKey,
-              profile.expiresAt!.toIso8601String(),
-            );
-          }
-          if (!profile.peerRegistered && profile.registrationStatus != null) {
-            AppLogger.warning(
-              'Peer registration: ${profile.registrationStatus}',
-            );
-          }
-        } catch (error) {
-          state = state.copyWith(
-            lastProfileFetchAt: DateTime.now(),
-            lastProfileFetchOk: false,
-          );
-          if (_isProfileReferenceNotFound(error)) {
-            await storage.delete(SecureStorage.vpnDeviceIdKey);
-            await storage.delete(profileConfigKey);
-            rethrow;
-          }
-          // Credentialed profiles must always come from a fresh, authenticated
-          // backend response. A cached profile can never contain a usable
-          // secret after process restart, expiry, rotation, or revocation.
-          if (requiresCredentialedEgress) rethrow;
-          // Fallback: try last known config from secure storage for resilience.
-          final cached = await storage.getString(profileConfigKey);
-          if (cached != null && cached.trim().isNotEmpty) {
-            AppLogger.warning(
-              'Using cached ${vpnProtocolLabel(state.protocol)} profile (profile fetch failed).',
-            );
-            config = cached;
-          } else {
-            rethrow;
-          }
-        }
-      } else {
-        // Demo/mock path: notify the backend so it tracks the session,
-        // but do not block on failures since the mock tunnel is local-only.
-        try {
-          await api.notifyVpnConnected(
-            serverId: state.selectedServerId,
-            protocol: state.protocol,
-          );
-        } catch (_) {
-          AppLogger.info('Backend connect notification skipped (demo mode).');
-        }
+        rethrow;
       }
       final nextStatus = await service.connect(
         protocol: state.protocol,
         config: config,
-        openVpnUsername: openVpnUsername,
-        openVpnPassword: openVpnPassword,
-        backendEvidence: backendEvidence,
+        backendEvidence: true,
       );
       _setStatus(nextStatus);
       if (nextStatus == VpnStatus.connected) {
-        if (service.isNativeAvailable && requiresCredentialedEgress) {
-          final baseline = credentialedEgressBaseline;
-          final serverId = credentialedServerId;
-          final deviceId = credentialedDeviceId;
-          var egressVerified = false;
-          try {
-            egressVerified = baseline != null &&
-                serverId != null &&
-                deviceId != null &&
-                await api.verifyVpnEgress(
-                  serverId: serverId,
-                  deviceId: deviceId,
-                  protocol: state.protocol,
-                  baselineFingerprint: baseline,
-                  externalBaselineIp: externalEgressBaseline,
-                  externalExitIp: null,
-                );
-          } catch (_) {
-            egressVerified = false;
-          }
-          if (!egressVerified &&
-              state.protocol == VpnProtocol.openVpn &&
-              externalEgressBaseline != null) {
-            try {
-              final tunnelExitIp = await api.captureExternalExitIp();
-              if (baseline != null && serverId != null && deviceId != null) {
-                try {
-                  egressVerified = await api.verifyVpnEgress(
-                    serverId: serverId,
-                    deviceId: deviceId,
-                    protocol: state.protocol,
-                    baselineFingerprint: baseline,
-                    externalBaselineIp: externalEgressBaseline,
-                    externalExitIp: tunnelExitIp,
-                  );
-                } catch (_) {
-                  egressVerified = false;
-                }
-              }
-            } catch (_) {
-              egressVerified = false;
-            }
-          }
-          if (!egressVerified) {
-            try {
-              await service.disconnect();
-            } catch (_) {
-              // The original failed-proof error remains the useful outcome.
-            }
-            throw VpnServiceException(
-              'vpn_egress_unverified',
-              '${vpnProtocolLabel(state.protocol)} tunnel did not prove authenticated HTTPS exit-IP movement.',
-            );
-          }
-        }
         try {
           await api.notifyVpnConnected(
             serverId: state.selectedServerId,
@@ -533,7 +393,7 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
       final nextStatus = await service.disconnect();
       _setStatus(nextStatus);
       _updateStability(success: true);
-      // Notify the backend so demo/live session tracking stays in sync.
+      // Notify the backend so live session tracking stays in sync.
       try {
         final api = _ref.read(apiClientProvider);
         await api.notifyVpnDisconnected();
@@ -804,7 +664,7 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
         sessionTxBytes: nextTxBytes,
         sessionCountersAvailable: true,
       );
-      unawaited(_reportUsage(nextTxBytes, nextRxBytes));
+      unawaited(_reportUsage(txDelta, rxDelta));
     } catch (error, stackTrace) {
       AppLogger.error(
         'VPN traffic counter poll failed',
@@ -908,10 +768,8 @@ class VpnStateNotifier extends StateNotifier<VpnState> {
     } else {
       _stabilityFailures += 1;
     }
-    final score = _predictor.scoreStability(
-      successes: _stabilitySuccesses,
-      failures: _stabilityFailures,
-    );
+    final attempts = _stabilitySuccesses + _stabilityFailures;
+    final score = attempts == 0 ? 1.0 : _stabilitySuccesses / attempts;
     state = state.copyWith(stabilityScore: score);
   }
 

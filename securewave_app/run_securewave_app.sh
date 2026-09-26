@@ -8,14 +8,6 @@ if ! command -v flutter >/dev/null 2>&1; then
   exit 1
 fi
 
-# Create platform folders (only needed once)
-if [ ! -d "android" ] && [ ! -d "ios" ] && [ ! -d "macos" ] && [ ! -d "windows" ] && [ ! -d "linux" ]; then
-  flutter create .
-fi
-
 flutter pub get
-flutter pub run flutter_launcher_icons
 
-# Default to linux for this VM
-TARGET=${1:-linux}
-flutter run -d "$TARGET"
+flutter run -d linux

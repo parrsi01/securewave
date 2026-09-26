@@ -1,5 +1,3 @@
-from datetime import datetime
-
 from sqlalchemy import Boolean, Column, DateTime, Index, Integer, String, UniqueConstraint, func
 from sqlalchemy.orm import relationship
 
@@ -22,15 +20,12 @@ class User(Base):
     wg_private_key_encrypted = Column(String, nullable=True)
     wg_peer_registered = Column(Boolean, default=False)  # True when peer is added to WG server
 
-    # Legacy subscription fields (deprecated - use Subscription model instead)
+    # Legacy subscription status retained for DB compatibility; plan details
+    # live in the Subscription model.
     subscription_status = Column(String, default="basic")
-    stripe_customer_id = Column(String, nullable=True)
-    paypal_subscription_id = Column(String, nullable=True)
 
-    # Email verification
+    # Accounts are usable immediately in this simplified app build.
     email_verified = Column(Boolean, nullable=False, default=False)
-    email_verification_token = Column(String, nullable=True, index=True)
-    email_verification_token_expires = Column(DateTime, nullable=True)
 
     # Password reset
     password_reset_token = Column(String, nullable=True, index=True)
@@ -65,11 +60,6 @@ class User(Base):
         if not self.account_locked_until:
             return False
         return utcnow() < self.account_locked_until
-
-    @property
-    def requires_email_verification(self) -> bool:
-        """Check if user needs to verify their email"""
-        return not self.email_verified
 
     @property
     def has_2fa_enabled(self) -> bool:

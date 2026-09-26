@@ -67,7 +67,7 @@ def register_server(
         endpoint=endpoint,
         wg_public_key=wg_public_key,
         wg_private_key_encrypted="",
-        status="active",  # Real server, not demo
+        status="active",
         health_status="unknown",  # Will be updated by health monitor
         max_connections=1000,
         latency_ms=50.0,  # Initial estimate

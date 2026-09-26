@@ -1,22 +1,21 @@
 # Quick Start
 
-## Local Development
+## Backend
 
 ```bash
-bash deploy.sh local
+python3 -m venv .venv
+. .venv/bin/activate
+pip install -r requirements.txt
+DATABASE_URL=postgresql+psycopg2://USER:PASSWORD@HOST:5432/securewave bash scripts/run_backend.sh
 ```
 
-Open:
+Use the Hetzner PostgreSQL database URL that is already set up.
 
-- `http://localhost:8000/home.html`
-- `http://localhost:8000/api/docs`
+## Linux app
 
-## Production (Hetzner)
+```bash
+make linux-runtime-install
+SECUREWAVE_API_BASE_URL=http://localhost:8000/api make flutter-run
+```
 
-See `docs/HETZNER_RUNBOOK.md` for provisioning, bootstrap, and deploy steps.
-
-Key defaults:
-
-- Single server
-- `cx33` server type
-- SSH + WireGuard firewall only
+Register or log in with any valid email address, choose/connect WireGuard, watch usage update while connected, then disconnect/logout.

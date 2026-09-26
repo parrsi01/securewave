@@ -3,6 +3,7 @@ import os
 from datetime import datetime
 from typing import List, Dict, Optional
 
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from models.vpn_server import VPNServer
@@ -122,7 +123,7 @@ class VPNServerService:
             List of available VPN servers
         """
         query = db.query(VPNServer).filter(
-            VPNServer.status.in_(["active", "demo"]),  # Include both real and demo servers
+            VPNServer.status == "active",
             # Unknown has no runtime proof and must not be selected for a
             # credential-bearing profile.  Protocol-specific freshness is
             # enforced again at issuance by ProtocolAvailabilityService.
@@ -221,80 +222,23 @@ class VPNServerService:
         user: User,
         preferred_location: Optional[str] = None,
     ) -> Optional[VPNServer]:
-        """
-        Use optimizer to select best server for user.
+        """Select a server without optimizer or release-gate indirection."""
+        user_tier = "premium" if user.subscription_status == "active" else "free"
+        available_servers = VPNServerService.get_active_servers(db, user_tier)
+        if not available_servers:
+            logger.warning("No available servers for user %s (tier=%s)", user.id, user_tier)
+            return None
 
-        IMPORTANT: The optimizer is a *suggestion engine* only. Selection must
-        never hard-block VPN connectivity. If the optimizer returns an invalid
-        or unknown server, we fall back deterministically to an available server.
+        if preferred_location:
+            preferred = str(preferred_location).strip().lower()
+            for server in available_servers:
+                if server.server_id.lower() == preferred or (server.location or "").lower() == preferred:
+                    logger.info("Allocated preferred server %s to user %s", server.server_id, user.id)
+                    return server
 
-        Args:
-            db: Database session
-            user: User object
-            preferred_location: User's preferred location (optional)
-
-        Returns:
-            Selected VPN server or None if no servers available
-        """
-        try:
-            from services.vpn_optimizer import get_vpn_optimizer
-
-            optimizer = get_vpn_optimizer()
-
-            # Determine user tier
-            is_premium = user.subscription_status == "active"
-            user_tier = "premium" if is_premium else "free"
-
-            # Get available servers for this tier
-            available_servers = VPNServerService.get_active_servers(db, user_tier)
-
-            if not available_servers:
-                logger.warning(f"No available servers for user {user.id} (tier: {user_tier})")
-                return None
-
-            # Deterministic fallback so optimizer failures never block connections.
-            fallback_server = available_servers[0]
-            allowed_server_ids = {s.server_id for s in available_servers}
-
-            # Use optimizer to select best server
-            result = optimizer.select_optimal_server(
-                user_id=user.id,
-                user_location=preferred_location,
-                is_premium=is_premium,
-            )
-
-            # Get the selected server from database
-            suggested_id = result.get("server_id") if isinstance(result, dict) else None
-            if not suggested_id or suggested_id not in allowed_server_ids:
-                logger.warning(
-                    "Optimizer suggested invalid server_id=%s for user %s; falling back to %s",
-                    suggested_id,
-                    user.id,
-                    fallback_server.server_id,
-                )
-                return fallback_server
-
-            server = VPNServerService.get_server_by_id(db, suggested_id)
-
-            if server:
-                logger.info(
-                    f"Allocated server {server.server_id} ({server.location}) to user {user.id}"
-                )
-            else:
-                logger.warning(
-                    f"Optimizer selected non-existent server {suggested_id} for user {user.id}"
-                )
-                return fallback_server
-
-            return server
-
-        except Exception as e:
-            logger.error(f"Failed to allocate server for user {user.id}: {e}")
-            # Fallback: return first available server
-            available_servers = VPNServerService.get_active_servers(
-                db, "premium" if user.subscription_status == "active" else "free"
-            )
-            return available_servers[0] if available_servers else None
+        selected = available_servers[0]
+        logger.info("Allocated server %s to user %s", selected.server_id, user.id)
+        return selected
 
     @staticmethod
     def get_server_stats(db: Session) -> Dict:
@@ -309,11 +253,11 @@ class VPNServerService:
             db.query(VPNConnection).filter(VPNConnection.disconnected_at.is_(None)).count()
         )
 
-        avg_cpu = db.query(db.func.avg(VPNServer.cpu_load)).filter(
+        avg_cpu = db.query(func.avg(VPNServer.cpu_load)).filter(
             VPNServer.status == "active"
         ).scalar() or 0.0
 
-        avg_latency = db.query(db.func.avg(VPNServer.latency_ms)).filter(
+        avg_latency = db.query(func.avg(VPNServer.latency_ms)).filter(
             VPNServer.status == "active"
         ).scalar() or 0.0
 

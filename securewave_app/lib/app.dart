@@ -530,8 +530,6 @@ class _TopBar extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final config = ref.watch(appConfigProvider);
-
     return Container(
       height: SwLayout.topBarHeight,
       padding: const EdgeInsets.symmetric(horizontal: SwSpacing.md),
@@ -562,7 +560,6 @@ class _TopBar extends ConsumerWidget {
             child: const Text('Help'),
           ),
           const SizedBox(width: 8),
-          if (config.useMockApi) const SwStatusPill(text: 'Demo mode'),
         ],
       ),
     );
@@ -618,7 +615,6 @@ class _HomeScreenState extends ConsumerState<_HomeScreen> {
     final vpn = ref.watch(vpnStateProvider);
     final plan = ref.watch(userPlanProvider);
     final servers = ref.watch(serversProvider);
-    final config = ref.watch(appConfigProvider);
     final service = ref.watch(vpnServiceProvider);
 
     final serverList = servers.maybeWhen(
@@ -754,15 +750,6 @@ class _HomeScreenState extends ConsumerState<_HomeScreen> {
                         tone: SwNoticeTone.error,
                       ),
                     ],
-                    if (config.useMockApi) ...[
-                      const SizedBox(height: SwSpacing.sm),
-                      const SwNotice(
-                        title: 'Demo mode',
-                        message:
-                            'Do not treat a demo connection as a real tunnel.',
-                        tone: SwNoticeTone.warning,
-                      ),
-                    ],
                   ],
                 ),
               ),
@@ -870,10 +857,6 @@ class _AccountScreen extends ConsumerWidget {
                     ),
                     SwRow(label: 'Device', value: device),
                     SwRow(label: 'API', value: config.apiBaseUrl),
-                    SwRow(
-                      label: 'Demo mode',
-                      value: config.useMockApi ? 'On' : 'Off',
-                    ),
                   ],
                 ),
                 const SizedBox(height: SwSpacing.md),
@@ -1291,6 +1274,12 @@ Future<void> _signOut(WidgetRef ref) async {
   final vpn = ref.read(vpnStateProvider);
   if (!vpn.isBusy && vpn.status != VpnStatus.disconnected) {
     await ref.read(vpnStateProvider.notifier).disconnect();
+  }
+  try {
+    await ref.read(authServiceProvider).logout();
+  } catch (error, stackTrace) {
+    AppLogger.warning('Backend logout failed; clearing local session.');
+    AppLogger.error('Logout error', error: error, stackTrace: stackTrace);
   }
   await SecureStorage().clearVpnRuntimeState();
   await ref.read(authSessionProvider).clearSession();
