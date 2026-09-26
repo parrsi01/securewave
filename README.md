@@ -1,44 +1,22 @@
 # SecureWave
 
-SecureWave is now scoped to one thing: a Linux Flutter VPN app backed by a small FastAPI API and real WireGuard connectivity.
+SecureWave is a Linux WireGuard VPN client backed by the existing FastAPI API, PostgreSQL database, and Hetzner-hosted VPN infrastructure.
 
-This repo intentionally carries only the Linux WireGuard app and its small API.
+The client supports account registration, sign-in, one VPN screen, real WireGuard connect/disconnect, session traffic totals, and logout. Flutter calls FastAPI; the Linux runner uses the installed SecureWave helper for privileged tunnel operations.
 
-## What should work
+## Run
 
-- Register an account with any valid email address.
-- Log in immediately after registration.
-- Fetch a live WireGuard profile from the API.
-- Connect through the Linux native helper.
-- Report WireGuard data-usage deltas while the app is open.
-- Disconnect and log out.
+From the repository root:
 
-## Main paths
+    make linux-runtime-install
+    SECUREWAVE_API_BASE_URL=https://api.securewaveapp.com/api make flutter-run
 
-- `main.py`, `routes/`, `services/`, `models/`, `database/`, `utils/` — simplified backend.
-- `securewave_app/` — Flutter Linux app and native Linux helper.
-- `scripts/run_backend.sh` — local API runner.
-- `scripts/run_flutter_linux.sh` — Flutter Linux runner.
-- `scripts/setup_linux_runtime.sh` — builds and installs the privileged WireGuard helper on a Linux VM.
-- `infrastructure/register_server.py` — registers a real WireGuard server row in the database.
+The helper install is needed once on a Linux machine. To build and check the Flutter client:
 
-## Quick run
+    cd securewave_app
+    flutter pub get
+    flutter analyze
+    flutter test
+    flutter build linux --debug
 
-```bash
-python3 -m venv .venv
-. .venv/bin/activate
-pip install -r requirements.txt
-DATABASE_URL=postgresql+psycopg2://USER:PASSWORD@HOST:5432/securewave \
-  ACCESS_TOKEN_SECRET="$(python -c 'import secrets; print(secrets.token_urlsafe(64))')" \
-  REFRESH_TOKEN_SECRET="$(python -c 'import secrets; print(secrets.token_urlsafe(64))')" \
-  bash scripts/run_backend.sh
-```
-
-In another terminal:
-
-```bash
-make linux-runtime-install
-SECUREWAVE_API_BASE_URL=http://localhost:8000/api make flutter-run
-```
-
-If the helper, backend, database, or registered WireGuard server is missing, the app should fail visibly instead of pretending the VPN connected.
+The client reads SECUREWAVE_API_BASE_URL and defaults to the production API. Flutter contains no database credentials and does not connect to PostgreSQL. See docs/DO_NOT_LOSE.md for the protected-system inventory.
