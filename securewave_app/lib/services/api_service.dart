@@ -71,15 +71,16 @@ class ApiService {
         'password': password,
       });
 
-  Future<String> register({
+  Future<void> register({
     required String email,
     required String password,
-  }) =>
-      _authenticate('/auth/register', {
-        'email': email,
-        'password': password,
-        'password_confirm': password,
-      });
+  }) async {
+    await _request(
+      'POST',
+      '/auth/register',
+      body: {'email': email, 'password': password},
+    );
+  }
 
   Future<String> _authenticate(String path, Map<String, dynamic> body) async {
     final data = await _request('POST', path, body: body, authenticated: false);
@@ -92,10 +93,6 @@ class ApiService {
 
   Future<void> checkSession() async {
     await _request('GET', '/auth/me');
-  }
-
-  Future<void> logout() async {
-    await _request('POST', '/auth/logout');
   }
 
   Future<WireGuardProfile> fetchWireGuardProfile({
@@ -222,49 +219,33 @@ class ApiService {
         ),
       );
       final statusCode = response.statusCode ?? 0;
-      final payload = response.data;
       if (statusCode >= 400) {
-        throw ApiException(_errorMessage(payload, statusCode),
-            statusCode: statusCode);
+        throw ApiException(_errorMessage(statusCode), statusCode: statusCode);
       }
+      final payload = response.data;
       if (payload is Map) {
         return Map<String, dynamic>.from(payload);
       }
       return const {};
     } on DioException {
-      throw const ApiException('Unable to reach SecureWave.');
+      throw const ApiException(
+        'Unable to reach SecureWave. Check your connection and try again.',
+      );
     }
   }
 
-  String _errorMessage(Object? payload, int statusCode) {
+  String _errorMessage(int statusCode) {
     if (statusCode == 401) return 'Invalid email or password.';
-    if (statusCode == 422) {
+    if (statusCode == 409) {
+      return 'An account with this email already exists.';
+    }
+    if (statusCode == 400 || statusCode == 422) {
       return 'Check the email and password fields and try again.';
     }
-    if (statusCode >= 500) return 'SecureWave server error.';
-
-    if (payload is Map) {
-      final detail = payload['detail'] ?? payload['message'];
-      if (detail is String && detail.trim().isNotEmpty) {
-        if (detail.toLowerCase().contains('email already registered')) {
-          return 'An account with this email already exists.';
-        }
-        return detail;
-      }
-
-      // FastAPI production errors are sanitized into this envelope. Keep the
-      // safe public message visible instead of falling back to a generic one.
-      final error = payload['error'];
-      if (error is Map) {
-        final message = error['message'];
-        if (message is String && message.trim().isNotEmpty) {
-          if (message.toLowerCase().contains('email already registered')) {
-            return 'An account with this email already exists.';
-          }
-          return message;
-        }
-      }
+    if (statusCode == 429) {
+      return 'Too many attempts. Wait a moment and try again.';
     }
-    return 'The SecureWave API request failed.';
+    if (statusCode >= 500) return 'SecureWave server error.';
+    return 'SecureWave could not complete the request (HTTP $statusCode).';
   }
 }

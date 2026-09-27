@@ -60,15 +60,7 @@ class _SecureWaveAppState extends State<SecureWaveApp> {
     if (mounted) setState(() => _token = null);
   }
 
-  Future<void> _logout() async {
-    try {
-      await _api.logout();
-    } catch (_) {
-      // Local credentials are always removed, even if the API is unavailable.
-    } finally {
-      await _clearSession();
-    }
-  }
+  Future<void> _logout() => _clearSession();
 
   @override
   Widget build(BuildContext context) {
@@ -115,9 +107,10 @@ class _AuthViewState extends State<_AuthView> {
   final _password = TextEditingController();
   final _confirmation = TextEditingController();
   final _api = ApiService();
-  bool _registering = false;
+  bool _registering = true;
   bool _busy = false;
   String? _error;
+  String? _notice;
 
   @override
   void dispose() {
@@ -132,22 +125,39 @@ class _AuthViewState extends State<_AuthView> {
     setState(() {
       _busy = true;
       _error = null;
+      _notice = null;
     });
     try {
-      final token = _registering
-          ? await _api.register(
-              email: _email.text.trim(),
-              password: _password.text,
-            )
-          : await _api.login(
-              email: _email.text.trim(),
-              password: _password.text,
-            );
-      await widget.onAuthenticated(token);
+      if (_registering) {
+        await _api.register(
+          email: _email.text.trim(),
+          password: _password.text,
+        );
+        if (mounted) {
+          setState(() {
+            _registering = false;
+            _notice = 'Account created. Sign in to continue.';
+          });
+        }
+      } else {
+        final token = await _api.login(
+          email: _email.text.trim(),
+          password: _password.text,
+        );
+        _api.setAccessToken(token);
+        try {
+          await _api.checkSession();
+        } finally {
+          _api.setAccessToken(null);
+        }
+        await widget.onAuthenticated(token);
+      }
     } on ApiException catch (error) {
       if (mounted) setState(() => _error = error.message);
     } catch (_) {
-      if (mounted) setState(() => _error = 'Could not sign in. Try again.');
+      if (mounted) {
+        setState(() => _error = 'SecureWave could not complete that request.');
+      }
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -218,11 +228,6 @@ class _AuthViewState extends State<_AuthView> {
                         if (password.length < 8) {
                           return 'Use at least 8 characters.';
                         }
-                        if (_registering &&
-                            (!RegExp(r'[A-Za-z]').hasMatch(password) ||
-                                !RegExp(r'\d').hasMatch(password))) {
-                          return 'Include at least one letter and one number.';
-                        }
                         return null;
                       },
                     ),
@@ -247,6 +252,13 @@ class _AuthViewState extends State<_AuthView> {
                         style: TextStyle(color: colors.error),
                       ),
                     ],
+                    if (_notice != null) ...[
+                      const SizedBox(height: 16),
+                      Text(
+                        _notice!,
+                        style: TextStyle(color: colors.primary),
+                      ),
+                    ],
                     const SizedBox(height: 24),
                     SizedBox(
                       height: 46,
@@ -268,6 +280,7 @@ class _AuthViewState extends State<_AuthView> {
                           : () => setState(() {
                                 _registering = !_registering;
                                 _error = null;
+                                _notice = null;
                               }),
                       child: Text(
                         _registering
