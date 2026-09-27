@@ -328,20 +328,18 @@ class _HomeView extends StatefulWidget {
 
 class _HomeViewState extends State<_HomeView> {
   static const _storage = FlutterSecureStorage();
-  static const _deviceNameKey = 'vpn_device_name';
+  static const _baselineKey = 'vpn_baseline_public_ip';
 
   final _vpn = VpnService();
-  late Future<void> _deviceNameReady;
   VpnStatus _status = VpnStatus.disconnected;
-  String? _location;
+  String _location = 'Germany';
   String? _error;
-  String? _deviceName;
+  String? _baselinePublicIp;
+  bool _tunnelMayBeActive = false;
   bool _busy = false;
-  bool _countersAvailable = false;
+  bool _countersAvailable = true;
   int _downloadBytes = 0;
   int _uploadBytes = 0;
-  int? _usageSessionId;
-  int _usageSequence = 0;
   VpnTrafficStats? _previousStats;
   Timer? _usageTimer;
   bool _polling = false;
@@ -350,8 +348,6 @@ class _HomeViewState extends State<_HomeView> {
   void initState() {
     super.initState();
     unawaited(_restoreTunnel());
-    _deviceNameReady = _loadDeviceName();
-    unawaited(_deviceNameReady);
   }
 
   @override
@@ -360,77 +356,101 @@ class _HomeViewState extends State<_HomeView> {
     super.dispose();
   }
 
-  Future<void> _loadDeviceName() async {
-    var name = await _storage.read(key: _deviceNameKey);
-    if (name == null || name.isEmpty) {
-      name = 'Linux-${DateTime.now().microsecondsSinceEpoch.toRadixString(36)}';
-      await _storage.write(key: _deviceNameKey, value: name);
-    }
-    _deviceName = name;
-  }
-
   Future<void> _restoreTunnel() async {
     final status = await _vpn.refreshRuntimeStatus();
     if (!mounted) return;
-    setState(() {
-      _status = status;
-      _error = _vpn.statusError;
-    });
-    if (status == VpnStatus.connected) {
+    if (status != VpnStatus.connected) {
+      _tunnelMayBeActive = status == VpnStatus.error;
+      if (status == VpnStatus.disconnected) {
+        await _storage.delete(key: _baselineKey);
+      }
+      setState(() {
+        _status = status;
+        _error = _vpn.statusError;
+      });
+      return;
+    }
+
+    _tunnelMayBeActive = true;
+    final baseline = await _storage.read(key: _baselineKey);
+    if (baseline == null || baseline.isEmpty) {
+      await _disconnectUnverifiedTunnel();
+      return;
+    }
+    try {
+      _baselinePublicIp = baseline;
       await _vpn.refreshAvailability();
+      await _vpn.verifyConnection(previousPublicIp: baseline);
+      if (!mounted) return;
+      setState(() {
+        _status = VpnStatus.connected;
+        _location = 'Germany';
+        _error = null;
+      });
       _startUsagePolling();
+    } catch (_) {
+      await _disconnectUnverifiedTunnel();
+    }
+  }
+
+  Future<void> _disconnectUnverifiedTunnel() async {
+    String? error;
+    try {
+      await _vpn.disconnect();
+      await _vpn.verifyDisconnected();
+      _tunnelMayBeActive = false;
+    } on VpnServiceException catch (disconnectError) {
+      _tunnelMayBeActive = true;
+      error = disconnectError.message;
+    } catch (_) {
+      _tunnelMayBeActive = true;
+      error = 'Could not safely restore the normal internet connection.';
+    }
+    await _storage.delete(key: _baselineKey);
+    _baselinePublicIp = null;
+    if (mounted) {
+      setState(() {
+        _status = error == null ? VpnStatus.disconnected : VpnStatus.error;
+        _error = error ?? 'The previous VPN session could not be verified.';
+      });
     }
   }
 
   Future<void> _connect() async {
     if (_busy) return;
+    var tunnelAttempted = false;
     setState(() {
       _busy = true;
       _status = VpnStatus.connecting;
       _error = null;
-      _location = null;
       _downloadBytes = 0;
       _uploadBytes = 0;
       _countersAvailable = false;
     });
     try {
-      await _deviceNameReady;
-      final name = _deviceName!;
-      final profile = await widget.api.fetchWireGuardProfile(deviceName: name);
-      await _vpn.connect(profile.config);
+      final baseline = await _vpn.getPublicIp();
+      _baselinePublicIp = baseline;
+      await _storage.write(key: _baselineKey, value: baseline);
+      final keyPair = await _vpn.generateKeyPair();
+      final parameters =
+          await widget.api.fetchWireGuardConfig(publicKey: keyPair.publicKey);
+      if (!await _vpn.refreshAvailability()) {
+        throw VpnServiceException(
+          _vpn.statusError ?? 'The Linux WireGuard helper is unavailable.',
+        );
+      }
+      tunnelAttempted = true;
+      _tunnelMayBeActive = true;
+      await _vpn.connect(parameters.toClientConfig(keyPair.privateKey));
+      await _vpn.verifyConnection(previousPublicIp: baseline);
       if (!mounted) return;
       setState(() {
         _status = VpnStatus.connected;
-        _location = profile.location;
+        _location = parameters.location;
       });
-      try {
-        await widget.api.notifyConnected(profile);
-      } on ApiException catch (error) {
-        if (error.unauthorized) {
-          try {
-            await _vpn.disconnect();
-            if (mounted) setState(() => _status = VpnStatus.disconnected);
-            await widget.onSessionExpired();
-          } on VpnServiceException catch (disconnectError) {
-            if (mounted) {
-              setState(() {
-                _status = VpnStatus.error;
-                _error = disconnectError.message;
-              });
-            }
-          }
-          return;
-        }
-      } catch (_) {
-        // The local helper is authoritative for tunnel state.
-      }
-      try {
-        _usageSessionId = await widget.api.startUsageSession(profile);
-      } catch (_) {
-        _usageSessionId = null;
-      }
       _startUsagePolling();
     } on ApiException catch (error) {
+      final cleanupError = await _cleanupFailedConnection(tunnelAttempted);
       if (error.unauthorized) {
         await widget.onSessionExpired();
         return;
@@ -438,26 +458,49 @@ class _HomeViewState extends State<_HomeView> {
       if (mounted) {
         setState(() {
           _status = VpnStatus.error;
-          _error = error.message;
+          _error = cleanupError ?? error.message;
         });
       }
     } on VpnServiceException catch (error) {
+      final cleanupError = await _cleanupFailedConnection(tunnelAttempted);
       if (mounted) {
         setState(() {
           _status = VpnStatus.error;
-          _error = error.message;
+          _error = cleanupError ?? error.message;
         });
       }
     } catch (_) {
+      final cleanupError = await _cleanupFailedConnection(tunnelAttempted);
       if (mounted) {
         setState(() {
           _status = VpnStatus.error;
-          _error = 'Could not connect the WireGuard tunnel.';
+          _error = cleanupError ?? 'Could not connect the WireGuard tunnel.';
         });
       }
     } finally {
       if (mounted) setState(() => _busy = false);
     }
+  }
+
+  Future<String?> _cleanupFailedConnection(bool tunnelAttempted) async {
+    String? cleanupError;
+    if (tunnelAttempted) {
+      try {
+        await _vpn.disconnect();
+        await _vpn.verifyDisconnected(expectedPublicIp: _baselinePublicIp);
+        _tunnelMayBeActive = false;
+      } on VpnServiceException catch (error) {
+        _tunnelMayBeActive = true;
+        cleanupError = error.message;
+      } catch (_) {
+        _tunnelMayBeActive = true;
+        cleanupError =
+            'Could not safely restore the normal internet connection.';
+      }
+    }
+    await _storage.delete(key: _baselineKey);
+    _baselinePublicIp = null;
+    return cleanupError;
   }
 
   Future<bool> _disconnect() async {
@@ -471,23 +514,23 @@ class _HomeViewState extends State<_HomeView> {
     _usageTimer = null;
     try {
       await _vpn.disconnect();
-      try {
-        await widget.api.notifyDisconnected();
-      } catch (_) {
-        // A local disconnect must complete even if the API is unavailable.
-      }
+      await _vpn.verifyDisconnected(expectedPublicIp: _baselinePublicIp);
+      await _storage.delete(key: _baselineKey);
+      _baselinePublicIp = null;
+      _tunnelMayBeActive = false;
       if (mounted) {
         setState(() {
           _status = VpnStatus.disconnected;
-          _location = null;
+          _location = 'Germany';
           _downloadBytes = 0;
           _uploadBytes = 0;
-          _countersAvailable = false;
+          _countersAvailable = true;
           _previousStats = null;
         });
       }
       return true;
     } on VpnServiceException catch (error) {
+      _tunnelMayBeActive = true;
       if (mounted) {
         setState(() {
           _status = VpnStatus.error;
@@ -496,6 +539,7 @@ class _HomeViewState extends State<_HomeView> {
       }
       return false;
     } catch (_) {
+      _tunnelMayBeActive = true;
       if (mounted) {
         setState(() {
           _status = VpnStatus.error;
@@ -504,20 +548,7 @@ class _HomeViewState extends State<_HomeView> {
       }
       return false;
     } finally {
-      await _finishUsageSession();
       if (mounted) setState(() => _busy = false);
-    }
-  }
-
-  Future<void> _finishUsageSession() async {
-    final sessionId = _usageSessionId;
-    _usageSessionId = null;
-    _usageSequence = 0;
-    if (sessionId == null) return;
-    try {
-      await widget.api.finishUsageSession(sessionId);
-    } catch (_) {
-      // The tunnel is already handled locally; usage finalization is best effort.
     }
   }
 
@@ -560,20 +591,6 @@ class _HomeViewState extends State<_HomeView> {
         _downloadBytes += received;
         _uploadBytes += sent;
       });
-      final sessionId = _usageSessionId;
-      if (sessionId != null && (sent > 0 || received > 0)) {
-        final sequence = ++_usageSequence;
-        unawaited(
-          widget.api
-              .reportUsage(
-                sessionId: sessionId,
-                sequence: sequence,
-                bytesSent: sent,
-                bytesReceived: received,
-              )
-              .catchError((_) {}),
-        );
-      }
     } catch (_) {
       if (mounted) setState(() => _countersAvailable = false);
     } finally {
@@ -582,7 +599,7 @@ class _HomeViewState extends State<_HomeView> {
   }
 
   Future<void> _handleLogout() async {
-    if (_status != VpnStatus.disconnected) {
+    if (_tunnelMayBeActive) {
       final disconnected = await _disconnect();
       if (!disconnected) return;
     }
@@ -685,7 +702,7 @@ class _HomeViewState extends State<_HomeView> {
                         Text('VPN location',
                             style: Theme.of(context).textTheme.labelMedium),
                         const SizedBox(height: 4),
-                        Text(_location ?? 'Automatic',
+                        Text(_location,
                             style: Theme.of(context).textTheme.bodyLarge),
                         const SizedBox(height: 24),
                         SizedBox(

@@ -706,6 +706,19 @@ static void helper_operation_complete(GObject* source_object,
   g_autoptr(GError) error = nullptr;
   const gboolean ok = g_task_propagate_boolean(G_TASK(result), &error);
   if (ok) {
+    if (g_strcmp0(ctx->op, "wireguard.down") == 0) {
+      const std::string config_path = field(ctx->args, "config_path");
+      if (config_path.empty() ||
+          (g_unlink(config_path.c_str()) != 0 && errno != ENOENT)) {
+        respond_error(
+            ctx->method_call,
+            "vpn_config_cleanup_failed",
+            "WireGuard disconnected, but its local configuration could not be removed.",
+            nullptr);
+        helper_task_context_free(ctx);
+        return;
+      }
+    }
     respond_success(ctx->method_call);
   } else {
     respond_error(

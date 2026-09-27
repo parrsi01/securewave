@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:dio/dio.dart';
 
 class ApiException implements Exception {
@@ -12,31 +14,163 @@ class ApiException implements Exception {
   String toString() => message;
 }
 
-class WireGuardProfile {
-  const WireGuardProfile({
-    required this.deviceId,
-    required this.serverId,
+class WireGuardConfigParameters {
+  const WireGuardConfigParameters({
+    required this.address,
+    required this.dns,
+    required this.serverPublicKey,
+    required this.endpoint,
+    required this.allowedIps,
+    required this.keepalive,
     required this.location,
-    required this.config,
   });
 
-  final int deviceId;
-  final String serverId;
+  final String address;
+  final String? dns;
+  final String serverPublicKey;
+  final String endpoint;
+  final String allowedIps;
+  final int? keepalive;
   final String location;
-  final String config;
 
-  factory WireGuardProfile.fromJson(Map<String, dynamic> json) {
-    final config = json['wireguard_config']?.toString().trim() ?? '';
-    if (config.isEmpty) {
-      throw const ApiException('The API returned an empty WireGuard profile.');
+  factory WireGuardConfigParameters.fromJson(Map<String, dynamic> json) {
+    final source = json['wireguard_config']?.toString() ?? '';
+    if (source.trim().isEmpty) {
+      throw const ApiException(
+          'SecureWave returned an empty WireGuard config.');
     }
-    return WireGuardProfile(
-      deviceId: int.tryParse('${json['device_id']}') ?? 0,
-      serverId: json['server_id']?.toString() ?? '',
-      location: json['server_location']?.toString() ?? 'Automatic',
-      config: config,
+
+    Map<String, String>? current;
+    Map<String, String>? interface;
+    Map<String, String>? peer;
+    for (final rawLine in const LineSplitter().convert(source)) {
+      final line = rawLine.trim();
+      if (line.isEmpty || line.startsWith('#')) continue;
+      if (line == '[Interface]') {
+        if (interface != null || peer != null) {
+          throw const ApiException(
+              'SecureWave returned an invalid WireGuard config.');
+        }
+        current = interface = {};
+        continue;
+      }
+      if (line == '[Peer]') {
+        if (interface == null || peer != null) {
+          throw const ApiException(
+              'SecureWave returned an invalid WireGuard config.');
+        }
+        current = peer = {};
+        continue;
+      }
+      final separator = line.indexOf('=');
+      if (current == null || separator < 1) {
+        throw const ApiException(
+            'SecureWave returned an invalid WireGuard config.');
+      }
+      final key = line.substring(0, separator).trim().toLowerCase();
+      final value = line.substring(separator + 1).trim();
+      if (current.containsKey(key)) {
+        throw const ApiException(
+            'SecureWave returned an invalid WireGuard config.');
+      }
+      if (current == interface && key == 'privatekey') {
+        if (value.isNotEmpty) {
+          throw const ApiException(
+            'SecureWave returned a server-side private key; connection was stopped.',
+          );
+        }
+        continue;
+      }
+      final allowed = current == interface
+          ? const {'address', 'dns'}
+          : const {
+              'publickey',
+              'endpoint',
+              'allowedips',
+              'persistentkeepalive'
+            };
+      if (!allowed.contains(key) || !_safeValue(value)) {
+        throw const ApiException(
+            'SecureWave returned unsupported WireGuard settings.');
+      }
+      current[key] = value;
+    }
+
+    final address = interface?['address'];
+    final serverPublicKey = peer?['publickey'];
+    final endpoint = peer?['endpoint'];
+    final allowedIps = peer?['allowedips'];
+    if (address == null ||
+        !_safeNetworkList(address) ||
+        serverPublicKey == null ||
+        !_safeKey(serverPublicKey) ||
+        endpoint == null ||
+        !_safeEndpoint(endpoint) ||
+        allowedIps == null ||
+        !_safeNetworkList(allowedIps)) {
+      throw const ApiException(
+          'SecureWave returned incomplete WireGuard settings.');
+    }
+    final dns = interface?['dns'];
+    if (dns != null && !_safeNetworkList(dns)) {
+      throw const ApiException('SecureWave returned invalid DNS settings.');
+    }
+    final keepaliveText = peer?['persistentkeepalive'];
+    final keepalive =
+        keepaliveText == null ? null : int.tryParse(keepaliveText);
+    if (keepaliveText != null &&
+        (keepalive == null || keepalive < 0 || keepalive > 3600)) {
+      throw const ApiException(
+          'SecureWave returned invalid WireGuard settings.');
+    }
+    final rawLocation = json['server_location']?.toString().trim();
+
+    return WireGuardConfigParameters(
+      address: address,
+      dns: dns,
+      serverPublicKey: serverPublicKey,
+      endpoint: endpoint,
+      allowedIps: allowedIps,
+      keepalive: keepalive,
+      location:
+          rawLocation == null || rawLocation.isEmpty || !_safeValue(rawLocation)
+              ? 'Germany'
+              : rawLocation,
     );
   }
+
+  String toClientConfig(String privateKey) {
+    if (!_safeKey(privateKey)) {
+      throw const ApiException('The local WireGuard key could not be used.');
+    }
+    return [
+      '[Interface]',
+      'PrivateKey = $privateKey',
+      'Address = $address',
+      if (dns != null) 'DNS = $dns',
+      '',
+      '[Peer]',
+      'PublicKey = $serverPublicKey',
+      'Endpoint = $endpoint',
+      'AllowedIPs = $allowedIps',
+      if (keepalive != null && keepalive! > 0)
+        'PersistentKeepalive = $keepalive',
+      '',
+    ].join('\n');
+  }
+
+  static bool _safeValue(String value) =>
+      value.isNotEmpty && !value.contains('\n') && !value.contains('\r');
+
+  static bool _safeKey(String value) =>
+      RegExp(r'^[A-Za-z0-9+/]{43}=$').hasMatch(value);
+
+  static bool _safeNetworkList(String value) =>
+      value.isNotEmpty && RegExp(r'^[0-9A-Fa-f:.,/\s]+$').hasMatch(value);
+
+  static bool _safeEndpoint(String value) => RegExp(
+        r'^(?:[A-Za-z0-9.-]+|\[[0-9A-Fa-f:.]+\]):[1-9][0-9]{0,4}$',
+      ).hasMatch(value);
 }
 
 class ApiService {
@@ -95,105 +229,15 @@ class ApiService {
     await _request('GET', '/auth/me');
   }
 
-  Future<WireGuardProfile> fetchWireGuardProfile({
-    required String deviceName,
+  Future<WireGuardConfigParameters> fetchWireGuardConfig({
+    required String publicKey,
   }) async {
-    final availability = await _request(
-      'GET',
-      '/vpn/protocols',
-      queryParameters: {'device_type': 'linux'},
-    );
-    final protocols = availability['protocols'];
-    Map? wireGuard;
-    if (protocols is List) {
-      for (final entry in protocols.whereType<Map>()) {
-        if (entry['protocol']?.toString().toLowerCase() == 'wireguard') {
-          wireGuard = entry;
-          break;
-        }
-      }
-    }
-    if (wireGuard?['enabled'] != true) {
-      final reason = wireGuard?['reason']?.toString();
-      throw ApiException(
-        reason == null || reason.isEmpty
-            ? 'No WireGuard server is available.'
-            : reason,
-      );
-    }
-
-    final profile = await _request(
-      'POST',
-      '/vpn/profile',
-      body: {
-        'device_name': deviceName,
-        'device_type': 'linux',
-        'protocol': 'wireguard',
-      },
-    );
-    return WireGuardProfile.fromJson(profile);
-  }
-
-  Future<void> notifyConnected(WireGuardProfile profile) async {
-    await _request(
-      'POST',
-      '/vpn/connect',
-      body: {
-        'server_id': profile.serverId,
-        'region': profile.serverId,
-        'protocol': 'wireguard',
-      },
-    );
-  }
-
-  Future<void> notifyDisconnected() async {
-    await _request('POST', '/vpn/disconnect');
-  }
-
-  Future<int?> startUsageSession(WireGuardProfile profile) async {
     final data = await _request(
       'POST',
-      '/vpn/usage/sessions/start',
-      body: {
-        'device_id': profile.deviceId,
-        'server_id': profile.serverId,
-        'protocol': 'wireguard',
-        'idempotency_key':
-            'client-start-${profile.deviceId}-${DateTime.now().microsecondsSinceEpoch}',
-      },
+      '/vpn/config',
+      body: {'public_key': publicKey},
     );
-    final value = data['session_id'];
-    return value is num ? value.toInt() : int.tryParse('$value');
-  }
-
-  Future<void> reportUsage({
-    required int sessionId,
-    required int sequence,
-    required int bytesSent,
-    required int bytesReceived,
-  }) async {
-    await _request(
-      'POST',
-      '/vpn/usage/sessions/$sessionId/increment',
-      body: {
-        'sequence': sequence,
-        'bytes_sent': bytesSent,
-        'bytes_received': bytesReceived,
-        'idempotency_key': 'client-increment-$sessionId-$sequence',
-      },
-    );
-  }
-
-  Future<void> finishUsageSession(int sessionId) async {
-    await _request(
-      'POST',
-      '/vpn/usage/sessions/$sessionId/disconnect',
-      body: {
-        'idempotency_key':
-            'client-disconnect-$sessionId-${DateTime.now().microsecondsSinceEpoch}',
-        'reason': 'client_disconnect',
-      },
-    );
+    return WireGuardConfigParameters.fromJson(data);
   }
 
   Future<Map<String, dynamic>> _request(

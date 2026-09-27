@@ -1,3 +1,6 @@
+import 'dart:convert';
+import 'dart:io';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 
@@ -48,7 +51,15 @@ class VpnTrafficStats {
   );
 }
 
+class WireGuardKeyPair {
+  const WireGuardKeyPair({required this.privateKey, required this.publicKey});
+
+  final String privateKey;
+  final String publicKey;
+}
+
 class VpnService {
+  static const _interfaceName = 'sw-wg';
   static const _channel = MethodChannel('securewave/vpn');
 
   VpnStatus _status = VpnStatus.disconnected;
@@ -58,6 +69,133 @@ class VpnService {
 
   VpnStatus get status => _status;
   String? get statusError => _statusError;
+
+  Future<WireGuardKeyPair> generateKeyPair() async {
+    try {
+      final privateKey = await _runWg(['genkey']);
+      final publicKey = await _runWg(['pubkey'], stdinText: privateKey);
+      if (!_isKey(privateKey) || !_isKey(publicKey)) {
+        throw const VpnServiceException(
+          'WireGuard returned an invalid local keypair.',
+        );
+      }
+      return WireGuardKeyPair(privateKey: privateKey, publicKey: publicKey);
+    } on ProcessException {
+      throw const VpnServiceException(
+        'WireGuard tools are not installed on this Linux system.',
+      );
+    }
+  }
+
+  Future<String> _runWg(List<String> arguments, {String? stdinText}) async {
+    final process = await Process.start('wg', arguments);
+    if (stdinText != null) process.stdin.write('$stdinText\n');
+    await process.stdin.close();
+    final stdout = process.stdout.transform(utf8.decoder).join();
+    final stderr = process.stderr.transform(utf8.decoder).join();
+    final exitCode = await process.exitCode;
+    final output = (await stdout).trim();
+    await stderr;
+    if (exitCode != 0 || output.isEmpty) {
+      throw const VpnServiceException('WireGuard key generation failed.');
+    }
+    return output;
+  }
+
+  bool _isKey(String value) => RegExp(r'^[A-Za-z0-9+/]{43}=$').hasMatch(value);
+
+  Future<String> getPublicIp() async {
+    final client = HttpClient()
+      ..connectionTimeout = const Duration(seconds: 10);
+    try {
+      final request = await client.getUrl(Uri.https('api.ipify.org'));
+      request.headers.set(HttpHeaders.acceptHeader, 'text/plain');
+      final response =
+          await request.close().timeout(const Duration(seconds: 10));
+      final address = (await response.transform(utf8.decoder).join()).trim();
+      if (response.statusCode != HttpStatus.ok ||
+          InternetAddress.tryParse(address) == null) {
+        throw const VpnServiceException(
+          'Could not verify internet connectivity and public egress.',
+        );
+      }
+      return address;
+    } on VpnServiceException {
+      rethrow;
+    } catch (_) {
+      throw const VpnServiceException(
+        'Could not verify internet connectivity and public egress.',
+      );
+    } finally {
+      client.close(force: true);
+    }
+  }
+
+  Future<String> verifyConnection({required String previousPublicIp}) async {
+    final runtime =
+        await _channel.invokeMapMethod<Object?, Object?>('getStatus');
+    if (runtime?['status'] != 'connected') {
+      throw const VpnServiceException('WireGuard interface is not active.');
+    }
+
+    final peers = await Process.run('wg', ['show', _interfaceName, 'peers']);
+    final peerKeys = (peers.stdout as String)
+        .split('\n')
+        .map((line) => line.trim())
+        .where((line) => line.isNotEmpty)
+        .toSet();
+    if (peers.exitCode != 0 || peerKeys.isEmpty) {
+      throw const VpnServiceException('No WireGuard peer is configured.');
+    }
+
+    final handshakes =
+        await Process.run('wg', ['show', _interfaceName, 'latest-handshakes']);
+    final now = DateTime.now().millisecondsSinceEpoch ~/ 1000;
+    final hasRecentHandshake = handshakes.exitCode == 0 &&
+        (handshakes.stdout as String).split('\n').any((line) {
+          final fields = line.trim().split(RegExp(r'\s+'));
+          if (fields.length < 2 || !peerKeys.contains(fields.first)) {
+            return false;
+          }
+          final timestamp = int.tryParse(fields[1]) ?? 0;
+          return timestamp > 0 &&
+              timestamp <= now + 30 &&
+              now - timestamp <= 180;
+        });
+    if (!hasRecentHandshake) {
+      throw const VpnServiceException(
+          'WireGuard has no recent peer handshake.');
+    }
+
+    final route = await Process.run('ip', ['-4', 'route', 'get', '1.1.1.1']);
+    if (route.exitCode != 0 ||
+        !(route.stdout as String).contains('dev $_interfaceName')) {
+      throw const VpnServiceException('The VPN internet route is not active.');
+    }
+
+    final publicIp = await getPublicIp();
+    if (publicIp == previousPublicIp) {
+      throw const VpnServiceException('VPN egress did not change.');
+    }
+    final stats = await getTrafficStats();
+    if (!stats.available || stats.rxBytes == 0 || stats.txBytes == 0) {
+      throw const VpnServiceException(
+          'WireGuard traffic counters are unavailable.');
+    }
+    return publicIp;
+  }
+
+  Future<void> verifyDisconnected({String? expectedPublicIp}) async {
+    final status = await refreshRuntimeStatus();
+    if (status != VpnStatus.disconnected) {
+      throw const VpnServiceException('WireGuard interface is still active.');
+    }
+    if (expectedPublicIp != null && await getPublicIp() != expectedPublicIp) {
+      throw const VpnServiceException(
+        'Normal internet access was not restored after disconnect.',
+      );
+    }
+  }
 
   Future<bool> refreshAvailability() async {
     if (kIsWeb || defaultTargetPlatform != TargetPlatform.linux) {
@@ -70,7 +208,6 @@ class VpnService {
             'isAvailable',
             const {
               'protocol': 'wireguard',
-              'backend_evidence': true,
             },
           ) ==
           true;
@@ -105,7 +242,6 @@ class VpnService {
       await _channel.invokeMethod<void>('connect', {
         'protocol': 'wireguard',
         'config': config,
-        'backend_evidence': true,
       });
       _status = VpnStatus.connected;
       return _status;
