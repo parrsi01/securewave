@@ -224,28 +224,45 @@ class ApiService {
       final statusCode = response.statusCode ?? 0;
       final payload = response.data;
       if (statusCode >= 400) {
-        throw ApiException(_errorMessage(payload), statusCode: statusCode);
+        throw ApiException(_errorMessage(payload, statusCode),
+            statusCode: statusCode);
       }
       if (payload is Map) {
         return Map<String, dynamic>.from(payload);
       }
       return const {};
     } on DioException {
-      throw const ApiException('Could not reach the SecureWave API.');
+      throw const ApiException('Unable to reach SecureWave.');
     }
   }
 
-  String _errorMessage(Object? payload) {
+  String _errorMessage(Object? payload, int statusCode) {
+    if (statusCode == 401) return 'Invalid email or password.';
+    if (statusCode == 422) {
+      return 'Check the email and password fields and try again.';
+    }
+    if (statusCode >= 500) return 'SecureWave server error.';
+
     if (payload is Map) {
       final detail = payload['detail'] ?? payload['message'];
-      if (detail is String && detail.trim().isNotEmpty) return detail;
+      if (detail is String && detail.trim().isNotEmpty) {
+        if (detail.toLowerCase().contains('email already registered')) {
+          return 'An account with this email already exists.';
+        }
+        return detail;
+      }
 
       // FastAPI production errors are sanitized into this envelope. Keep the
       // safe public message visible instead of falling back to a generic one.
       final error = payload['error'];
       if (error is Map) {
         final message = error['message'];
-        if (message is String && message.trim().isNotEmpty) return message;
+        if (message is String && message.trim().isNotEmpty) {
+          if (message.toLowerCase().contains('email already registered')) {
+            return 'An account with this email already exists.';
+          }
+          return message;
+        }
       }
     }
     return 'The SecureWave API request failed.';

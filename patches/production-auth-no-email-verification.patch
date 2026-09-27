@@ -1,0 +1,58 @@
+--- a/routes/auth.py
++++ b/routes/auth.py
+@@ -249 +249 @@
+-            email_verified=DEMO_MODE,  # Demo: mark verified immediately
++            email_verified=True,
+@@ -255,24 +255,6 @@
+-        # Send verification email (demo skips)
+-        email_sent = False
+-        if not DEMO_MODE:
+-            auth_service = AuthService(db)
+-            email_sent = auth_service.send_verification_email(user)
+-
+-            if not email_sent:
+-                logger.warning("Verification email enqueue failed user_id=%s", user.id)
+-
+-        logger.info("User registered user_id=%s verification_required=%s", user.id, not DEMO_MODE)
+-
+-        if DEMO_MODE:
+-            access_token = create_access_token(user)
+-            refresh_token = create_refresh_token(user)
+-            csrf_token = secrets.token_urlsafe(32)
+-            _set_auth_cookies(response, access_token, refresh_token, csrf_token)
+-            return {
+-                "message": "Registration successful (demo mode).",
+-                "access_token": access_token,
+-                "refresh_token": refresh_token,
+-                "token_type": "bearer",
+-                "csrf_token": csrf_token,
+-            }
+-
++        logger.info("User registered user_id=%s verification_required=False", user.id)
++
++        access_token = create_access_token(user)
++        refresh_token = create_refresh_token(user)
++        csrf_token = secrets.token_urlsafe(32)
++        _set_auth_cookies(response, access_token, refresh_token, csrf_token)
+@@ -280,4 +262,5 @@
+-            "message": "Registration successful. Please check your email to verify your account.",
+-            "email": user.email,
+-            "email_sent": email_sent,
+-            "user_id": user.id
++            "message": "Registration successful.",
++            "access_token": access_token,
++            "refresh_token": refresh_token,
++            "token_type": "bearer",
++            "csrf_token": csrf_token,
+@@ -356,6 +338,0 @@
+-            )
+-
+-        if not user.email_verified:
+-            raise HTTPException(
+-                status_code=status.HTTP_403_FORBIDDEN,
+-                detail="Please verify your email before logging in",
+@@ -388,0 +366,4 @@
++
++        if not user.email_verified:
++            user.email_verified = True
++            db.commit()

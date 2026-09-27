@@ -214,8 +214,14 @@ class _AuthViewState extends State<_AuthView> {
                         hintText: 'At least 8 characters',
                       ),
                       validator: (value) {
-                        if ((value ?? '').length < 8) {
+                        final password = value ?? '';
+                        if (password.length < 8) {
                           return 'Use at least 8 characters.';
+                        }
+                        if (_registering &&
+                            (!RegExp(r'[A-Za-z]').hasMatch(password) ||
+                                !RegExp(r'\d').hasMatch(password))) {
+                          return 'Include at least one letter and one number.';
                         }
                         return null;
                       },
