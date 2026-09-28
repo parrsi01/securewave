@@ -66,13 +66,11 @@ EXEC_START="$(systemctl --no-pager --property=ExecStart --value show "${API_SERV
     || fail 'active API ExecStart no longer matches the verified systemd release layout'
 API_USER="$(systemctl --no-pager --property=User --value show "${API_SERVICE}")"
 NO_NEW_PRIVILEGES="$(systemctl --no-pager --property=NoNewPrivileges --value show "${API_SERVICE}")"
-API_CAPABILITIES="$(systemctl --no-pager --property=CapabilityBoundingSet --value show "${API_SERVICE}")"
 API_AMBIENT_CAPABILITIES="$(systemctl --no-pager --property=AmbientCapabilities --value show "${API_SERVICE}")"
 [[ "${API_USER}" == securewave && "${NO_NEW_PRIVILEGES}" == yes ]] \
     || fail 'API service privilege boundary differs from the verified non-root configuration'
-case "${API_CAPABILITIES} ${API_AMBIENT_CAPABILITIES}" in
-    *CAP_NET_ADMIN*|*cap_net_admin*) fail 'API service already has CAP_NET_ADMIN; refusing to widen or alter privileges' ;;
-esac
+[[ -z "${API_AMBIENT_CAPABILITIES}" ]] \
+    || fail 'API service has ambient capabilities; refusing to alter its privilege boundary'
 systemctl is-active --quiet "${API_SERVICE}" || fail 'API service is not active before deployment'
 
 [[ -f "${BACKUP_DIR}/SHA256SUMS" ]] || fail 'verified production backup manifest is unavailable'
