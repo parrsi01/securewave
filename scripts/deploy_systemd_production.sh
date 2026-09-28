@@ -210,6 +210,17 @@ fi
 systemctl restart "${API_SERVICE}"
 systemctl is-active --quiet "${HELPER_SERVICE}" || fail 'WireGuard helper did not become active'
 systemctl is-active --quiet "${API_SERVICE}" || fail 'API service did not remain active'
+READY=0
+for attempt in {1..30}; do
+    if curl --fail --silent --max-time 1 http://127.0.0.1:8080/api/ready >/dev/null; then
+        READY=1
+        break
+    fi
+    systemctl is-active --quiet "${API_SERVICE}" \
+        || fail 'API service stopped during the local readiness wait'
+    sleep 1
+done
+[[ ${READY} -eq 1 ]] || fail 'local API readiness check did not pass within 30 attempts'
 curl --fail --silent --show-error --max-time 15 http://127.0.0.1:8080/api/ready
 printf '\nSystemd deployment completed and local API readiness check passed.\n'
 trap - EXIT
