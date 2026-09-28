@@ -149,6 +149,7 @@ def test_post_config_registers_client_public_key_without_private_key(provisionin
     assert peer.user_id == provisioning["user"].id
     assert peer.is_active is True
     assert peer.private_key_encrypted == ""
+    assert peer.health_status == "unknown"
     assert provisioning["user"].wg_private_key_encrypted is None
 
 

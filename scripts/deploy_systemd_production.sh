@@ -42,6 +42,7 @@ fi
 for relative_path in \
     routes/auth.py \
     routes/vpn.py \
+    models/wireguard_peer.py \
     services/wireguard_helper.py \
     services/wireguard_helper_client.py \
     infrastructure/systemd/securewave-wg-helper.service \
@@ -169,11 +170,13 @@ install_app_file() {
 
 install_app_file routes/auth.py services/vpn_peer_manager.py
 install_app_file routes/vpn.py services/vpn_peer_manager.py
+install_app_file models/wireguard_peer.py services/vpn_peer_manager.py
 install_app_file services/wireguard_helper.py services/vpn_peer_manager.py
 install_app_file services/wireguard_helper_client.py services/vpn_peer_manager.py
 "${NEW_RELEASE}/.venv/bin/python" -m py_compile \
     "${NEW_RELEASE}/routes/auth.py" \
     "${NEW_RELEASE}/routes/vpn.py" \
+    "${NEW_RELEASE}/models/wireguard_peer.py" \
     "${NEW_RELEASE}/services/wireguard_helper.py" \
     "${NEW_RELEASE}/services/wireguard_helper_client.py" \
     || fail 'production Python compilation failed'
