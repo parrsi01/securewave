@@ -8,13 +8,21 @@ This module intentionally exposes one product path:
 - mark active sessions disconnected on logout/disconnect
 """
 
+import asyncio
+import base64
+import binascii
+import ipaddress
 import os
+import re
+import signal
 from datetime import datetime, timedelta
 from typing import Optional
+from urllib.parse import urlsplit
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
-from pydantic import BaseModel, Field
-from sqlalchemy import func
+from pydantic import BaseModel, ConfigDict, Field
+from sqlalchemy import func, or_
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from database.session import get_db
@@ -29,8 +37,9 @@ from services.subscription_access import (
     require_active_subscription,
 )
 from services.usage_metering_service import UsageMeteringError, UsageMeteringService
-from services.vpn_peer_manager import get_peer_manager
+from services.vpn_peer_manager import IP_POOL_END, IP_POOL_START, get_peer_manager
 from services.vpn_server_service import VPNServerService
+from services import wireguard_helper_client
 from services.wireguard_peer_lifecycle import (
     WireGuardPeerSyncError,
     confirm_peer_assignment,
@@ -45,6 +54,8 @@ router = APIRouter(prefix="/api/vpn", tags=["vpn"])
 limiter = Limiter(key_func=get_remote_address)
 IS_TESTING = os.getenv("TESTING", "").lower() == "true"
 AUTO_REGISTER_PEERS = os.getenv("WG_AUTO_REGISTER_PEERS", "true").lower() == "true"
+_WG_INTERFACE = "wg0"
+_LOCAL_COMMAND_TIMEOUT_SECONDS = 10
 
 
 def rate_limit(rule: str):
@@ -99,6 +110,17 @@ class VpnProfileRequest(BaseModel):
     protocol: str = Field("wireguard")
     server_id: Optional[str] = Field(None, max_length=128)
     force_rotate_keys: bool = False
+
+
+class ClientWireGuardConfigRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    public_key: str = Field(..., min_length=44, max_length=44)
+
+
+class ClientWireGuardConfigResponse(BaseModel):
+    wireguard_config: str
+    server_location: str
 
 
 class VpnProfileDns(BaseModel):
@@ -279,6 +301,442 @@ def _select_server(db: Session, user: User, server_id: Optional[str]) -> VPNServ
     return candidates[0]
 
 
+def _is_wireguard_public_key(value: str) -> bool:
+    try:
+        decoded = base64.b64decode(value, validate=True)
+    except (binascii.Error, ValueError):
+        return False
+    return (
+        len(decoded) == 32
+        and any(decoded)
+        and base64.b64encode(decoded).decode("ascii") == value
+    )
+
+
+def _client_wireguard_config(server: VPNServer, address: str) -> tuple[str, str]:
+    if not _is_wireguard_public_key(server.wg_public_key or ""):
+        raise HTTPException(status_code=503, detail="WireGuard server public key is unavailable.")
+    endpoint = (server.endpoint or "").strip()
+    if not re.fullmatch(
+        r"(?:[A-Za-z0-9.-]+|\[[0-9A-Fa-f:.]+\]):[1-9][0-9]{0,4}",
+        endpoint,
+    ):
+        raise HTTPException(status_code=503, detail="WireGuard server endpoint is unavailable.")
+    try:
+        parsed = urlsplit(f"udp://{endpoint}")
+        port = parsed.port
+    except ValueError:
+        parsed = None
+        port = None
+    hostname = parsed.hostname if parsed else None
+    if (
+        not hostname
+        or port is None
+        or not 1 <= port <= 65535
+        or parsed.username is not None
+        or parsed.password is not None
+        or parsed.path
+        or parsed.query
+        or parsed.fragment
+    ):
+        raise HTTPException(status_code=503, detail="WireGuard server endpoint is unavailable.")
+    try:
+        ipaddress.ip_address(hostname)
+    except ValueError:
+        labels = hostname.rstrip(".").split(".")
+        if not labels or any(
+            not re.fullmatch(r"[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?", label)
+            for label in labels
+        ):
+            raise HTTPException(status_code=503, detail="WireGuard server endpoint is unavailable.")
+    try:
+        client_interface = ipaddress.ip_interface(address)
+        if client_interface.version != 4 or client_interface.network.prefixlen != 32:
+            raise ValueError
+        allowed_ips = [
+            str(ipaddress.ip_network(item.strip(), strict=False))
+            for item in (server.allowed_ips or "").split(",")
+            if item.strip()
+        ]
+        if not allowed_ips:
+            raise ValueError
+        dns_servers = [
+            str(ipaddress.ip_address(item.strip()))
+            for item in (server.dns_servers or "").split(",")
+            if item.strip()
+        ]
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=503, detail="WireGuard network settings are invalid."
+        ) from exc
+    lines = ["[Interface]", f"Address = {client_interface}"]
+    if dns_servers:
+        lines.append(f"DNS = {','.join(dns_servers)}")
+    lines.extend(
+        [
+            "",
+            "[Peer]",
+            f"PublicKey = {server.wg_public_key}",
+            f"Endpoint = {endpoint}",
+            f"AllowedIPs = {', '.join(allowed_ips)}",
+        ]
+    )
+    try:
+        keepalive = int(os.getenv("SECUREWAVE_WG_KEEPALIVE", "25"))
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=503, detail="WireGuard keepalive settings are invalid."
+        ) from exc
+    if not 0 <= keepalive <= 3600:
+        raise HTTPException(
+            status_code=503, detail="WireGuard keepalive settings are invalid."
+        )
+    if keepalive > 0:
+        lines.append(f"PersistentKeepalive = {keepalive}")
+    location = ", ".join(
+        part.strip() for part in (server.city, server.country) if part and part.strip()
+    ) or (server.location or "").strip()
+    if not location or "\n" in location or "\r" in location:
+        raise HTTPException(status_code=503, detail="WireGuard server location is unavailable.")
+    return "\n".join(lines) + "\n", location
+
+
+def _reserve_client_peer(
+    db: Session,
+    user: User,
+    public_key: str,
+) -> tuple[WireGuardPeer, VPNServer, str, str]:
+    peer = db.query(WireGuardPeer).filter(WireGuardPeer.public_key == public_key).first()
+    if peer is not None:
+        if peer.user_id != user.id:
+            raise HTTPException(status_code=409, detail="WireGuard public key is already assigned.")
+        if peer.is_revoked:
+            raise HTTPException(status_code=409, detail="This WireGuard public key has been revoked.")
+        if peer.private_key_encrypted:
+            raise HTTPException(
+                status_code=409,
+                detail="Use a fresh client-generated WireGuard key for provisioning.",
+            )
+        server = (
+            db.query(VPNServer).filter(VPNServer.id == peer.server_id).first()
+            if peer.server_id
+            else _select_server(db, user, None)
+        )
+        if not server or not _wireguard_ready(server):
+            raise HTTPException(status_code=503, detail="The WireGuard server is unavailable.")
+        config, location = _client_wireguard_config(server, peer.ipv4_address)
+        return peer, server, config, location
+
+    for attempt in range(3):
+        db.query(User).filter(User.id == user.id).with_for_update().first()
+        server = _select_server(db, user, None)
+        locked_server = (
+            db.query(VPNServer)
+            .filter(VPNServer.id == server.id)
+            .with_for_update()
+            .first()
+        )
+        if not locked_server or not _wireguard_ready(locked_server):
+            db.rollback()
+            raise HTTPException(status_code=503, detail="The WireGuard server is unavailable.")
+        server = locked_server
+
+        # A concurrent request for the same key may have completed while this
+        # request waited for the per-server allocation lock.
+        peer = db.query(WireGuardPeer).filter(WireGuardPeer.public_key == public_key).first()
+        if peer is not None:
+            db.rollback()
+            if peer.user_id != user.id or peer.private_key_encrypted or peer.is_revoked:
+                raise HTTPException(status_code=409, detail="WireGuard public key is already assigned.")
+            server = (
+                db.query(VPNServer).filter(VPNServer.id == peer.server_id).first()
+                if peer.server_id
+                else server
+            )
+            if not server or not _wireguard_ready(server):
+                raise HTTPException(status_code=503, detail="The WireGuard server is unavailable.")
+            config, location = _client_wireguard_config(server, peer.ipv4_address)
+            return peer, server, config, location
+
+        allocated = (
+            raw for (raw,) in db.query(WireGuardPeer.ipv4_address).all() if raw
+        )
+        try:
+            used = {ipaddress.ip_interface(raw).ip for raw in allocated}
+        except ValueError as exc:
+            raise HTTPException(
+                status_code=503, detail="WireGuard address allocation data is invalid."
+            ) from exc
+
+        device_count = (
+            db.query(WireGuardPeer)
+            .filter(
+                WireGuardPeer.user_id == user.id,
+                WireGuardPeer.is_revoked.is_(False),
+                or_(WireGuardPeer.is_active.is_(True), WireGuardPeer.private_key_encrypted == ""),
+            )
+            .count()
+        )
+        if device_count >= get_effective_device_limit(db, user):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Device limit reached. Reuse or revoke an existing device.",
+            )
+        address = next(
+            (
+                f"{IP_POOL_START}.{host}/32"
+                for host in range(10, IP_POOL_END + 1)
+                if ipaddress.ip_address(f"{IP_POOL_START}.{host}") not in used
+            ),
+            None,
+        )
+        if address is None:
+            raise HTTPException(
+                status_code=503, detail="No WireGuard client addresses are available."
+            )
+        peer = WireGuardPeer(
+            user_id=user.id,
+            server_id=server.id,
+            public_key=public_key,
+            private_key_encrypted="",
+            ipv4_address=address,
+            device_type="linux-client-owned", is_active=False, is_revoked=False,
+        )
+        config, location = _client_wireguard_config(server, address)
+        db.add(peer)
+        try:
+            db.commit()
+            db.refresh(peer)
+            return peer, server, config, location
+        except IntegrityError:
+            db.rollback()
+            peer = db.query(WireGuardPeer).filter(WireGuardPeer.public_key == public_key).first()
+            if peer is not None:
+                if peer.user_id != user.id or peer.private_key_encrypted or peer.is_revoked:
+                    raise HTTPException(status_code=409, detail="WireGuard public key is already assigned.")
+                server = (
+                    db.query(VPNServer).filter(VPNServer.id == peer.server_id).first()
+                    if peer.server_id
+                    else server
+                )
+                if not server or not _wireguard_ready(server):
+                    raise HTTPException(status_code=503, detail="The WireGuard server is unavailable.")
+                config, location = _client_wireguard_config(server, peer.ipv4_address)
+                return peer, server, config, location
+            if attempt == 2:
+                raise HTTPException(
+                    status_code=503,
+                    detail="A unique WireGuard client address could not be reserved.",
+                )
+    raise HTTPException(
+        status_code=503,
+        detail="A unique WireGuard client address could not be reserved.",
+    )
+
+
+async def _run_local_command(
+    command: tuple[str, ...],
+) -> tuple[bool, str]:
+    try:
+        process = await asyncio.create_subprocess_exec(
+            *command,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+            start_new_session=True,
+        )
+    except (OSError, asyncio.SubprocessError):
+        return False, ""
+
+    try:
+        stdout, _ = await asyncio.wait_for(
+            process.communicate(), timeout=_LOCAL_COMMAND_TIMEOUT_SECONDS
+        )
+    except asyncio.TimeoutError:
+        try:
+            os.killpg(process.pid, signal.SIGKILL)
+        except ProcessLookupError:
+            pass
+        await process.communicate()
+        return False, ""
+    except asyncio.CancelledError:
+        try:
+            os.killpg(process.pid, signal.SIGKILL)
+        except ProcessLookupError:
+            pass
+        await asyncio.shield(process.wait())
+        raise
+    if process.returncode != 0:
+        return False, ""
+    return True, stdout.decode("utf-8", errors="replace").strip()
+
+
+def _parse_wireguard_peer_state(raw_peers: object) -> Optional[dict[str, set]]:
+    if not isinstance(raw_peers, dict):
+        return None
+    peers: dict[str, set] = {}
+    for public_key, raw_allowed_ips in raw_peers.items():
+        if (
+            not _is_wireguard_public_key(public_key)
+            or public_key in peers
+            or not isinstance(raw_allowed_ips, list)
+            or any(not isinstance(item, str) for item in raw_allowed_ips)
+        ):
+            return None
+        networks = set()
+        if raw_allowed_ips:
+            try:
+                parsed_networks = [
+                    ipaddress.ip_network(item, strict=False)
+                    for item in raw_allowed_ips
+                ]
+                if len(parsed_networks) != len(set(parsed_networks)):
+                    return None
+                networks = set(parsed_networks)
+            except ValueError:
+                return None
+        peers[public_key] = networks
+    return peers
+
+
+def _wireguard_peer_has_conflicting_address(
+    peers: dict[str, set],
+    public_key: str,
+    client_network: ipaddress.IPv4Network,
+) -> bool:
+    for existing_key, networks in peers.items():
+        if existing_key == public_key:
+            if networks != {client_network}:
+                return True
+            continue
+        if any(
+            network.version == 4 and network.overlaps(client_network)
+            for network in networks
+        ):
+            return True
+    return False
+
+
+async def _register_client_owned_peer(server: VPNServer, peer: WireGuardPeer) -> bool:
+    if not AUTO_REGISTER_PEERS or not _is_wireguard_public_key(peer.public_key or ""):
+        return False
+    if not _is_wireguard_public_key(server.wg_public_key or ""):
+        return False
+
+    try:
+        server_address = ipaddress.ip_address(server.public_ip)
+        client_interface = ipaddress.ip_interface(peer.ipv4_address)
+        client_ip = client_interface.ip
+        listen_port = int(server.wg_listen_port or 0)
+        pool = ipaddress.ip_network(f"{IP_POOL_START}.0/24")
+    except (TypeError, ValueError):
+        return False
+    if (
+        server_address.version != 4
+        or client_interface.version != 4
+        or client_interface.network.prefixlen != 32
+        or client_ip not in pool
+        or not 10 <= int(str(client_ip).rsplit(".", 1)[1]) <= IP_POOL_END
+        or not 1 <= listen_port <= 65535
+    ):
+        return False
+    client_network = client_interface.network
+
+    success, route = await _run_local_command(
+        ("/usr/sbin/ip", "-4", "route", "get", "1.1.1.1")
+    )
+    if not success:
+        return False
+    route_columns = route.split()
+    try:
+        source = ipaddress.ip_address(route_columns[route_columns.index("src") + 1])
+    except (ValueError, IndexError):
+        return False
+    if source != server_address:
+        return False
+
+    success, interface_addresses = await _run_local_command(
+        ("/usr/sbin/ip", "-4", "address", "show", "dev", _WG_INTERFACE)
+    )
+    if not success:
+        return False
+    raw_interface_addresses = re.findall(r"(?m)^\s*inet\s+(\S+)", interface_addresses)
+    if len(raw_interface_addresses) != 1:
+        return False
+    try:
+        interface_address = ipaddress.ip_interface(raw_interface_addresses[0])
+    except ValueError:
+        return False
+    if (
+        interface_address.version != 4
+        or client_ip not in interface_address.network
+        or client_ip == interface_address.ip
+    ):
+        return False
+
+    try:
+        current_state = await wireguard_helper_client.inspect_state()
+    except wireguard_helper_client.WireGuardHelperError:
+        return False
+    if (
+        current_state.get("server_public_key") != server.wg_public_key
+        or current_state.get("listen_port") != listen_port
+    ):
+        return False
+    peers = _parse_wireguard_peer_state(current_state.get("peers"))
+    if peers is None or _wireguard_peer_has_conflicting_address(
+        peers, peer.public_key, client_network
+    ):
+        return False
+
+    added = False
+    if peer.public_key not in peers:
+        added = True
+    try:
+        await wireguard_helper_client.ensure_peer(peer.public_key, str(client_network))
+        verified_state = await wireguard_helper_client.inspect_state()
+    except wireguard_helper_client.WireGuardHelperError:
+        return False
+    if (
+        verified_state.get("server_public_key") != server.wg_public_key
+        or verified_state.get("listen_port") != listen_port
+    ):
+        if added:
+            try:
+                await wireguard_helper_client.remove_peer(
+                    peer.public_key, str(client_network)
+                )
+            except wireguard_helper_client.WireGuardHelperError:
+                pass
+        return False
+    peers = _parse_wireguard_peer_state(verified_state.get("peers"))
+    if (
+        peers is None
+        or peer.public_key not in peers
+        or peers[peer.public_key] != {client_network}
+        or _wireguard_peer_has_conflicting_address(peers, peer.public_key, client_network)
+    ):
+        if added:
+            try:
+                await wireguard_helper_client.remove_peer(
+                    peer.public_key, str(client_network)
+                )
+            except wireguard_helper_client.WireGuardHelperError:
+                pass
+        return False
+
+    return True
+
+
+async def _remove_client_owned_peer(public_key: str, address: str) -> bool:
+    if not _is_wireguard_public_key(public_key):
+        return False
+    try:
+        await wireguard_helper_client.remove_peer(public_key, address)
+    except wireguard_helper_client.WireGuardHelperError:
+        return False
+    return True
+
+
 def _dns_servers() -> list[str]:
     raw = os.getenv("SECUREWAVE_TUNNEL_DNS", "94.140.14.14,94.140.15.15")
     servers = [item.strip() for item in raw.split(",") if item.strip()]
@@ -326,6 +784,11 @@ def _find_or_create_peer(
         )
         if peer is None:
             raise HTTPException(status_code=404, detail="VPN device not found")
+        if not peer.private_key_encrypted:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="This device uses a client-owned WireGuard key; request its configuration through POST /api/vpn/config.",
+            )
         return peer
 
     device_name = (payload.device_name or "Linux VM").strip()[:64]
@@ -335,6 +798,7 @@ def _find_or_create_peer(
             WireGuardPeer.user_id == user.id,
             func.lower(WireGuardPeer.device_name) == device_name.lower(),
             WireGuardPeer.is_revoked.is_(False),
+            WireGuardPeer.private_key_encrypted != "",
         )
         .first()
     )
@@ -345,6 +809,7 @@ def _find_or_create_peer(
         WireGuardPeer.user_id == user.id,
         WireGuardPeer.is_active.is_(True),
         WireGuardPeer.is_revoked.is_(False),
+        WireGuardPeer.private_key_encrypted != "",
     )
     if payload.device_type:
         query = query.filter(WireGuardPeer.device_type == payload.device_type.lower())
@@ -413,6 +878,61 @@ async def list_protocols(
                 reason=None if has_server else "No WireGuard server is available.",
             ),
         ],
+    )
+
+
+@router.post("/config", response_model=ClientWireGuardConfigResponse)
+@rate_limit("30/minute")
+async def provision_client_wireguard_config(
+    request: Request,
+    payload: ClientWireGuardConfigRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    if not _is_wireguard_public_key(payload.public_key):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="A valid WireGuard public key is required.",
+        )
+
+    await require_active_subscription(db, current_user)
+    peer, server, config, location = _reserve_client_peer(
+        db, current_user, payload.public_key
+    )
+
+    try:
+        registered = await _register_client_owned_peer(server, peer)
+    except Exception as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="WireGuard peer registration could not be confirmed.",
+        ) from exc
+    if not registered:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="WireGuard peer registration could not be confirmed.",
+        )
+
+    if not peer.is_active:
+        peer.is_active = True
+        db.add(peer)
+        try:
+            db.commit()
+            db.refresh(peer)
+        except Exception as exc:
+            db.rollback()
+            try:
+                await _remove_client_owned_peer(peer.public_key, peer.ipv4_address)
+            except Exception:
+                pass
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="WireGuard peer activation could not be saved.",
+            ) from exc
+
+    return ClientWireGuardConfigResponse(
+        wireguard_config=config,
+        server_location=location,
     )
 
 

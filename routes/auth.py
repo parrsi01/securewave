@@ -124,7 +124,7 @@ def _validate_password(password: str, password_confirm: Optional[str] = None) ->
 class RegisterRequest(BaseModel):
     email: EmailStr
     password: str
-    password_confirm: str
+    password_confirm: Optional[str] = None
 
 
 class LoginRequest(BaseModel):
