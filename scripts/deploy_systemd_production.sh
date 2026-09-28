@@ -11,7 +11,7 @@ readonly API_DROPIN="${API_UNIT_DIR}/securewave-wg-helper.conf"
 readonly HELPER_UNIT="/etc/systemd/system/securewave-wg-helper.service"
 
 usage() {
-    printf 'Usage: %s TESTED_SOURCE_DIRECTORY\n' "$0" >&2
+    printf 'Usage: %s TESTED_SOURCE_DIRECTORY TESTED_COMMIT_SHA\n' "$0" >&2
     exit 2
 }
 
@@ -20,15 +20,25 @@ fail() {
     exit 1
 }
 
-[[ $# -eq 1 ]] || usage
+[[ $# -eq 2 ]] || usage
 [[ ${EUID} -eq 0 ]] || fail 'must run as root in the authorized production shell'
 
 SOURCE_ROOT="$(cd -- "$1" && pwd -P)" || fail 'source directory is unavailable'
-SOURCE_COMMIT="$(git -C "${SOURCE_ROOT}" rev-parse --verify 'HEAD^{commit}' 2>/dev/null)" \
-    || fail 'source directory is not a committed Git checkout'
-SOURCE_CHANGES="$(git -C "${SOURCE_ROOT}" status --porcelain --untracked-files=all)" \
-    || fail 'could not verify the source Git worktree'
-[[ -z "${SOURCE_CHANGES}" ]] || fail 'source Git worktree is not clean'
+EXPECTED_SOURCE_COMMIT="$2"
+[[ "${EXPECTED_SOURCE_COMMIT}" =~ ^[0-9a-f]{40}$ ]] \
+    || fail 'expected source commit must be a full Git SHA-1'
+if SOURCE_COMMIT="$(git -C "${SOURCE_ROOT}" rev-parse --verify 'HEAD^{commit}' 2>/dev/null)"; then
+    SOURCE_CHANGES="$(git -C "${SOURCE_ROOT}" status --porcelain --untracked-files=all)" \
+        || fail 'could not verify the source Git worktree'
+    [[ -z "${SOURCE_CHANGES}" ]] || fail 'source Git worktree is not clean'
+else
+    [[ -f "${SOURCE_ROOT}/.securewave-source-commit" ]] \
+        || fail 'source archive commit marker is unavailable'
+    IFS= read -r SOURCE_COMMIT < "${SOURCE_ROOT}/.securewave-source-commit" \
+        || fail 'source archive commit marker is invalid'
+fi
+[[ "${SOURCE_COMMIT}" == "${EXPECTED_SOURCE_COMMIT}" ]] \
+    || fail 'source commit does not match the tested commit'
 for relative_path in \
     routes/auth.py \
     routes/vpn.py \
