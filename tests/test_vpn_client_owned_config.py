@@ -75,13 +75,24 @@ def provisioning(monkeypatch):
 
     registered = []
     registration_results = [True]
+    live_peers = {}
 
     async def register_peer(_server, peer):
         registered.append((peer.public_key, peer.ipv4_address))
         return registration_results.pop(0) if registration_results else True
 
+    async def inspect_live_state():
+        return {
+            "server_public_key": server.wg_public_key,
+            "listen_port": server.wg_listen_port,
+            "peers": {key: list(prefixes) for key, prefixes in live_peers.items()},
+        }
+
     monkeypatch.setattr(vpn_routes, "_select_server", select_server)
     monkeypatch.setattr(vpn_routes, "_register_client_owned_peer", register_peer)
+    monkeypatch.setattr(
+        vpn_routes.wireguard_helper_client, "inspect_state", inspect_live_state
+    )
     monkeypatch.setattr(vpn_routes, "get_effective_device_limit", lambda *_: 1)
 
     async def allow_subscription(_db, _user):
@@ -96,6 +107,7 @@ def provisioning(monkeypatch):
         "server": server,
         "registered": registered,
         "registration_results": registration_results,
+        "live_peers": live_peers,
     }
 
     db.close()
@@ -152,6 +164,33 @@ def test_post_config_reuses_public_key_and_client_address(provisioning):
         "10.8.0.10/32",
     ]
     assert provisioning["db"].query(WireGuardPeer).filter_by(public_key=key).count() == 1
+
+
+def test_post_config_skips_address_already_used_by_live_wireguard_peer(provisioning):
+    provisioning["live_peers"][_public_key(18)] = ["10.8.0.10/32"]
+
+    response = _post_config(provisioning, {"public_key": _public_key(19)})
+
+    assert "Address = 10.8.0.11/32" in response.wireguard_config
+    assert provisioning["registered"] == [(_public_key(19), "10.8.0.11/32")]
+
+
+def test_post_config_fails_closed_when_live_wireguard_state_is_unavailable(
+    provisioning, monkeypatch
+):
+    async def unavailable():
+        raise vpn_routes.wireguard_helper_client.WireGuardHelperError("unavailable")
+
+    monkeypatch.setattr(
+        vpn_routes.wireguard_helper_client, "inspect_state", unavailable
+    )
+
+    with pytest.raises(HTTPException) as failed:
+        _post_config(provisioning, {"public_key": _public_key(20)})
+
+    assert failed.value.status_code == 503
+    assert provisioning["registered"] == []
+    assert provisioning["db"].query(WireGuardPeer).count() == 0
 
 
 def test_post_config_rejects_invalid_key_and_private_key_field(provisioning):

@@ -401,7 +401,7 @@ def _client_wireguard_config(server: VPNServer, address: str) -> tuple[str, str]
     return "\n".join(lines) + "\n", location
 
 
-def _reserve_client_peer(
+async def _reserve_client_peer(
     db: Session,
     user: User,
     public_key: str,
@@ -458,11 +458,41 @@ def _reserve_client_peer(
             config, location = _client_wireguard_config(server, peer.ipv4_address)
             return peer, server, config, location
 
-        allocated = (
-            raw for (raw,) in db.query(WireGuardPeer.ipv4_address).all() if raw
-        )
         try:
-            used = {ipaddress.ip_interface(raw).ip for raw in allocated}
+            live_state = await wireguard_helper_client.inspect_state()
+        except wireguard_helper_client.WireGuardHelperError as exc:
+            db.rollback()
+            raise HTTPException(
+                status_code=503, detail="Live WireGuard peer state is unavailable."
+            ) from exc
+        if (
+            live_state.get("server_public_key") != server.wg_public_key
+            or live_state.get("listen_port") != server.wg_listen_port
+        ):
+            db.rollback()
+            raise HTTPException(status_code=503, detail="The WireGuard server is unavailable.")
+        live_peers = _parse_wireguard_peer_state(live_state.get("peers"))
+        if live_peers is None:
+            db.rollback()
+            raise HTTPException(status_code=503, detail="Live WireGuard peer state is invalid.")
+        if public_key in live_peers:
+            db.rollback()
+            raise HTTPException(
+                status_code=409,
+                detail="WireGuard public key is already assigned outside this account.",
+            )
+        live_networks = {
+            network
+            for networks in live_peers.values()
+            for network in networks
+            if network.version == 4
+        }
+
+        allocated = (raw for (raw,) in db.query(WireGuardPeer.ipv4_address).all() if raw)
+        try:
+            used_networks = {
+                ipaddress.ip_interface(raw).network for raw in allocated
+            }
         except ValueError as exc:
             raise HTTPException(
                 status_code=503, detail="WireGuard address allocation data is invalid."
@@ -486,7 +516,10 @@ def _reserve_client_peer(
             (
                 f"{IP_POOL_START}.{host}/32"
                 for host in range(10, IP_POOL_END + 1)
-                if ipaddress.ip_address(f"{IP_POOL_START}.{host}") not in used
+                if not any(
+                    ipaddress.ip_address(f"{IP_POOL_START}.{host}") in network
+                    for network in used_networks | live_networks
+                )
             ),
             None,
         )
@@ -896,7 +929,7 @@ async def provision_client_wireguard_config(
         )
 
     await require_active_subscription(db, current_user)
-    peer, server, config, location = _reserve_client_peer(
+    peer, server, config, location = await _reserve_client_peer(
         db, current_user, payload.public_key
     )
 
