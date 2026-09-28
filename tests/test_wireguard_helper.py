@@ -27,7 +27,7 @@ class FakeWireGuard:
             return True, str(self.listen_port)
         if argv == (wireguard_helper.WG, "show", "wg0", "allowed-ips"):
             return True, "\n".join(
-                f"{key}\t{','.join(sorted(values)) or 'none'}"
+                f"{key}\t{','.join(sorted(values)) or '(none)'}"
                 for key, values in self.peers.items()
             )
         if argv[:4] == (wireguard_helper.WG, "set", "wg0", "peer"):
@@ -58,10 +58,10 @@ def test_helper_inspects_only_public_wireguard_state():
     assert all(argv[0] in {wireguard_helper.WG, wireguard_helper.WG_QUICK} for argv in fake.calls)
 
 
-def test_helper_accepts_wireguard_none_allowed_ips_marker():
+def test_helper_accepts_wireguard_parenthesized_none_allowed_ips_marker():
     public_key = _public_key(2)
 
-    assert wireguard_helper.parse_wireguard_allowed_ips(f"{public_key}\tnone") == {
+    assert wireguard_helper.parse_wireguard_allowed_ips(f"{public_key}\t(none)") == {
         public_key: []
     }
 

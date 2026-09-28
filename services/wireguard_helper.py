@@ -81,7 +81,7 @@ def parse_wireguard_allowed_ips(output: str) -> dict[str, list[str]]:
         if not is_wireguard_public_key(public_key) or public_key in peers:
             raise WireGuardHelperError("invalid WireGuard peer state")
         networks: list[str] = []
-        if raw_allowed_ips.strip() not in {"", "none", "[none]"}:
+        if raw_allowed_ips.strip() not in {"", "none", "[none]", "(none)"}:
             try:
                 parsed = [
                     ipaddress.ip_network(item.strip(), strict=False)
