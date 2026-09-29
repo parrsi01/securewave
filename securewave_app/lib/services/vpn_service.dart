@@ -73,18 +73,27 @@ class VpnService {
   Future<WireGuardKeyPair> generateKeyPair() async {
     try {
       final privateKey = await _runWg(['genkey']);
-      final publicKey = await _runWg(['pubkey'], stdinText: privateKey);
-      if (!_isKey(privateKey) || !_isKey(publicKey)) {
-        throw const VpnServiceException(
-          'WireGuard returned an invalid local keypair.',
-        );
-      }
-      return WireGuardKeyPair(privateKey: privateKey, publicKey: publicKey);
+      return await keyPairFromPrivateKey(privateKey);
     } on ProcessException {
       throw const VpnServiceException(
         'WireGuard tools are not installed on this Linux system.',
       );
     }
+  }
+
+  Future<WireGuardKeyPair> keyPairFromPrivateKey(String privateKey) async {
+    if (!_isKey(privateKey)) {
+      throw const VpnServiceException(
+        'The stored WireGuard private key is invalid.',
+      );
+    }
+    final publicKey = await _runWg(['pubkey'], stdinText: privateKey);
+    if (!_isKey(publicKey)) {
+      throw const VpnServiceException(
+        'WireGuard returned an invalid local keypair.',
+      );
+    }
+    return WireGuardKeyPair(privateKey: privateKey, publicKey: publicKey);
   }
 
   Future<String> _runWg(List<String> arguments, {String? stdinText}) async {

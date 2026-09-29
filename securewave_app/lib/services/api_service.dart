@@ -229,6 +229,13 @@ class ApiService {
     await _request('GET', '/auth/me');
   }
 
+  Future<String> currentUserId() async {
+    final data = await _request('GET', '/auth/me');
+    final id = data['id'];
+    if (id is num && id > 0) return id.toString();
+    throw const ApiException('Could not identify the SecureWave account.');
+  }
+
   Future<WireGuardConfigParameters> fetchWireGuardConfig({
     required String publicKey,
   }) async {

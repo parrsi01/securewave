@@ -329,6 +329,7 @@ class _HomeView extends StatefulWidget {
 class _HomeViewState extends State<_HomeView> {
   static const _storage = FlutterSecureStorage();
   static const _baselineKey = 'vpn_baseline_public_ip';
+  static const _wireGuardPrivateKeyPrefix = 'wireguard_private_key_user_';
 
   final _vpn = VpnService();
   VpnStatus _status = VpnStatus.disconnected;
@@ -431,7 +432,7 @@ class _HomeViewState extends State<_HomeView> {
       final baseline = await _vpn.getPublicIp();
       _baselinePublicIp = baseline;
       await _storage.write(key: _baselineKey, value: baseline);
-      final keyPair = await _vpn.generateKeyPair();
+      final keyPair = await _loadOrCreateWireGuardKeyPair();
       final parameters =
           await widget.api.fetchWireGuardConfig(publicKey: keyPair.publicKey);
       if (!await _vpn.refreshAvailability()) {
@@ -480,6 +481,19 @@ class _HomeViewState extends State<_HomeView> {
     } finally {
       if (mounted) setState(() => _busy = false);
     }
+  }
+
+  Future<WireGuardKeyPair> _loadOrCreateWireGuardKeyPair() async {
+    final userId = await widget.api.currentUserId();
+    final storageKey = '$_wireGuardPrivateKeyPrefix$userId';
+    final storedPrivateKey = await _storage.read(key: storageKey);
+    if (storedPrivateKey != null && storedPrivateKey.isNotEmpty) {
+      return _vpn.keyPairFromPrivateKey(storedPrivateKey);
+    }
+
+    final keyPair = await _vpn.generateKeyPair();
+    await _storage.write(key: storageKey, value: keyPair.privateKey);
+    return keyPair;
   }
 
   Future<String?> _cleanupFailedConnection(bool tunnelAttempted) async {
