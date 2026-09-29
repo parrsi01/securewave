@@ -16,7 +16,9 @@
 #include <cstdlib>
 #include <cstring>
 #include <fstream>
+#include <initializer_list>
 #include <map>
+#include <set>
 #include <sstream>
 #include <string>
 #include <vector>
@@ -39,8 +41,9 @@ const char* kContractPath = "/usr/local/libexec/securewave-wg-quick.contract";
 const char* kAllowedUsersPath = "/etc/securewave/helper-users";
 const char* kGroupName = "securewave";
 const char* kWireGuardInterface = "sw-wg";
-const guint kContractVersion = 13;
+const guint kContractVersion = 14;
 const gsize kMaxRequestBytes = 64 * 1024;
+const gsize kMaxPeerStatusBytes = 64 * 1024;
 
 using Fields = std::map<std::string, std::string>;
 
@@ -148,6 +151,20 @@ static bool ValidFieldName(const std::string& key) {
   return std::all_of(key.begin(), key.end(), [](unsigned char c) {
     return g_ascii_islower(c) || g_ascii_isdigit(c) || c == '_';
   });
+}
+
+static bool OnlyFields(const Fields& fields,
+                       std::initializer_list<const char*> allowed) {
+  std::set<std::string> names;
+  for (const char* name : allowed) {
+    names.emplace(name);
+  }
+  for (const auto& field : fields) {
+    if (names.find(field.first) == names.end()) {
+      return false;
+    }
+  }
+  return true;
 }
 
 static ParsedFields ParseFields(const std::string& body) {
@@ -265,8 +282,23 @@ static bool ParseUint32Strict(const std::string& raw, guint32* value) {
   return true;
 }
 
+static std::string RuntimePath(const char* test_variable,
+                               const char* production_path) {
+#ifdef SECUREWAVE_HELPERD_TESTING
+  const char* override_path = std::getenv(test_variable);
+  if (override_path && *override_path) {
+    return override_path;
+  }
+#else
+  (void)test_variable;
+#endif
+  return production_path;
+}
+
 static guint InstalledContractVersion() {
-  std::ifstream input(kContractPath);
+  const std::string path = RuntimePath("SECUREWAVE_TEST_CONTRACT_PATH",
+                                       kContractPath);
+  std::ifstream input(path);
   std::string contents;
   std::getline(input, contents);
   guint32 installed = 0;
@@ -277,10 +309,12 @@ static guint InstalledContractVersion() {
 }
 
 static Fields RequireContract() {
+  const std::string helper_path =
+      RuntimePath("SECUREWAVE_TEST_HELPER_PATH", kHelperPath);
   struct stat st {};
-  if (stat(kHelperPath, &st) != 0 ||
+  if (stat(helper_path.c_str(), &st) != 0 ||
       !S_ISREG(st.st_mode) ||
-      access(kHelperPath, X_OK) != 0) {
+      access(helper_path.c_str(), X_OK) != 0) {
     return Error("helper_missing", "SecureWave WireGuard helper is missing.");
   }
   const guint installed = InstalledContractVersion();
@@ -306,12 +340,12 @@ static bool ContractOk(Fields* error) {
   return false;
 }
 
-static const char* AllowlistedExecutablePath(const std::string& executable) {
+static std::string AllowlistedExecutablePath(const std::string& executable) {
   if (executable == kHelperPath ||
       executable == "securewave-wg-quick") {
-    return kHelperPath;
+    return RuntimePath("SECUREWAVE_TEST_HELPER_PATH", kHelperPath);
   }
-  return nullptr;
+  return "";
 }
 
 static CommandResult RunCommand(const std::vector<std::string>& args) {
@@ -321,8 +355,8 @@ static CommandResult RunCommand(const std::vector<std::string>& args) {
     return result;
   }
 
-  const char* executable = AllowlistedExecutablePath(args.front());
-  if (executable == nullptr) {
+  const std::string executable = AllowlistedExecutablePath(args.front());
+  if (executable.empty()) {
     result.message = "Command executable is not allowlisted.";
     return result;
   }
@@ -520,6 +554,79 @@ static guint64 ReadSysUint64(const std::string& path, bool* ok) {
   return static_cast<guint64>(parsed);
 }
 
+static std::string WireGuardSysfsPath() {
+  const std::string root =
+      RuntimePath("SECUREWAVE_TEST_SYSFS_ROOT", "/sys/class/net");
+  return root + "/" + kWireGuardInterface;
+}
+
+static bool ParseUint64Strict(const std::string& raw, guint64* value) {
+  if (!value || raw.empty() || raw[0] == '+' || raw[0] == '-') {
+    return false;
+  }
+  if (!std::all_of(raw.begin(), raw.end(), [](unsigned char c) {
+        return g_ascii_isdigit(c);
+      })) {
+    return false;
+  }
+  char* end = nullptr;
+  errno = 0;
+  const unsigned long long parsed = g_ascii_strtoull(raw.c_str(), &end, 10);
+  if (errno != 0 || end == raw.c_str() || *end != '\0') {
+    return false;
+  }
+  *value = static_cast<guint64>(parsed);
+  return true;
+}
+
+static bool IsWireGuardPublicKey(const std::string& key) {
+  if (key.size() != 44 || key.back() != '=') {
+    return false;
+  }
+  return std::all_of(key.begin(), key.end() - 1, [](unsigned char c) {
+    return g_ascii_isalnum(c) || c == '+' || c == '/';
+  });
+}
+
+static bool ParsePeerHandshakes(const std::string& source,
+                                std::string* normalized,
+                                std::string* error) {
+  if (!normalized || source.size() > kMaxPeerStatusBytes) {
+    if (error) *error = "WireGuard peer status exceeded its size limit.";
+    return false;
+  }
+  normalized->clear();
+  std::istringstream lines(source);
+  std::string line;
+  std::set<std::string> peers;
+  while (std::getline(lines, line)) {
+    line = Trim(line);
+    if (line.empty()) continue;
+
+    std::istringstream row(line);
+    std::string public_key;
+    std::string raw_timestamp;
+    std::string extra;
+    guint64 timestamp = 0;
+    if (!(row >> public_key >> raw_timestamp) || row >> extra ||
+        !IsWireGuardPublicKey(public_key) ||
+        !ParseUint64Strict(raw_timestamp, &timestamp) ||
+        !peers.emplace(public_key).second) {
+      if (error) *error = "WireGuard returned malformed peer status.";
+      return false;
+    }
+    normalized->append(public_key);
+    normalized->push_back(' ');
+    normalized->append(std::to_string(timestamp));
+    normalized->push_back('\n');
+    if (peers.size() > 1024 || normalized->size() > kMaxPeerStatusBytes) {
+      if (error) *error = "WireGuard peer status exceeded its size limit.";
+      return false;
+    }
+  }
+  return true;
+}
+
 static Fields HandleRequest(const Fields& request,
                             const PeerCredentials& peer) {
   if (Field(request, "version") != "1") {
@@ -559,14 +666,24 @@ static Fields HandleRequest(const Fields& request,
     return Ok(fields);
   }
 
+  if (op != "wireguard.status" && op != "wireguard.counters" &&
+      op != "wireguard.runtime" && op != "wireguard.up" &&
+      op != "wireguard.down") {
+    return Error("invalid_operation", "Unsupported SecureWave helper operation.");
+  }
+
+  if (op == "wireguard.runtime" && !OnlyFields(request, {"version", "op"})) {
+    return Error("invalid_request",
+                 "WireGuard runtime inspection accepts no parameters.");
+  }
+
   Fields contract_error;
   if (!ContractOk(&contract_error)) {
     return contract_error;
   }
 
   if (op == "wireguard.status") {
-    const std::string interface_dir =
-        std::string("/sys/class/net/") + kWireGuardInterface;
+    const std::string interface_dir = WireGuardSysfsPath();
     const bool connected =
         g_file_test(interface_dir.c_str(), G_FILE_TEST_IS_DIR);
     bool rx_ok = false;
@@ -582,6 +699,55 @@ static Fields HandleRequest(const Fields& request,
     fields["tx_bytes"] = std::to_string(tx_ok ? tx : 0);
     fields["counters_available"] =
         connected && rx_ok && tx_ok ? "true" : "false";
+    return Ok(fields);
+  }
+
+  if (op == "wireguard.runtime") {
+    const std::string interface_dir = WireGuardSysfsPath();
+    const bool connected =
+        g_file_test(interface_dir.c_str(), G_FILE_TEST_IS_DIR);
+    Fields fields;
+    fields["status"] = connected ? "connected" : "disconnected";
+    fields["interface"] = kWireGuardInterface;
+    fields["rx_bytes"] = "0";
+    fields["tx_bytes"] = "0";
+    fields["counters_available"] = "false";
+    fields["peer_handshakes"] = "";
+    if (!connected) {
+      return Ok(fields);
+    }
+
+    bool rx_ok = false;
+    bool tx_ok = false;
+    const guint64 rx = ReadSysUint64(interface_dir + "/statistics/rx_bytes",
+                                    &rx_ok);
+    const guint64 tx = ReadSysUint64(interface_dir + "/statistics/tx_bytes",
+                                    &tx_ok);
+    if (!rx_ok || !tx_ok) {
+      return Error("runtime_counters_unavailable",
+                   "WireGuard interface counters are unreadable.");
+    }
+
+    const CommandResult peer_status =
+        RunHelper({"wireguard-peer-handshakes"});
+    if (!peer_status.ok) {
+      return Error("peer_status_unavailable",
+                   peer_status.message.empty()
+                       ? "WireGuard peer status is unavailable."
+                       : peer_status.message);
+    }
+    std::string normalized_handshakes;
+    std::string parse_error;
+    if (!ParsePeerHandshakes(peer_status.out,
+                             &normalized_handshakes,
+                             &parse_error)) {
+      return Error("peer_status_invalid", parse_error);
+    }
+
+    fields["rx_bytes"] = std::to_string(rx);
+    fields["tx_bytes"] = std::to_string(tx);
+    fields["counters_available"] = "true";
+    fields["peer_handshakes"] = normalized_handshakes;
     return Ok(fields);
   }
 
@@ -689,6 +855,7 @@ static void ServeClient(int client_fd) {
 
 }  // namespace
 
+#ifndef SECUREWAVE_HELPERD_NO_MAIN
 int main(int argc, char** argv) {
   signal(SIGPIPE, SIG_IGN);
 
@@ -745,3 +912,4 @@ int main(int argc, char** argv) {
     ServeClient(client_fd);
   }
 }
+#endif

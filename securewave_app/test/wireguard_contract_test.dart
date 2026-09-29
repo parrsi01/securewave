@@ -228,6 +228,65 @@ AllowedIPs = 0.0.0.0/0
       expect(stats.available, isFalse);
     });
   });
+
+  group('WireGuard runtime status from Linux helper', () {
+    const serverKey = 'w1bQ0wAmvob32mgEBQvVkTTAu10bSmyK7bGkC/06pGA=';
+
+    test('parses fixed interface, peer handshake, and real counters', () {
+      final runtime = WireGuardRuntimeSnapshot.fromMap({
+        'status': 'connected',
+        'interface': 'sw-wg',
+        'rx_bytes': 2048,
+        'tx_bytes': 512,
+        'counters_available': true,
+        'peer_handshakes': '$serverKey 1770000000\n',
+      });
+
+      expect(runtime.status, VpnStatus.connected);
+      expect(runtime.interfaceName, 'sw-wg');
+      expect(runtime.peerLatestHandshakes[serverKey], 1770000000);
+      expect(runtime.rxBytes, 2048);
+      expect(runtime.txBytes, 512);
+      expect(runtime.countersAvailable, isTrue);
+    });
+
+    test('rejects a mismatched interface or malformed handshake row', () {
+      final base = <String, Object>{
+        'status': 'connected',
+        'interface': 'sw-wg',
+        'rx_bytes': 10,
+        'tx_bytes': 20,
+        'counters_available': true,
+        'peer_handshakes': '$serverKey 1770000000\n',
+      };
+
+      expect(
+        () => WireGuardRuntimeSnapshot.fromMap({...base, 'interface': 'eth0'}),
+        throwsA(isA<VpnServiceException>()),
+      );
+      expect(
+        () => WireGuardRuntimeSnapshot.fromMap({
+          ...base,
+          'peer_handshakes': 'not-a-public-key 1770000000\n',
+        }),
+        throwsA(isA<VpnServiceException>()),
+      );
+    });
+
+    test('rejects connected state without readable counters', () {
+      expect(
+        () => WireGuardRuntimeSnapshot.fromMap({
+          'status': 'connected',
+          'interface': 'sw-wg',
+          'rx_bytes': 0,
+          'tx_bytes': 0,
+          'counters_available': false,
+          'peer_handshakes': '',
+        }),
+        throwsA(isA<VpnServiceException>()),
+      );
+    });
+  });
 }
 
 class _TestAdapter implements HttpClientAdapter {

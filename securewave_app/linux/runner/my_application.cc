@@ -13,7 +13,10 @@
 #include <cerrno>
 #include <cstdint>
 #include <cstring>
+#include <algorithm>
 #include <map>
+#include <set>
+#include <sstream>
 #include <string>
 #include <vector>
 
@@ -33,7 +36,7 @@ const char* kBundledHelperDaemonRelativePath = "packaging/linux/securewave-helpe
 const char* kBundledHelperContractRelativePath = "packaging/linux/securewave-wg-quick.contract";
 const char* kBundledHelperServiceRelativePath = "packaging/linux/securewave-helper.service";
 const char* kBundledHelperTmpfilesRelativePath = "packaging/linux/securewave-helper.tmpfiles";
-const guint kSecureWaveHelperContractVersion = 13;
+const guint kSecureWaveHelperContractVersion = 14;
 const gsize kMaxHelperResponseBytes = 1024 * 1024;
 
 using Fields = std::map<std::string, std::string>;
@@ -152,6 +155,50 @@ static guint64 field_uint64(const Fields& fields, const std::string& key) {
     return 0;
   }
   return g_ascii_strtoull(value.c_str(), nullptr, 10);
+}
+
+static gboolean parse_uint64_strict(const std::string& raw, guint64* value) {
+  if (!value || raw.empty() ||
+      !std::all_of(raw.begin(), raw.end(), [](unsigned char c) {
+        return g_ascii_isdigit(c);
+      })) {
+    return FALSE;
+  }
+  char* end = nullptr;
+  errno = 0;
+  const unsigned long long parsed = g_ascii_strtoull(raw.c_str(), &end, 10);
+  if (errno != 0 || end == raw.c_str() || *end != '\0') {
+    return FALSE;
+  }
+  *value = static_cast<guint64>(parsed);
+  return TRUE;
+}
+
+static gboolean valid_peer_handshakes(const std::string& source) {
+  if (source.size() > 64 * 1024) return FALSE;
+  std::istringstream lines(source);
+  std::string line;
+  std::set<std::string> seen;
+  while (std::getline(lines, line)) {
+    std::istringstream row(line);
+    std::string key;
+    std::string raw_timestamp;
+    std::string extra;
+    guint64 timestamp = 0;
+    if (!(row >> key >> raw_timestamp)) {
+      if (line.empty()) continue;
+      return FALSE;
+    }
+    if (row >> extra || key.size() != 44 || key.back() != '=' ||
+        !std::all_of(key.begin(), key.end() - 1, [](unsigned char c) {
+          return g_ascii_isalnum(c) || c == '+' || c == '/';
+        }) ||
+        !parse_uint64_strict(raw_timestamp, &timestamp) ||
+        !seen.emplace(key).second || seen.size() > 1024) {
+      return FALSE;
+    }
+  }
+  return TRUE;
 }
 
 static std::string escape_value(const std::string& value) {
@@ -841,6 +888,65 @@ static void respond_traffic_stats(FlMethodCall* method_call,
   fl_method_call_respond(method_call, method_response, nullptr);
 }
 
+static void respond_wireguard_runtime(FlMethodCall* method_call) {
+  HelperResponse response {};
+  gchar* detail = nullptr;
+  if (!helper_operation("wireguard.runtime", Fields(), &response, &detail)) {
+    respond_error(method_call,
+                  "runtime_state_unavailable",
+                  detail ? detail : "SecureWave helper runtime status is unavailable.",
+                  nullptr);
+    g_free(detail);
+    return;
+  }
+
+  const std::string status = field(response.fields, "status");
+  const std::string interface_name = field(response.fields, "interface");
+  const std::string peer_handshakes =
+      field(response.fields, "peer_handshakes");
+  guint64 rx_bytes = 0;
+  guint64 tx_bytes = 0;
+  const std::string counters_available =
+      field(response.fields, "counters_available");
+  if ((status != "connected" && status != "disconnected") ||
+      interface_name != "sw-wg" ||
+      !parse_uint64_strict(field(response.fields, "rx_bytes"), &rx_bytes) ||
+      !parse_uint64_strict(field(response.fields, "tx_bytes"), &tx_bytes) ||
+      (counters_available != "true" && counters_available != "false") ||
+      !valid_peer_handshakes(peer_handshakes) ||
+      (status == "connected" && counters_available != "true") ||
+      (status == "disconnected" && counters_available != "false")) {
+    respond_error(method_call,
+                  "runtime_state_invalid",
+                  "SecureWave helper returned invalid WireGuard runtime status.",
+                  nullptr);
+    g_free(detail);
+    return;
+  }
+
+  g_autoptr(FlValue) value = fl_value_new_map();
+  fl_value_set_string_take(value, "status", fl_value_new_string(status.c_str()));
+  fl_value_set_string_take(value,
+                           "interface",
+                           fl_value_new_string(interface_name.c_str()));
+  fl_value_set_string_take(value,
+                           "rx_bytes",
+                           fl_value_new_int(static_cast<int64_t>(rx_bytes)));
+  fl_value_set_string_take(value,
+                           "tx_bytes",
+                           fl_value_new_int(static_cast<int64_t>(tx_bytes)));
+  fl_value_set_string_take(value,
+                           "counters_available",
+                           fl_value_new_bool(counters_available == "true"));
+  fl_value_set_string_take(value,
+                           "peer_handshakes",
+                           fl_value_new_string(peer_handshakes.c_str()));
+  g_autoptr(FlMethodResponse) method_response = FL_METHOD_RESPONSE(
+      fl_method_success_response_new(value));
+  fl_method_call_respond(method_call, method_response, nullptr);
+  g_free(detail);
+}
+
 static void respond_runtime_status(
     FlMethodCall* method_call,
     VpnChannelState* state) {
@@ -918,6 +1024,11 @@ static void handle_vpn_call(FlMethodChannel* channel,
 
   if (g_strcmp0(method, "getStatus") == 0) {
     respond_runtime_status(method_call, state);
+    return;
+  }
+
+  if (g_strcmp0(method, "getWireGuardRuntime") == 0) {
+    respond_wireguard_runtime(method_call);
     return;
   }
 

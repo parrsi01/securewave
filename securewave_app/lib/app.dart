@@ -381,7 +381,13 @@ class _HomeViewState extends State<_HomeView> {
     try {
       _baselinePublicIp = baseline;
       await _vpn.refreshAvailability();
-      await _vpn.verifyConnection(previousPublicIp: baseline);
+      final keyPair = await _loadOrCreateWireGuardKeyPair();
+      final parameters =
+          await widget.api.fetchWireGuardConfig(publicKey: keyPair.publicKey);
+      await _vpn.verifyConnection(
+        previousPublicIp: baseline,
+        expectedServerPublicKey: parameters.serverPublicKey,
+      );
       if (!mounted) return;
       setState(() {
         _status = VpnStatus.connected;
@@ -443,7 +449,10 @@ class _HomeViewState extends State<_HomeView> {
       tunnelAttempted = true;
       _tunnelMayBeActive = true;
       await _vpn.connect(parameters.toClientConfig(keyPair.privateKey));
-      await _vpn.verifyConnection(previousPublicIp: baseline);
+      await _vpn.verifyConnection(
+        previousPublicIp: baseline,
+        expectedServerPublicKey: parameters.serverPublicKey,
+      );
       if (!mounted) return;
       setState(() {
         _status = VpnStatus.connected;

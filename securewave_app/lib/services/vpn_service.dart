@@ -58,6 +58,91 @@ class WireGuardKeyPair {
   final String publicKey;
 }
 
+class WireGuardRuntimeSnapshot {
+  const WireGuardRuntimeSnapshot({
+    required this.status,
+    required this.interfaceName,
+    required this.rxBytes,
+    required this.txBytes,
+    required this.countersAvailable,
+    required this.peerLatestHandshakes,
+  });
+
+  final VpnStatus status;
+  final String interfaceName;
+  final int rxBytes;
+  final int txBytes;
+  final bool countersAvailable;
+  final Map<String, int> peerLatestHandshakes;
+
+  factory WireGuardRuntimeSnapshot.fromMap(Map<Object?, Object?>? values) {
+    int? bytes(Object? value) {
+      if (value is num && value >= 0 && value == value.toInt()) {
+        return value.toInt();
+      }
+      return null;
+    }
+
+    final status = switch (values?['status']) {
+      'connected' => VpnStatus.connected,
+      'disconnected' => VpnStatus.disconnected,
+      _ => null,
+    };
+    final interfaceName = values?['interface'];
+    final rxBytes = bytes(values?['rx_bytes']);
+    final txBytes = bytes(values?['tx_bytes']);
+    final countersAvailable = values?['counters_available'];
+    final rawHandshakes = values?['peer_handshakes'];
+    if (status == null ||
+        interfaceName != 'sw-wg' ||
+        rxBytes == null ||
+        txBytes == null ||
+        countersAvailable is! bool ||
+        rawHandshakes is! String ||
+        (status == VpnStatus.connected && !countersAvailable) ||
+        (status == VpnStatus.disconnected && countersAvailable)) {
+      throw const VpnServiceException(
+        'The Linux helper returned invalid WireGuard runtime status.',
+      );
+    }
+
+    final handshakes = <String, int>{};
+    for (final line in const LineSplitter().convert(rawHandshakes)) {
+      if (line.trim().isEmpty) continue;
+      final fields = line.trim().split(RegExp(r'\s+'));
+      if (fields.length != 2 ||
+          !RegExp(r'^[A-Za-z0-9+/]{43}=$').hasMatch(fields.first)) {
+        throw const VpnServiceException(
+          'The Linux helper returned invalid WireGuard peer status.',
+        );
+      }
+      final timestamp = int.tryParse(fields[1]);
+      if (timestamp == null ||
+          timestamp < 0 ||
+          handshakes.containsKey(fields.first)) {
+        throw const VpnServiceException(
+          'The Linux helper returned invalid WireGuard peer status.',
+        );
+      }
+      handshakes[fields.first] = timestamp;
+      if (handshakes.length > 1024) {
+        throw const VpnServiceException(
+          'The Linux helper returned too many WireGuard peers.',
+        );
+      }
+    }
+
+    return WireGuardRuntimeSnapshot(
+      status: status,
+      interfaceName: interfaceName as String,
+      rxBytes: rxBytes,
+      txBytes: txBytes,
+      countersAvailable: countersAvailable,
+      peerLatestHandshakes: Map.unmodifiable(handshakes),
+    );
+  }
+}
+
 class VpnService {
   static const _interfaceName = 'sw-wg';
   static const _channel = MethodChannel('securewave/vpn');
@@ -140,40 +225,38 @@ class VpnService {
     }
   }
 
-  Future<String> verifyConnection({required String previousPublicIp}) async {
-    final runtime =
-        await _channel.invokeMapMethod<Object?, Object?>('getStatus');
-    if (runtime?['status'] != 'connected') {
+  Future<String> verifyConnection({
+    required String previousPublicIp,
+    required String expectedServerPublicKey,
+  }) async {
+    final runtime = await _getWireGuardRuntime();
+    if (runtime.status != VpnStatus.connected ||
+        runtime.interfaceName != 'sw-wg') {
       throw const VpnServiceException('WireGuard interface is not active.');
     }
 
-    final peers = await Process.run('wg', ['show', _interfaceName, 'peers']);
-    final peerKeys = (peers.stdout as String)
-        .split('\n')
-        .map((line) => line.trim())
-        .where((line) => line.isNotEmpty)
-        .toSet();
-    if (peers.exitCode != 0 || peerKeys.isEmpty) {
-      throw const VpnServiceException('No WireGuard peer is configured.');
+    final handshakeTimestamp =
+        runtime.peerLatestHandshakes[expectedServerPublicKey];
+    if (handshakeTimestamp == null) {
+      throw const VpnServiceException(
+        'The expected WireGuard peer is not configured.',
+      );
     }
 
-    final handshakes =
-        await Process.run('wg', ['show', _interfaceName, 'latest-handshakes']);
     final now = DateTime.now().millisecondsSinceEpoch ~/ 1000;
-    final hasRecentHandshake = handshakes.exitCode == 0 &&
-        (handshakes.stdout as String).split('\n').any((line) {
-          final fields = line.trim().split(RegExp(r'\s+'));
-          if (fields.length < 2 || !peerKeys.contains(fields.first)) {
-            return false;
-          }
-          final timestamp = int.tryParse(fields[1]) ?? 0;
-          return timestamp > 0 &&
-              timestamp <= now + 30 &&
-              now - timestamp <= 180;
-        });
-    if (!hasRecentHandshake) {
+    if (handshakeTimestamp <= 0 ||
+        handshakeTimestamp > now + 30 ||
+        now - handshakeTimestamp > 180) {
       throw const VpnServiceException(
           'WireGuard has no recent peer handshake.');
+    }
+
+    if (!runtime.countersAvailable ||
+        runtime.rxBytes == 0 ||
+        runtime.txBytes == 0) {
+      throw const VpnServiceException(
+        'WireGuard interface counters are unavailable.',
+      );
     }
 
     final route = await Process.run('ip', ['-4', 'route', 'get', '1.1.1.1']);
@@ -192,6 +275,12 @@ class VpnService {
           'WireGuard traffic counters are unavailable.');
     }
     return publicIp;
+  }
+
+  Future<WireGuardRuntimeSnapshot> _getWireGuardRuntime() async {
+    final runtime =
+        await _channel.invokeMapMethod<Object?, Object?>('getWireGuardRuntime');
+    return WireGuardRuntimeSnapshot.fromMap(runtime);
   }
 
   Future<void> verifyDisconnected({String? expectedPublicIp}) async {

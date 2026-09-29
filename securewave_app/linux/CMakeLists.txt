@@ -62,6 +62,23 @@ apply_standard_settings(securewave_helperd)
 target_link_libraries(securewave_helperd PRIVATE PkgConfig::GLIB)
 set_target_properties(securewave_helperd PROPERTIES OUTPUT_NAME "securewave-helperd")
 
+include(CTest)
+if(BUILD_TESTING)
+  add_executable(securewave_helperd_test EXCLUDE_FROM_ALL
+    "tests/securewave_helperd_test.cc"
+  )
+  target_compile_features(securewave_helperd_test PRIVATE cxx_std_14)
+  target_link_libraries(securewave_helperd_test PRIVATE PkgConfig::GLIB)
+  add_test(NAME securewave_helperd_runtime_contract
+    COMMAND securewave_helperd_test
+  )
+  add_test(NAME securewave_wg_quick_peer_query_is_fixed
+    COMMAND bash
+      "${CMAKE_CURRENT_SOURCE_DIR}/tests/wg_quick_peer_query_test.sh"
+      "${CMAKE_CURRENT_SOURCE_DIR}/../packaging/linux/securewave-wg-quick"
+  )
+endif()
+
 # Application build; see runner/CMakeLists.txt.
 add_subdirectory("runner")
 

@@ -16,6 +16,7 @@ Usage:
   securewave-wg-quick down <config-path>
   securewave-wg-quick policy-clear-link sw-wg
   securewave-wg-quick wireguard-transfer
+  securewave-wg-quick wireguard-peer-handshakes
 EOF
 }
 
@@ -114,6 +115,13 @@ case "$action" in
       exit 64
     }
     exec wg show "$WG_IFACE" transfer
+    ;;
+  wireguard-peer-handshakes)
+    [[ $# -eq 0 ]] || {
+      usage
+      exit 64
+    }
+    exec wg show "$WG_IFACE" latest-handshakes
     ;;
   *)
     echo "securewave-wg-quick: unsupported WireGuard-only action '$action'" >&2

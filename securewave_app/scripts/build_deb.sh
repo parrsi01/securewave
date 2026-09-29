@@ -111,8 +111,8 @@ install -m 0644 "$ROOT_DIR/packaging/linux/securewave-helper.tmpfiles" \
   "$package_root/usr/lib/tmpfiles.d/securewave-helper.conf"
 
 helper_contract="$(tr -d '[:space:]' < "$ROOT_DIR/packaging/linux/securewave-wg-quick.contract")"
-[[ "$helper_contract" == "13" ]] || {
-  echo "ERROR: Beta 1 requires helper contract 13, got $helper_contract" >&2
+[[ "$helper_contract" == "14" ]] || {
+  echo "ERROR: Beta 1 requires helper contract 14, got $helper_contract" >&2
   exit 1
 }
 printf '%s\n' "$version" > "$package_root/usr/share/securewave/release/app-version"
