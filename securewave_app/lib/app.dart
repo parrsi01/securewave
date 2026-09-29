@@ -21,6 +21,7 @@ class _SecureWaveAppState extends State<SecureWaveApp> {
   late final ApiService _api = ApiService();
   String? _token;
   bool _loading = true;
+  bool _signInAfterLogout = false;
 
   @override
   void initState() {
@@ -54,13 +55,18 @@ class _SecureWaveAppState extends State<SecureWaveApp> {
     if (mounted) setState(() => _token = token);
   }
 
-  Future<void> _clearSession() async {
+  Future<void> _clearSession({bool signIn = false}) async {
     _api.setAccessToken(null);
     await _storage.delete(key: _tokenKey);
-    if (mounted) setState(() => _token = null);
+    if (mounted) {
+      setState(() {
+        _token = null;
+        if (signIn) _signInAfterLogout = true;
+      });
+    }
   }
 
-  Future<void> _logout() => _clearSession();
+  Future<void> _logout() => _clearSession(signIn: true);
 
   @override
   Widget build(BuildContext context) {
@@ -71,7 +77,10 @@ class _SecureWaveAppState extends State<SecureWaveApp> {
       home: _loading
           ? const _LoadingView()
           : _token == null
-              ? _AuthView(onAuthenticated: _acceptSession)
+              ? _AuthView(
+                  onAuthenticated: _acceptSession,
+                  initiallyRegistering: !_signInAfterLogout,
+                )
               : _HomeView(
                   api: _api,
                   onLogout: _logout,
@@ -93,9 +102,13 @@ class _LoadingView extends StatelessWidget {
 }
 
 class _AuthView extends StatefulWidget {
-  const _AuthView({required this.onAuthenticated});
+  const _AuthView({
+    required this.onAuthenticated,
+    required this.initiallyRegistering,
+  });
 
   final Future<void> Function(String token) onAuthenticated;
+  final bool initiallyRegistering;
 
   @override
   State<_AuthView> createState() => _AuthViewState();
@@ -111,6 +124,12 @@ class _AuthViewState extends State<_AuthView> {
   bool _busy = false;
   String? _error;
   String? _notice;
+
+  @override
+  void initState() {
+    super.initState();
+    _registering = widget.initiallyRegistering;
+  }
 
   @override
   void dispose() {
