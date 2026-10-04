@@ -1,0 +1,16 @@
+{
+  "version": "4.0.0+11",
+  "downloads": [
+    {
+      "platform": "linux",
+      "architecture": "arm64",
+      "filename": "securewave-vpn_4.0.0+11_arm64.deb",
+      "url": "/downloads/securewave-vpn_4.0.0+11_arm64.deb",
+      "version": "4.0.0+11",
+      "status": "available",
+      "notes": "SecureWave Linux ARM64 WireGuard client for Ubuntu 24.04.",
+      "checksum_sha256": "c2c59a49fbbbcfee1897b3ec03f34c92ab3ca85547cca5361ba2030389dbe9b4",
+      "source_sha": "71f11009c68880b3492d446db59edee783dca050"
+    }
+  ]
+}

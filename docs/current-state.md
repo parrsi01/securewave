@@ -47,6 +47,13 @@ claim that every legacy production dependency has been redeployed or upgraded.
 The source checkout is intentionally smaller than the existing website/API
 deployment, which also retains legacy website/download routes.
 
+GitHub currently reports open PyJWT security advisories, including a critical
+advisory, against requirement manifests. This checkout pins PyJWT 2.13.0,
+which is within reported vulnerable ranges. Dependency remediation and the
+production exposure assessment are separate backend security work; functional
+confirmation is not a security audit. Review the repository's
+[Dependabot alerts](https://github.com/parrsi01/securewave/security/dependabot).
+
 ## Runtime boundaries
 
 1. Flutter sends HTTPS requests to `https://api.securewaveapp.com/api`.
@@ -60,9 +67,11 @@ deployment, which also retains legacy website/download routes.
    configuration. The same account reuses its stored WireGuard identity.
 
 The app has no automatic updater. Install a new Debian package to upgrade.
-The public download catalog is intended to contain only the current ARM64
+The public download catalog was verified to contain only the current ARM64
 package, with exact SHA-256 and source-commit metadata. Superseded artifacts
-are retained for recovery outside publicly accessible download paths.
+are retained for recovery outside publicly accessible download paths. The
+[publication record](releases/4.0.0+11-publication.md) records the source,
+checksum, public URL checks, and recovery location.
 
 ## Next work
 

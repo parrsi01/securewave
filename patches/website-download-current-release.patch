@@ -1,0 +1,28 @@
+--- a/routes/downloads.py
++++ b/routes/downloads.py
+@@ -512,7 +512,7 @@
+     ]
+     exact = next((entry for entry in entries if entry.architecture == detected["architecture"]), None)
+     universal = next((entry for entry in entries if entry.architecture == "universal"), None)
+-    selected = exact or universal or (entries[0] if entries else None)
++    selected = exact or universal
+     if selected:
+         recommended = selected.url
+ 
+--- a/static/js/downloads.js
++++ b/static/js/downloads.js
+@@ -99,9 +99,8 @@
+     && entry.url !== '#'
+   ));
+   return matches.find((entry) => entry.architecture === architecture)
+     || matches.find((entry) => entry.architecture === 'universal')
+-    || matches[0]
+     || null;
+ }
+ 
+ document.addEventListener('DOMContentLoaded', async () => {
+--- a/static/download.html
++++ b/static/download.html
+@@ -109 +109 @@
+-  <script src="/js/downloads.js" defer></script>
++  <script src="/js/downloads.js?v=4.0.0%2B11" defer></script>
