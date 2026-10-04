@@ -213,6 +213,7 @@ class ApiService {
       'POST',
       '/auth/register',
       body: {'email': email, 'password': password},
+      authenticated: false,
     );
   }
 
@@ -271,7 +272,15 @@ class ApiService {
       );
       final statusCode = response.statusCode ?? 0;
       if (statusCode >= 400) {
-        throw ApiException(_errorMessage(statusCode), statusCode: statusCode);
+        throw ApiException(
+          _errorMessage(
+            statusCode,
+            method: method,
+            path: path,
+            responseData: response.data,
+          ),
+          statusCode: statusCode,
+        );
       }
       final payload = response.data;
       if (payload is Map) {
@@ -285,9 +294,26 @@ class ApiService {
     }
   }
 
-  String _errorMessage(int statusCode) {
-    if (statusCode == 401) return 'Invalid email or password.';
-    if (statusCode == 409) {
+  String _errorMessage(
+    int statusCode, {
+    required String method,
+    required String path,
+    required Object? responseData,
+  }) {
+    final registering =
+        method.toUpperCase() == 'POST' && path == '/auth/register';
+    if (statusCode == 401) {
+      if (method.toUpperCase() == 'POST' && path == '/auth/login') {
+        return 'Invalid email or password.';
+      }
+      if (registering) {
+        return 'SecureWave could not authorize account creation. Please try again later.';
+      }
+      return 'Your session has expired. Sign in again.';
+    }
+    if (registering &&
+        (statusCode == 409 ||
+            (statusCode == 400 && _isDuplicateAccount(responseData)))) {
       return 'An account with this email already exists.';
     }
     if (statusCode == 400 || statusCode == 422) {
@@ -298,5 +324,12 @@ class ApiService {
     }
     if (statusCode >= 500) return 'SecureWave server error.';
     return 'SecureWave could not complete the request (HTTP $statusCode).';
+  }
+
+  bool _isDuplicateAccount(Object? responseData) {
+    if (responseData is! Map) return false;
+    final error = responseData['error'];
+    final message = error is Map ? error['message'] : responseData['detail'];
+    return message == 'Email already registered';
   }
 }

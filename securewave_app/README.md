@@ -1,12 +1,27 @@
-# SecureWave Linux App
+# SecureWave Linux App — 4.0.0+11
 
-This Flutter app is Linux + WireGuard only.
+The current package targets Ubuntu 24.04 ARM64 and uses WireGuard.
+It defaults to the live API at `https://api.securewaveapp.com/api`.
 
-The app expects a live backend at `SECUREWAVE_API_BASE_URL`, a registered WireGuard server in the database, and the local SecureWave helper service installed on the VM.
+Install `securewave-vpn_4.0.0+11_arm64.deb` with `sudo apt install ./<filename>`
+from the directory containing it, then open **SecureWave VPN** from Applications.
+The package includes the app, Flutter engine/assets, Linux helper daemon,
+systemd service, desktop launcher, and icon. Flutter tooling is not required
+on an end-user machine.
 
-```bash
-make linux-runtime-install
-SECUREWAVE_API_BASE_URL=http://localhost:8000/api make flutter-run
+For development checks and a release package build:
+
+```sh
+flutter pub get
+flutter analyze --no-pub
+flutter test --no-pub
+SOURCE_DATE_EPOCH=0 bash scripts/build_deb.sh
 ```
 
-The app is intentionally scoped to the live Linux WireGuard path.
+For a development launch, run `make linux-runtime-install` and
+`SECUREWAVE_API_BASE_URL=https://api.securewaveapp.com/api make flutter-run`
+from the repository root. Use the installed package for release acceptance.
+
+See [the release notes](../docs/releases/4.0.0+11.md),
+[the current stack](../docs/current-state.md), and
+[the next UI-only change boundary](../docs/ui-only-handoff.md).

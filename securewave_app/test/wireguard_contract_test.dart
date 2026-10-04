@@ -3,6 +3,8 @@ import 'dart:typed_data';
 
 import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:securewave_app/app.dart';
 import 'package:securewave_app/services/api_service.dart';
 import 'package:securewave_app/services/vpn_service.dart';
 
@@ -26,12 +28,13 @@ void main() {
         ),
       );
 
-      await ApiService(dio: dio).register(
+      await (ApiService(dio: dio)..setAccessToken('expired-session')).register(
         email: 'person@example.com',
         password: 'passphrase1',
       );
 
       expect(captured?.path, '/auth/register');
+      expect(captured?.headers.containsKey('Authorization'), isFalse);
       expect(captured?.data, {
         'email': 'person@example.com',
         'password': 'passphrase1',
@@ -60,6 +63,97 @@ void main() {
         ),
       );
     });
+
+    test('recognizes the production HTTP 400 duplicate-account envelope',
+        () async {
+      final dio = Dio(BaseOptions(validateStatus: (_) => true))
+        ..httpClientAdapter = _TestAdapter(400, {
+          'error': {
+            'code': 'http_error',
+            'message': 'Email already registered',
+          },
+        });
+      await expectLater(
+        ApiService(dio: dio).register(
+          email: 'person@example.com',
+          password: 'passphrase1',
+        ),
+        throwsA(isA<ApiException>().having(
+          (error) => error.message,
+          'message',
+          'An account with this email already exists.',
+        )),
+      );
+    });
+  });
+
+  group('unauthorized responses', () {
+    late ApiService api;
+    setUp(() {
+      final dio = Dio(BaseOptions(validateStatus: (_) => true))
+        ..httpClientAdapter = _TestAdapter(401, {
+          'error': {'message': 'private server detail'},
+        });
+      api = ApiService(dio: dio);
+    });
+
+    test('rejects incorrect login credentials', () async {
+      await expectLater(
+        api.login(email: 'person@example.com', password: 'incorrect'),
+        throwsA(isA<ApiException>()
+            .having((error) => error.statusCode, 'status', 401)
+            .having((error) => error.message, 'message',
+                'Invalid email or password.')),
+      );
+    });
+
+    test('does not report a registration 401 as incorrect credentials',
+        () async {
+      await expectLater(
+        api.register(email: 'person@example.com', password: 'passphrase1'),
+        throwsA(isA<ApiException>()
+            .having((error) => error.statusCode, 'status', 401)
+            .having((error) => error.message, 'message',
+                'SecureWave could not authorize account creation. Please try again later.')),
+      );
+    });
+
+    test('identifies rejected protected sessions for sign-out', () async {
+      api.setAccessToken('expired-session');
+      await expectLater(
+        api.checkSession(),
+        throwsA(isA<ApiException>()
+            .having((error) => error.unauthorized, 'unauthorized', isTrue)
+            .having((error) => error.message, 'message',
+                'Your session has expired. Sign in again.')),
+      );
+    });
+  });
+
+  testWidgets('an expired saved session opens sign-in and clears its token',
+      (tester) async {
+    FlutterSecureStorage.setMockInitialValues({'access_token': 'expired'});
+    final dio = Dio(BaseOptions(validateStatus: (_) => true))
+      ..httpClientAdapter = _TestAdapter(401, {'detail': 'Invalid token'});
+    await tester.pumpWidget(SecureWaveApp(api: ApiService(dio: dio)));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Sign in'), findsNWidgets(2));
+    expect(find.text('Create account'), findsNothing);
+    expect(find.text('Your session has expired. Sign in to continue.'),
+        findsOneWidget);
+    expect(
+        await const FlutterSecureStorage().read(key: 'access_token'), isNull);
+  });
+
+  testWidgets('a fresh installation still opens create-account',
+      (tester) async {
+    FlutterSecureStorage.setMockInitialValues({});
+    await tester.pumpWidget(const SecureWaveApp());
+    await tester.pumpAndSettle();
+    expect(find.text('Create account'), findsNWidgets(2));
+    expect(find.text('Your session has expired. Sign in to continue.'),
+        findsNothing);
   });
 
   test('login returns a token that authenticates the current-user request',

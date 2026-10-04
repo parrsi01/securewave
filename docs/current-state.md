@@ -1,0 +1,71 @@
+# Current SecureWave state
+
+Recorded 2026-10-04 for Linux release **4.0.0+11**.
+
+## Working baseline and evidence
+
+The ARM64 package is installed at `/usr/lib/securewave/securewave_app` on the
+Ubuntu VM. Its installed AOT library was checked against the rebuilt package.
+The local helper is enabled, active, and exposes `/run/securewave/helper.sock`.
+The user confirmed that the installed app is fully functional.
+
+Automated verification: Flutter static analysis passed and all 17 Flutter
+tests passed, including expired-session routing, duplicate registration,
+endpoint-specific unauthorized responses, and existing WireGuard contracts.
+A disposable-account live check using the actual Dart/Dio API service passed
+readiness 200, fresh registration 201, login 200, and three authenticated
+current-user requests 200. A deliberately wrong password returned 401 as
+expected. Credentials were generated in memory and not logged or saved.
+
+The core rollback tag `securewave-linux-core-verified` stays at
+`7f6ec88e1fb995c4d1acf963308c0983ba9518b4`. It records the earlier independently
+proved production WireGuard lifecycle. The new client release is identified
+by its own GitHub release tag and package source metadata.
+
+The user's functional confirmation is not an independently observed complete
+reboot acceptance run. Actual reboot, post-reboot cold launch, VPN traffic,
+and disconnect restoration remain unverified in this session.
+
+## Languages, frameworks, and tools
+
+| Layer | Current source or build tools |
+| --- | --- |
+| Linux application | Dart 3.11.1, Flutter 3.41.4 stable; application source in `securewave_app/lib` |
+| HTTP and local storage | Dio 5.9.0 and Flutter Secure Storage 9.2.4, as resolved in `pubspec.lock` |
+| Native integration | C++ native runner/helper, GTK 3, GLib/GIO, Flutter Linux embedding |
+| Build | CMake (project minimum 3.13), Ninja, Flutter/Dart CLI, `dpkg-deb`, SHA-256 tooling |
+| Backend source | Python 3.12 target, FastAPI, Pydantic, SQLAlchemy, psycopg2; pins in `requirements.txt` |
+| Auth/security | PyJWT bearer tokens; bcrypt/passlib password hashes; desktop Secret Service/libsecret for local secrets |
+| Database | Server-side PostgreSQL; the desktop app never connects to the database directly |
+| VPN | WireGuard, `wg`, `wg-quick`, Linux IP routing, iptables, systemd-resolved |
+| Operations | Bash scripts, systemd helpers, Gunicorn/Uvicorn, nginx, Hetzner infrastructure |
+| Website | Existing production HTML/CSS/JavaScript frontend and manifest-guarded artifact routes |
+| Source/release handoff | Git, GitHub CLI, versioned GitHub releases, SSH/SCP, Debian packages/APT |
+
+Dependency pins describe this checkout and the recorded local build, not a
+claim that every legacy production dependency has been redeployed or upgraded.
+The source checkout is intentionally smaller than the existing website/API
+deployment, which also retains legacy website/download routes.
+
+## Runtime boundaries
+
+1. Flutter sends HTTPS requests to `https://api.securewaveapp.com/api`.
+2. FastAPI authenticates the account and provisions a server peer from the
+   client public key. PostgreSQL and server-management secrets remain server-side.
+3. The unprivileged desktop app asks the restricted local helper to operate
+   WireGuard through a Unix socket. The private key stays on the client.
+4. Connection checks use the actual interface, peer, recent handshake,
+   counters, and changed public egress. Usage reads real RX/TX counters.
+5. Disconnect restores the normal network and cleans the temporary client
+   configuration. The same account reuses its stored WireGuard identity.
+
+The app has no automatic updater. Install a new Debian package to upgrade.
+The public download catalog is intended to contain only the current ARM64
+package, with exact SHA-256 and source-commit metadata. Superseded artifacts
+are retained for recovery outside publicly accessible download paths.
+
+## Next work
+
+The next requested changes are visual UI changes only. The detailed handoff
+is in [ui-only-handoff.md](ui-only-handoff.md). No UI redesign is part of this
+release publication.

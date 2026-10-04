@@ -8,7 +8,9 @@ import 'services/vpn_service.dart';
 import 'ui/theme.dart';
 
 class SecureWaveApp extends StatefulWidget {
-  const SecureWaveApp({super.key});
+  const SecureWaveApp({super.key, this.api});
+
+  final ApiService? api;
 
   @override
   State<SecureWaveApp> createState() => _SecureWaveAppState();
@@ -18,10 +20,11 @@ class _SecureWaveAppState extends State<SecureWaveApp> {
   static const _tokenKey = 'access_token';
   static const _storage = FlutterSecureStorage();
 
-  late final ApiService _api = ApiService();
+  late final ApiService _api = widget.api ?? ApiService();
   String? _token;
   bool _loading = true;
   bool _signInAfterLogout = false;
+  String? _authNotice;
 
   @override
   void initState() {
@@ -38,7 +41,10 @@ class _SecureWaveAppState extends State<SecureWaveApp> {
         _token = token;
       } on ApiException catch (error) {
         if (error.unauthorized) {
+          _api.setAccessToken(null);
           await _storage.delete(key: _tokenKey);
+          _signInAfterLogout = true;
+          _authNotice = 'Your session has expired. Sign in to continue.';
         } else {
           _token = token;
         }
@@ -52,21 +58,32 @@ class _SecureWaveAppState extends State<SecureWaveApp> {
   Future<void> _acceptSession(String token) async {
     _api.setAccessToken(token);
     await _storage.write(key: _tokenKey, value: token);
-    if (mounted) setState(() => _token = token);
+    if (mounted) {
+      setState(() {
+        _token = token;
+        _authNotice = null;
+      });
+    }
   }
 
-  Future<void> _clearSession({bool signIn = false}) async {
+  Future<void> _clearSession({bool signIn = false, String? notice}) async {
     _api.setAccessToken(null);
     await _storage.delete(key: _tokenKey);
     if (mounted) {
       setState(() {
         _token = null;
+        _authNotice = notice;
         if (signIn) _signInAfterLogout = true;
       });
     }
   }
 
   Future<void> _logout() => _clearSession(signIn: true);
+
+  Future<void> _expireSession() => _clearSession(
+        signIn: true,
+        notice: 'Your session has expired. Sign in to continue.',
+      );
 
   @override
   Widget build(BuildContext context) {
@@ -80,11 +97,12 @@ class _SecureWaveAppState extends State<SecureWaveApp> {
               ? _AuthView(
                   onAuthenticated: _acceptSession,
                   initiallyRegistering: !_signInAfterLogout,
+                  initialNotice: _authNotice,
                 )
               : _HomeView(
                   api: _api,
                   onLogout: _logout,
-                  onSessionExpired: _clearSession,
+                  onSessionExpired: _expireSession,
                 ),
     );
   }
@@ -105,10 +123,12 @@ class _AuthView extends StatefulWidget {
   const _AuthView({
     required this.onAuthenticated,
     required this.initiallyRegistering,
+    this.initialNotice,
   });
 
   final Future<void> Function(String token) onAuthenticated;
   final bool initiallyRegistering;
+  final String? initialNotice;
 
   @override
   State<_AuthView> createState() => _AuthViewState();
@@ -129,6 +149,7 @@ class _AuthViewState extends State<_AuthView> {
   void initState() {
     super.initState();
     _registering = widget.initiallyRegistering;
+    _notice = widget.initialNotice;
   }
 
   @override
