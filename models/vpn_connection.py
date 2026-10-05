@@ -36,6 +36,11 @@ class VPNConnection(Base):
     last_metered_at = Column(DateTime, nullable=True)
     finalization_idempotency_key = Column(String(128), nullable=True)
     finalization_reason = Column(String(32), nullable=True)
+    metering_version = Column(Integer, nullable=False, default=1, server_default="1")
+    reporting_token_hash = Column(String(64), nullable=True)
+    recording_quality = Column(String(16), nullable=False, default="legacy", server_default="legacy")
+    client_verified_at = Column(DateTime, nullable=True)
+    final_meter_sequence = Column(BigInteger, nullable=True)
 
     __table_args__ = (
         Index("uq_vpn_connection_user_start_key", "user_id", "start_idempotency_key", unique=True),

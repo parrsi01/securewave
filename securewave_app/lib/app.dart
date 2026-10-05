@@ -113,9 +113,7 @@ class _LoadingView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const Scaffold(
-      body: Center(child: CircularProgressIndicator()),
-    );
+    return const Scaffold(body: Center(child: CircularProgressIndicator()));
   }
 }
 
@@ -232,8 +230,10 @@ class _AuthViewState extends State<_AuthView> {
                       style: Theme.of(context).textTheme.headlineSmall,
                     ),
                     const SizedBox(height: 28),
-                    Text(_registering ? 'Create account' : 'Sign in',
-                        style: Theme.of(context).textTheme.titleLarge),
+                    Text(
+                      _registering ? 'Create account' : 'Sign in',
+                      style: Theme.of(context).textTheme.titleLarge,
+                    ),
                     const SizedBox(height: 20),
                     const _FieldLabel('Email'),
                     TextFormField(
@@ -287,17 +287,11 @@ class _AuthViewState extends State<_AuthView> {
                     ],
                     if (_error != null) ...[
                       const SizedBox(height: 16),
-                      Text(
-                        _error!,
-                        style: TextStyle(color: colors.error),
-                      ),
+                      Text(_error!, style: TextStyle(color: colors.error)),
                     ],
                     if (_notice != null) ...[
                       const SizedBox(height: 16),
-                      Text(
-                        _notice!,
-                        style: TextStyle(color: colors.primary),
-                      ),
+                      Text(_notice!, style: TextStyle(color: colors.primary)),
                     ],
                     const SizedBox(height: 24),
                     SizedBox(
@@ -307,8 +301,9 @@ class _AuthViewState extends State<_AuthView> {
                         child: _busy
                             ? const SizedBox.square(
                                 dimension: 18,
-                                child:
-                                    CircularProgressIndicator(strokeWidth: 2),
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                ),
                               )
                             : Text(_registering ? 'Create account' : 'Sign in'),
                       ),
@@ -381,7 +376,7 @@ class _HomeViewState extends State<_HomeView> {
   bool _countersAvailable = true;
   int _downloadBytes = 0;
   int _uploadBytes = 0;
-  VpnTrafficStats? _previousStats;
+  String? _recordingNotice;
   Timer? _usageTimer;
   bool _polling = false;
 
@@ -419,11 +414,21 @@ class _HomeViewState extends State<_HomeView> {
       return;
     }
     try {
+      final recording = await _vpn.usageRecordingStatus();
+      if (recording['owned'] != true) {
+        _tunnelMayBeActive = false;
+        setState(() {
+          _status = VpnStatus.error;
+          _error = 'The VPN is controlled by another SecureWave window.';
+        });
+        return;
+      }
       _baselinePublicIp = baseline;
       await _vpn.refreshAvailability();
       final keyPair = await _loadOrCreateWireGuardKeyPair();
-      final parameters =
-          await widget.api.fetchWireGuardConfig(publicKey: keyPair.publicKey);
+      final parameters = await widget.api.fetchWireGuardConfig(
+        publicKey: keyPair.publicKey,
+      );
       await _vpn.verifyConnection(
         previousPublicIp: baseline,
         expectedServerPublicKey: parameters.serverPublicKey,
@@ -466,6 +471,7 @@ class _HomeViewState extends State<_HomeView> {
   Future<void> _connect() async {
     if (_busy) return;
     var tunnelAttempted = false;
+    UsageSession? usageSession;
     setState(() {
       _busy = true;
       _status = VpnStatus.connecting;
@@ -479,20 +485,27 @@ class _HomeViewState extends State<_HomeView> {
       _baselinePublicIp = baseline;
       await _storage.write(key: _baselineKey, value: baseline);
       final keyPair = await _loadOrCreateWireGuardKeyPair();
-      final parameters =
-          await widget.api.fetchWireGuardConfig(publicKey: keyPair.publicKey);
+      final parameters = await widget.api.fetchWireGuardConfig(
+        publicKey: keyPair.publicKey,
+      );
       if (!await _vpn.refreshAvailability()) {
         throw VpnServiceException(
           _vpn.statusError ?? 'The Linux WireGuard helper is unavailable.',
         );
       }
+      usageSession = await widget.api.startUsage(parameters);
       tunnelAttempted = true;
       _tunnelMayBeActive = true;
-      await _vpn.connect(parameters.toClientConfig(keyPair.privateKey));
+      await _vpn.connect(
+        parameters.toClientConfig(keyPair.privateKey),
+        session: usageSession,
+        expectedPeer: parameters.serverPublicKey,
+      );
       await _vpn.verifyConnection(
         previousPublicIp: baseline,
         expectedServerPublicKey: parameters.serverPublicKey,
       );
+      await _vpn.confirmUsage();
       if (!mounted) return;
       setState(() {
         _status = VpnStatus.connected;
@@ -528,6 +541,11 @@ class _HomeViewState extends State<_HomeView> {
         });
       }
     } finally {
+      if (usageSession != null && _status != VpnStatus.connected) {
+        try {
+          await widget.api.finishFailedUsage(usageSession);
+        } catch (_) {}
+      }
       if (mounted) setState(() => _busy = false);
     }
   }
@@ -588,7 +606,7 @@ class _HomeViewState extends State<_HomeView> {
           _downloadBytes = 0;
           _uploadBytes = 0;
           _countersAvailable = true;
-          _previousStats = null;
+          _recordingNotice = null;
         });
       }
       return true;
@@ -617,7 +635,7 @@ class _HomeViewState extends State<_HomeView> {
 
   void _startUsagePolling() {
     _usageTimer?.cancel();
-    _previousStats = null;
+    _recordingNotice = null;
     unawaited(_pollUsage());
     _usageTimer = Timer.periodic(
       const Duration(seconds: 2),
@@ -629,33 +647,49 @@ class _HomeViewState extends State<_HomeView> {
     if (_polling || _status != VpnStatus.connected) return;
     _polling = true;
     try {
+      final runtime = await _vpn.refreshRuntimeStatus();
+      if (!mounted) return;
+      if (runtime != VpnStatus.connected) {
+        final recording = await _vpn.usageRecordingStatus();
+        if (!mounted) return;
+        _usageTimer?.cancel();
+        setState(() {
+          _status = runtime;
+          _tunnelMayBeActive = runtime == VpnStatus.error;
+          _recordingNotice = recording['gap'] == true
+              ? 'The tunnel stopped; usage contains a measurement gap.'
+              : 'The tunnel stopped; final measured usage is being saved.';
+        });
+        return;
+      }
       final stats = await _vpn.getTrafficStats();
       if (!mounted) return;
       if (!stats.available) {
         setState(() => _countersAvailable = false);
-        _previousStats = null;
+        _recordingNotice = null;
         return;
       }
-      final previous = _previousStats;
-      _previousStats = stats;
-      if (previous == null) {
-        setState(() => _countersAvailable = true);
-        return;
+      final recording = await _vpn.usageRecordingStatus();
+      if (recording['owned'] != true) {
+        throw const VpnServiceException('The usage recorder is unavailable.');
       }
-
-      final received = stats.rxBytes >= previous.rxBytes
-          ? stats.rxBytes - previous.rxBytes
-          : 0;
-      final sent = stats.txBytes >= previous.txBytes
-          ? stats.txBytes - previous.txBytes
-          : 0;
       setState(() {
         _countersAvailable = true;
-        _downloadBytes += received;
-        _uploadBytes += sent;
+        _downloadBytes = (recording['bytes_received'] as num?)?.toInt() ?? 0;
+        _uploadBytes = (recording['bytes_sent'] as num?)?.toInt() ?? 0;
+        _recordingNotice = recording['gap'] == true
+            ? 'Usage recording contains a measurement gap.'
+            : (recording['pending'] as num? ?? 0) > 0
+                ? 'Measured usage is awaiting server confirmation.'
+                : null;
       });
     } catch (_) {
-      if (mounted) setState(() => _countersAvailable = false);
+      if (mounted) {
+        setState(() {
+          _countersAvailable = false;
+          _recordingNotice = 'Usage recording status is unavailable.';
+        });
+      }
     } finally {
       _polling = false;
     }
@@ -725,8 +759,10 @@ class _HomeViewState extends State<_HomeView> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  Text('WireGuard VPN',
-                      style: Theme.of(context).textTheme.headlineSmall),
+                  Text(
+                    'WireGuard VPN',
+                    style: Theme.of(context).textTheme.headlineSmall,
+                  ),
                   const SizedBox(height: 20),
                   Container(
                     padding: const EdgeInsets.all(24),
@@ -755,18 +791,24 @@ class _HomeViewState extends State<_HomeView> {
                               style: Theme.of(context).textTheme.titleMedium,
                             ),
                             const Spacer(),
-                            Text('WireGuard',
-                                style: Theme.of(context).textTheme.labelLarge),
+                            Text(
+                              'WireGuard',
+                              style: Theme.of(context).textTheme.labelLarge,
+                            ),
                           ],
                         ),
                         const SizedBox(height: 20),
                         const Divider(),
                         const SizedBox(height: 12),
-                        Text('VPN location',
-                            style: Theme.of(context).textTheme.labelMedium),
+                        Text(
+                          'VPN location',
+                          style: Theme.of(context).textTheme.labelMedium,
+                        ),
                         const SizedBox(height: 4),
-                        Text(_location,
-                            style: Theme.of(context).textTheme.bodyLarge),
+                        Text(
+                          _location,
+                          style: Theme.of(context).textTheme.bodyLarge,
+                        ),
                         const SizedBox(height: 24),
                         SizedBox(
                           height: 48,
@@ -776,28 +818,38 @@ class _HomeViewState extends State<_HomeView> {
                                 ? const SizedBox.square(
                                     dimension: 18,
                                     child: CircularProgressIndicator(
-                                        strokeWidth: 2),
+                                      strokeWidth: 2,
+                                    ),
                                   )
-                                : Icon(canDisconnect
-                                    ? Icons.pause
-                                    : Icons.shield_outlined),
-                            label:
-                                Text(canDisconnect ? 'Disconnect' : 'Connect'),
+                                : Icon(
+                                    canDisconnect
+                                        ? Icons.pause
+                                        : Icons.shield_outlined,
+                                  ),
+                            label: Text(
+                              canDisconnect ? 'Disconnect' : 'Connect',
+                            ),
                           ),
                         ),
                         if (_error != null) ...[
                           const SizedBox(height: 16),
-                          Text(
-                            _error!,
-                            style: TextStyle(color: colors.error),
-                          ),
+                          Text(_error!, style: TextStyle(color: colors.error)),
                         ],
                       ],
                     ),
                   ),
                   const SizedBox(height: 24),
-                  Text('Data used this session',
-                      style: Theme.of(context).textTheme.titleMedium),
+                  Text(
+                    'Data used this session',
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
+                  if (_recordingNotice != null) ...[
+                    const SizedBox(height: 8),
+                    Text(
+                      _recordingNotice!,
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
+                  ],
                   const SizedBox(height: 12),
                   Row(
                     children: [

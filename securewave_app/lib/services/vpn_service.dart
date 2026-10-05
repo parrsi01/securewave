@@ -4,13 +4,9 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 
-enum VpnStatus {
-  disconnected,
-  connecting,
-  connected,
-  disconnecting,
-  error,
-}
+import 'api_service.dart';
+
+enum VpnStatus { disconnected, connecting, connected, disconnecting, error }
 
 class VpnServiceException implements Exception {
   const VpnServiceException(this.message);
@@ -204,8 +200,9 @@ class VpnService {
     try {
       final request = await client.getUrl(Uri.https('api.ipify.org'));
       request.headers.set(HttpHeaders.acceptHeader, 'text/plain');
-      final response =
-          await request.close().timeout(const Duration(seconds: 10));
+      final response = await request.close().timeout(
+            const Duration(seconds: 10),
+          );
       final address = (await response.transform(utf8.decoder).join()).trim();
       if (response.statusCode != HttpStatus.ok ||
           InternetAddress.tryParse(address) == null) {
@@ -248,7 +245,8 @@ class VpnService {
         handshakeTimestamp > now + 30 ||
         now - handshakeTimestamp > 180) {
       throw const VpnServiceException(
-          'WireGuard has no recent peer handshake.');
+        'WireGuard has no recent peer handshake.',
+      );
     }
 
     if (!runtime.countersAvailable ||
@@ -272,14 +270,16 @@ class VpnService {
     final stats = await getTrafficStats();
     if (!stats.available || stats.rxBytes == 0 || stats.txBytes == 0) {
       throw const VpnServiceException(
-          'WireGuard traffic counters are unavailable.');
+        'WireGuard traffic counters are unavailable.',
+      );
     }
     return publicIp;
   }
 
   Future<WireGuardRuntimeSnapshot> _getWireGuardRuntime() async {
-    final runtime =
-        await _channel.invokeMapMethod<Object?, Object?>('getWireGuardRuntime');
+    final runtime = await _channel.invokeMapMethod<Object?, Object?>(
+      'getWireGuardRuntime',
+    );
     return WireGuardRuntimeSnapshot.fromMap(runtime);
   }
 
@@ -302,12 +302,9 @@ class VpnService {
       return false;
     }
     try {
-      _available = await _channel.invokeMethod<bool>(
-            'isAvailable',
-            const {
-              'protocol': 'wireguard',
-            },
-          ) ==
+      _available = await _channel.invokeMethod<bool>('isAvailable', const {
+            'protocol': 'wireguard',
+          }) ==
           true;
       _availabilityError = null;
     } on PlatformException catch (error) {
@@ -320,7 +317,11 @@ class VpnService {
     return _available;
   }
 
-  Future<VpnStatus> connect(String config) async {
+  Future<VpnStatus> connect(
+    String config, {
+    required UsageSession session,
+    required String expectedPeer,
+  }) async {
     if (_status == VpnStatus.connected ||
         _status == VpnStatus.connecting ||
         _status == VpnStatus.disconnecting) {
@@ -330,7 +331,8 @@ class VpnService {
     try {
       if (config.trim().isEmpty) {
         throw const VpnServiceException(
-            'The API returned an empty WireGuard profile.');
+          'The API returned an empty WireGuard profile.',
+        );
       }
       if (!await refreshAvailability()) {
         throw VpnServiceException(
@@ -340,6 +342,9 @@ class VpnService {
       await _channel.invokeMethod<void>('connect', {
         'protocol': 'wireguard',
         'config': config,
+        'session_id': session.id.toString(),
+        'reporting_token': session.token,
+        'expected_peer': expectedPeer,
       });
       _status = VpnStatus.connected;
       return _status;
@@ -432,4 +437,12 @@ class VpnService {
       return VpnTrafficStats.unavailable;
     }
   }
+
+  Future<Map<Object?, Object?>> usageRecordingStatus() async =>
+      await _channel.invokeMapMethod<Object?, Object?>(
+        'getUsageRecordingStatus',
+      ) ??
+      {};
+
+  Future<void> confirmUsage() => _channel.invokeMethod<void>('confirmUsage');
 }

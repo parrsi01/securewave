@@ -4,7 +4,7 @@ WireGuard Peer Model - Track individual client configurations and keys
 
 from datetime import datetime
 from typing import Dict, Optional
-from sqlalchemy import Column, DateTime, ForeignKey, Integer, String, Boolean, Index, func
+from sqlalchemy import BigInteger, Column, DateTime, ForeignKey, Integer, String, Boolean, Index, func
 from sqlalchemy.orm import relationship
 
 from database.base import Base
@@ -48,8 +48,11 @@ class WireGuardPeer(Base):
 
     # Usage tracking
     last_handshake_at = Column(DateTime, nullable=True)  # Last successful WireGuard handshake
-    total_data_sent = Column(Integer, nullable=False, default=0)  # Bytes
-    total_data_received = Column(Integer, nullable=False, default=0)  # Bytes
+    total_data_sent = Column(BigInteger, nullable=False, default=0)  # Client upload bytes
+    total_data_received = Column(BigInteger, nullable=False, default=0)  # Client download bytes
+    server_transfer_rx = Column(BigInteger, nullable=False, default=0, server_default="0")
+    server_transfer_tx = Column(BigInteger, nullable=False, default=0, server_default="0")
+    server_snapshot_at = Column(DateTime, nullable=True)
     connection_count = Column(Integer, default=0)  # Number of connection sessions
 
     # Timestamps

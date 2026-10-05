@@ -9,6 +9,9 @@
 #include <sys/types.h>
 #include <sys/un.h>
 #include <unistd.h>
+#include <poll.h>
+#include <sys/syscall.h>
+#include <fcntl.h>
 
 #include <algorithm>
 #include <cerrno>
@@ -41,7 +44,7 @@ const char* kContractPath = "/usr/local/libexec/securewave-wg-quick.contract";
 const char* kAllowedUsersPath = "/etc/securewave/helper-users";
 const char* kGroupName = "securewave";
 const char* kWireGuardInterface = "sw-wg";
-const guint kContractVersion = 14;
+const guint kContractVersion = 15;
 const gsize kMaxRequestBytes = 64 * 1024;
 const gsize kMaxPeerStatusBytes = 64 * 1024;
 
@@ -627,6 +630,8 @@ static bool ParsePeerHandshakes(const std::string& source,
   return true;
 }
 
+#include "usage_recorder.h"
+
 static Fields HandleRequest(const Fields& request,
                             const PeerCredentials& peer) {
   if (Field(request, "version") != "1") {
@@ -638,11 +643,50 @@ static Fields HandleRequest(const Fields& request,
     return Error("missing_operation", "SecureWave helper operation is missing.");
   }
 
+  if (op == "usage.pending" || op == "usage.ack") {
+    if (!ReporterPeer(peer)) return Error("unauthorized", "Reporter authorization required.");
+    if (op == "usage.pending") {
+      if (!OnlyFields(request, {"version", "op"})) return Error("invalid_request", "Invalid pending request.");
+      return UsagePending();
+    }
+    if (!OnlyFields(request, {"version", "op", "session_id", "sequence"})) return Error("invalid_request", "Invalid acknowledgement.");
+    const auto it = usage_records.find(Field(request, "session_id"));
+    guint64 sequence = 0;
+    if (it == usage_records.end() || !ParseUint64Strict(Field(request, "sequence"), &sequence) || sequence > it->second.sequence)
+      return Error("invalid_request", "Unknown usage checkpoint.");
+    it->second.ack = std::max(it->second.ack, sequence);
+    if (!SaveUsage(it->second)) return Error("recording_error", "Usage acknowledgement could not be saved.");
+    if (it->second.final && it->second.ack == it->second.sequence) {
+      unlink((UsageDirectory() + "/" + it->second.id + ".ini").c_str());
+      usage_records.erase(it);
+    }
+    return Ok();
+  }
   if (!PeerAllowed(peer)) {
     return Error("unauthorized",
                  "Current user is not authorized for the SecureWave helper.");
   }
 
+  if (op == "usage.status") {
+    if (!OnlyFields(request, {"version", "op"})) return Error("invalid_request", "Invalid usage status request.");
+    return UsageStatus(peer.uid, peer.pid);
+  }
+  if (op == "usage.stop") {
+    if (!OnlyFields(request, {"version", "op", "reason"}) || Field(request, "reason") != "app_exit")
+      return Error("invalid_request", "Invalid stop request.");
+    auto it = usage_records.find(active_usage);
+    if (it == usage_records.end()) return Ok();
+    if (it->second.uid != peer.uid || it->second.owner_pid != peer.pid)
+      return Error("unauthorized", "Another process owns the VPN.");
+    return FinishUsage(&it->second, "app_exit") ? Ok() : Error("recording_error", "Final recording or cleanup failed.");
+  }
+  if (op == "usage.confirm") {
+    auto it = usage_records.find(active_usage);
+    if (!OnlyFields(request, {"version", "op"}) || it == usage_records.end() || it->second.uid != peer.uid || it->second.owner_pid != peer.pid)
+      return Error("invalid_request", "No owned usage session.");
+    it->second.verified = true; it->second.sequence++;
+    return SaveUsage(it->second) ? Ok() : Error("recording_error", "Usage confirmation could not be saved.");
+  }
   if (op == "probe") {
     if (Field(request, "protocol") != "wireguard") {
       return Error("protocol_unavailable",
@@ -775,8 +819,40 @@ static Fields HandleRequest(const Fields& request,
       return Error("invalid_path",
                    "WireGuard config file is missing or unsafe.");
     }
-    const CommandResult result =
-        RunHelper({op == "wireguard.up" ? "up" : "down", config_path});
+    if (op == "wireguard.down" && !active_usage.empty()) {
+      auto it = usage_records.find(active_usage);
+      if (it == usage_records.end() || it->second.uid != peer.uid || it->second.config != config_path)
+        return Error("unauthorized", "The tunnel belongs to another process.");
+      const std::string reason = Field(request, "reason") == "app_exit" ? "app_exit" : "client_disconnect";
+      return FinishUsage(&it->second, reason) ? Ok() : Error("recording_error", "Final recording or tunnel cleanup failed.");
+    }
+    if (op == "wireguard.up") {
+      if (!usage_healthy) return Error("recording_error", "An unreadable usage journal requires recovery before connecting.");
+      if (!active_usage.empty()) return Error("vpn_busy", "Another process owns the VPN tunnel.");
+      guint64 id = 0;
+      if (!ParseUint64Strict(Field(request, "session_id"), &id) || id == 0 ||
+          !HexToken(Field(request, "reporting_token")) || !IsWireGuardPublicKey(Field(request, "expected_peer")))
+        return Error("recording_required", "A valid persistent usage session is required.");
+      UsageRecord record;
+      record.id = std::to_string(id); record.token = Field(request, "reporting_token");
+      record.uid = peer.uid; record.owner_pid = peer.pid; record.config = config_path; record.expected_peer = Field(request, "expected_peer");
+      record.boot = CurrentBoot();
+      record.owner_fd = syscall(SYS_pidfd_open, peer.pid, 0);
+      if (record.owner_fd < 0 || usage_records.count(record.id) || !SaveUsage(record)) {
+        if (record.owner_fd >= 0) close(record.owner_fd);
+        return Error("recording_error", "A durable process-owned recorder could not be started.");
+      }
+      usage_records[record.id] = record; active_usage = record.id;
+    }
+    const CommandResult result = RunHelper({op == "wireguard.up" ? "up" : "down", config_path});
+    if (op == "wireguard.up" && !result.ok) FinishUsage(&usage_records.at(active_usage), "connect_failed");
+    if (op == "wireguard.up" && result.ok) {
+      auto& record = usage_records.at(active_usage);
+      if (!ReadUsageCounters(&record) || !SaveUsage(record)) {
+        record.gap = true; FinishUsage(&record, "recording_error");
+        return Error("recording_error", "WireGuard counters could not be recorded.");
+      }
+    }
     if (!result.ok) {
       return Error(op == "wireguard.up"
                        ? "vpn_connect_failed"
@@ -839,6 +915,9 @@ static int BindServerSocket() {
 }
 
 static void ServeClient(int client_fd) {
+  struct timeval timeout {2, 0};
+  setsockopt(client_fd, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout));
+  setsockopt(client_fd, SOL_SOCKET, SO_SNDTIMEO, &timeout, sizeof(timeout));
   const PeerCredentials peer = GetPeerCredentials(client_fd);
   std::string request_body;
   Fields response;
@@ -890,6 +969,9 @@ int main(int argc, char** argv) {
     return 1;
   }
 
+  LoadUsage();
+  signal(SIGTERM, [](int) { usage_stopping = 1; });
+  signal(SIGINT, [](int) { usage_stopping = 1; });
   const int server_fd = BindServerSocket();
   if (server_fd < 0) {
     g_printerr("securewave-helperd failed to bind %s: %s\n",
@@ -898,7 +980,13 @@ int main(int argc, char** argv) {
     return 1;
   }
 
-  while (true) {
+  gint64 last_tick = g_get_monotonic_time();
+  while (!usage_stopping) {
+    struct pollfd listener {server_fd, POLLIN, 0};
+    const int ready = poll(&listener, 1, 250);
+    const gint64 now = g_get_monotonic_time();
+    if (now - last_tick >= 2 * G_USEC_PER_SEC) { TickUsage(); last_tick = now; }
+    if (ready <= 0) continue;
     const int client_fd = accept(server_fd, nullptr, nullptr);
     if (client_fd < 0) {
       if (errno == EINTR) {
@@ -911,5 +999,8 @@ int main(int argc, char** argv) {
     }
     ServeClient(client_fd);
   }
+  if (!active_usage.empty()) FinishUsage(&usage_records.at(active_usage), "system_shutdown");
+  close(server_fd); unlink(kSocketPath);
+  return 0;
 }
 #endif

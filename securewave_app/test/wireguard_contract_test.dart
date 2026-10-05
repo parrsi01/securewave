@@ -197,6 +197,42 @@ void main() {
     expect(captured?.headers['Authorization'], 'Bearer session-token');
   });
 
+  test('persistent usage retries reuse the start key and reporting capability',
+      () async {
+    final dio = Dio(BaseOptions(validateStatus: (_) => true))
+      ..httpClientAdapter =
+          _TestAdapter(200, {'session_id': 123, 'metering_version': 2});
+    final requests = <Map<String, dynamic>>[];
+    dio.interceptors.add(InterceptorsWrapper(onRequest: (options, handler) {
+      if (options.path.endsWith('/usage/sessions/start')) {
+        requests.add(Map<String, dynamic>.from(options.data as Map));
+        if (requests.length == 1) {
+          handler.reject(DioException(requestOptions: options));
+          return;
+        }
+      }
+      handler.next(options);
+    }));
+    final api = ApiService(dio: dio);
+    const parameters = WireGuardConfigParameters(
+      address: '10.8.0.10/32',
+      dns: '1.1.1.1',
+      serverPublicKey: 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=',
+      endpoint: 'vpn.example.test:51820',
+      allowedIps: '0.0.0.0/0',
+      keepalive: 25,
+      location: 'Germany',
+      deviceId: 4,
+      serverId: 'server-1',
+    );
+    final session = await api.startUsage(parameters);
+    expect(session.id, 123);
+    expect(requests.length, 2);
+    expect(requests[0], requests[1]);
+    expect(requests[0]['reporting_token'], matches(RegExp(r'^[0-9a-f]{64}$')));
+    expect(requests[0]['metering_version'], 2);
+  });
+
   group('WireGuard configuration', () {
     test('adds the locally generated private key to server parameters', () {
       final parameters = WireGuardConfigParameters.fromJson({

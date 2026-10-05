@@ -120,8 +120,10 @@ async def _sync_user_usage(db: Session, user: User) -> None:
                 remote = peer_map.get(peer.public_key)
                 if not remote:
                     continue
-                peer.total_data_received = remote.get("transfer_rx", 0)
-                peer.total_data_sent = remote.get("transfer_tx", 0)
+                # Remote kernel snapshots are not the durable client ledger.
+                peer.server_transfer_rx = remote.get("transfer_rx", 0)
+                peer.server_transfer_tx = remote.get("transfer_tx", 0)
+                peer.server_snapshot_at = datetime.utcnow()
                 handshake = remote.get("latest_handshake")
                 if handshake:
                     peer.last_handshake_at = datetime.utcfromtimestamp(handshake)
@@ -134,7 +136,10 @@ async def _sync_user_usage(db: Session, user: User) -> None:
 def _user_bytes_used(peers: List[WireGuardPeer]) -> int:
     total = 0
     for peer in peers:
-        total += (peer.total_data_sent or 0) + (peer.total_data_received or 0)
+        total += max(
+            (peer.total_data_sent or 0) + (peer.total_data_received or 0),
+            (peer.server_transfer_rx or 0) + (peer.server_transfer_tx or 0),
+        )
     return total
 
 

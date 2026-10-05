@@ -102,6 +102,10 @@ install -m 0755 "$ROOT_DIR/packaging/linux/securewave-wg-quick" \
   "$package_root/usr/share/securewave/packaging/linux/securewave-wg-quick"
 install -m 0755 "$helperd_source" \
   "$package_root/usr/share/securewave/packaging/linux/securewave-helperd"
+install -m 0755 "$ROOT_DIR/packaging/linux/securewave-usage-reporter.py" \
+  "$package_root/usr/share/securewave/packaging/linux/securewave-usage-reporter.py"
+install -m 0644 "$ROOT_DIR/packaging/linux/securewave-usage-reporter.service" \
+  "$package_root/usr/share/securewave/packaging/linux/securewave-usage-reporter.service"
 install -m 0644 \
   "$ROOT_DIR/packaging/linux/securewave-helper.service" \
   "$ROOT_DIR/packaging/linux/securewave-helper.tmpfiles" \
@@ -111,8 +115,8 @@ install -m 0644 "$ROOT_DIR/packaging/linux/securewave-helper.tmpfiles" \
   "$package_root/usr/lib/tmpfiles.d/securewave-helper.conf"
 
 helper_contract="$(tr -d '[:space:]' < "$ROOT_DIR/packaging/linux/securewave-wg-quick.contract")"
-[[ "$helper_contract" == "14" ]] || {
-  echo "ERROR: Beta 1 requires helper contract 14, got $helper_contract" >&2
+[[ "$helper_contract" == "15" ]] || {
+  echo "ERROR: Beta 1 requires helper contract 15, got $helper_contract" >&2
   exit 1
 }
 printf '%s\n' "$version" > "$package_root/usr/share/securewave/release/app-version"
@@ -127,7 +131,7 @@ Version: $version
 Section: net
 Priority: optional
 Architecture: $arch
-Depends: wireguard-tools, iproute2, iptables, systemd, systemd-resolved, libgtk-3-0t64, libsecret-1-0, libegl1, libgles2
+Depends: python3, wireguard-tools, iproute2, iptables, systemd, systemd-resolved, libgtk-3-0t64, libsecret-1-0, libegl1, libgles2
 Maintainer: SecureWave Release <release@securewave.app>
 Description: SecureWave WireGuard Linux beta client
  A small Linux beta client with one authenticated WireGuard runtime.
@@ -204,6 +208,13 @@ if ! getent group "$RUNTIME_GROUP" >/dev/null 2>&1; then
   groupadd --system "$RUNTIME_GROUP"
 fi
 
+if ! id securewave-meter >/dev/null 2>&1; then
+  useradd --system --no-create-home --home-dir /nonexistent --shell /usr/sbin/nologin --gid "$RUNTIME_GROUP" securewave-meter
+fi
+install -m 0755 "$SOURCE_DIR/securewave-usage-reporter.py" "$HELPER_DIR/securewave-usage-reporter.py"
+install -m 0644 "$SOURCE_DIR/securewave-usage-reporter.service" /etc/systemd/system/securewave-usage-reporter.service
+install -d -o root -g root -m 0700 /var/lib/securewave/usage
+
 install -d -o root -g root -m 0755 "$AUTH_DIR"
 if [[ -e "$AUTH_FILE" || -L "$AUTH_FILE" ]]; then
   [[ -f "$AUTH_FILE" && ! -L "$AUTH_FILE" ]] || {
@@ -236,6 +247,9 @@ systemd-tmpfiles --create "$TMPFILES_FILE"
 systemctl daemon-reload
 systemctl enable securewave-helper.service
 systemctl restart securewave-helper.service
+systemctl enable --now securewave-usage-reporter.service
+systemctl restart securewave-usage-reporter.service
+systemctl is-active --quiet securewave-usage-reporter.service
 systemctl is-active --quiet securewave-helper.service || {
   echo "SecureWave helper did not start after installation." >&2
   exit 1
@@ -271,6 +285,7 @@ if command -v ip >/dev/null 2>&1 && ip link show dev sw-wg >/dev/null 2>&1; then
 fi
 
 if command -v systemctl >/dev/null 2>&1 && [[ -d /run/systemd/system ]]; then
+  systemctl disable --now securewave-usage-reporter.service
   systemctl disable --now securewave-helper.service
 fi
 PRERM
@@ -282,9 +297,12 @@ set -euo pipefail
 case "${1:-}" in
   remove|purge)
     if command -v systemctl >/dev/null 2>&1 && [[ -d /run/systemd/system ]]; then
-      systemctl disable --now securewave-helper.service >/dev/null 2>&1 || true
+      systemctl disable --now securewave-usage-reporter.service
+  systemctl disable --now securewave-helper.service >/dev/null 2>&1 || true
       systemctl daemon-reload >/dev/null 2>&1 || true
     fi
+    rm -f /etc/systemd/system/securewave-usage-reporter.service
+    rm -f /usr/local/libexec/securewave-usage-reporter.py
     rm -f /etc/systemd/system/securewave-helper.service
     rm -f /usr/lib/tmpfiles.d/securewave-helper.conf
     rm -f /usr/local/libexec/securewave-wg-quick.contract

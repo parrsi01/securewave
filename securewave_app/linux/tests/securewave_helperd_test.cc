@@ -3,6 +3,7 @@
 #include "../helperd/securewave_helperd.cc"
 
 #include <ctime>
+#include <sys/wait.h>
 #include <fstream>
 #include <string>
 
@@ -64,13 +65,15 @@ int main() {
           "could not create interface fixture");
   Require(g_mkdir_with_parents(empty_sysfs.c_str(), 0700) == 0,
           "could not create empty sysfs fixture");
-  WriteFile(contract, "14\n");
+  WriteFile(contract, "15\n");
   WriteFile(rx_path, "21\n");
   WriteFile(tx_path, "34\n");
   WriteFile(helper,
             "#!/bin/sh\n"
             "printf '%s\\n' \"$*\" >> \"$SECUREWAVE_TEST_CALL_LOG\"\n"
             "if [ \"${SECUREWAVE_TEST_HELPER_FAIL:-0}\" = 1 ]; then exit 23; fi\n"
+            "if [ \"$1\" = wireguard-transfer ]; then printf '%s' \"$SECUREWAVE_TEST_TRANSFER\"; exit 0; fi\n"
+            "if [ \"$1\" = quiesce ] || [ \"$1\" = down ]; then exit 0; fi\n"
             "if [ \"$#\" -ne 1 ] || [ \"$1\" != \"wireguard-peer-handshakes\" ]; then exit 64; fi\n"
             "printf '%s' \"${SECUREWAVE_TEST_PEER_STATUS:-}\"\n");
   Require(chmod(helper.c_str(), 0755) == 0,
@@ -184,6 +187,57 @@ int main() {
               Field(result, "counters_available") == "false" &&
               ReadFile(calls) == calls_before_disconnected,
           "disconnected interface state was not reported accurately");
+
+  // Durable cumulative snapshots, reset honesty, scoped IPC and replay.
+  const std::string usage_root = root + "/usage";
+  setenv("SECUREWAVE_TEST_USAGE_ROOT", usage_root.c_str(), 1);
+  UsageRecord recording;
+  recording.id = "101"; recording.token = std::string(64, 'b');
+  recording.uid = geteuid(); recording.expected_peer = peer_key;
+  recording.config = "/run/securewave/sw-wg.conf"; recording.boot = CurrentBoot();
+  recording.owner_pid = getpid(); recording.owner_fd = syscall(SYS_pidfd_open, getpid(), 0);
+  Require(recording.owner_fd >= 0, "could not track recorder process identity");
+  setenv("SECUREWAVE_TEST_TRANSFER", (peer_key + " 5000000000 7000000000\n").c_str(), 1);
+  Require(ReadUsageCounters(&recording) && SaveUsage(recording), "could not persist large measured counters");
+  Require(recording.rx == 5000000000ULL && recording.tx == 7000000000ULL, "large counters were truncated");
+  setenv("SECUREWAVE_TEST_TRANSFER", (peer_key + " 3 5\n").c_str(), 1);
+  Require(ReadUsageCounters(&recording) && recording.gap && recording.rx == 5000000003ULL,
+          "counter reset lost already observed bytes or hid the gap");
+  recording.sequence++; recording.final = true; recording.reason = "app_crash";
+  recording.stopped_at = UsageTime();
+  Require(SaveUsage(recording), "could not persist final snapshot");
+  usage_records.clear(); LoadUsage();
+  Require(usage_records.at("101").rx == recording.rx && usage_records.at("101").final,
+          "restart lost the final journal");
+  Require(Field(HandleRequest(Request("usage.pending"), unauthorized), "code") == "unauthorized",
+          "untrusted user could read reporting capabilities");
+  Fields pending = AsRoot(Request("usage.pending"));
+  Require(Field(pending, "records").find("5000000003") != std::string::npos,
+          "pending replay lost cumulative bytes");
+  Fields ack = Request("usage.ack"); ack["session_id"] = "101"; ack["sequence"] = "999";
+  Require(Field(AsRoot(ack), "ok") != "true", "ack accepted an unmeasured future sequence");
+  ack["sequence"] = std::to_string(recording.sequence);
+  Require(Field(AsRoot(ack), "ok") == "true" && usage_records.empty(), "final ack did not clear durable backlog");
+  close(recording.owner_fd);
+  pid_t child = fork();
+  Require(child >= 0, "could not create tracked process");
+  if (child == 0) { pause(); _exit(0); }
+  UsageRecord crashed;
+  crashed.id = "102"; crashed.token = std::string(64, 'c'); crashed.uid = geteuid();
+  crashed.expected_peer = peer_key; crashed.config = "/run/securewave/sw-wg.conf";
+  crashed.boot = CurrentBoot(); crashed.owner_pid = child;
+  crashed.owner_fd = syscall(SYS_pidfd_open, child, 0);
+  crashed.rx = 400; crashed.tx = 200;
+  Require(crashed.owner_fd >= 0 && SaveUsage(crashed), "could not prepare crash recorder");
+  usage_records[crashed.id] = crashed; active_usage = crashed.id;
+  kill(child, SIGKILL); waitpid(child, nullptr, 0);
+  TickUsage();
+  Require(active_usage.empty() && usage_records.at("102").final &&
+          usage_records.at("102").reason == "app_crash" && usage_records.at("102").rx == 400,
+          "process death did not finalize the durable measurement");
+  ack["session_id"] = "102"; ack["sequence"] = std::to_string(usage_records.at("102").sequence);
+  Require(Field(AsRoot(ack), "ok") == "true", "crash finalization could not be acknowledged");
+  g_rmdir(usage_root.c_str());
 
   g_remove(rx_path.c_str());
   g_remove(tx_path.c_str());

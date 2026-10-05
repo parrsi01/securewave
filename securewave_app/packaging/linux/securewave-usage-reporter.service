@@ -1,0 +1,28 @@
+[Unit]
+Description=SecureWave durable usage reporting
+After=network-online.target securewave-helper.service
+Wants=network-online.target securewave-helper.service
+
+[Service]
+Type=simple
+User=securewave-meter
+Group=securewave
+ExecStart=/usr/bin/python3 /usr/local/libexec/securewave-usage-reporter.py
+Restart=always
+RestartSec=2
+NoNewPrivileges=yes
+CapabilityBoundingSet=
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectSystem=strict
+ProtectHome=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+RestrictSUIDSGID=yes
+LockPersonality=yes
+UMask=0077
+
+[Install]
+WantedBy=multi-user.target

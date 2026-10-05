@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:math';
 
 import 'package:dio/dio.dart';
 
@@ -23,6 +24,8 @@ class WireGuardConfigParameters {
     required this.allowedIps,
     required this.keepalive,
     required this.location,
+    this.deviceId,
+    this.serverId,
   });
 
   final String address;
@@ -32,12 +35,15 @@ class WireGuardConfigParameters {
   final String allowedIps;
   final int? keepalive;
   final String location;
+  final int? deviceId;
+  final String? serverId;
 
   factory WireGuardConfigParameters.fromJson(Map<String, dynamic> json) {
     final source = json['wireguard_config']?.toString() ?? '';
     if (source.trim().isEmpty) {
       throw const ApiException(
-          'SecureWave returned an empty WireGuard config.');
+        'SecureWave returned an empty WireGuard config.',
+      );
     }
 
     Map<String, String>? current;
@@ -49,7 +55,8 @@ class WireGuardConfigParameters {
       if (line == '[Interface]') {
         if (interface != null || peer != null) {
           throw const ApiException(
-              'SecureWave returned an invalid WireGuard config.');
+            'SecureWave returned an invalid WireGuard config.',
+          );
         }
         current = interface = {};
         continue;
@@ -57,7 +64,8 @@ class WireGuardConfigParameters {
       if (line == '[Peer]') {
         if (interface == null || peer != null) {
           throw const ApiException(
-              'SecureWave returned an invalid WireGuard config.');
+            'SecureWave returned an invalid WireGuard config.',
+          );
         }
         current = peer = {};
         continue;
@@ -65,13 +73,15 @@ class WireGuardConfigParameters {
       final separator = line.indexOf('=');
       if (current == null || separator < 1) {
         throw const ApiException(
-            'SecureWave returned an invalid WireGuard config.');
+          'SecureWave returned an invalid WireGuard config.',
+        );
       }
       final key = line.substring(0, separator).trim().toLowerCase();
       final value = line.substring(separator + 1).trim();
       if (current.containsKey(key)) {
         throw const ApiException(
-            'SecureWave returned an invalid WireGuard config.');
+          'SecureWave returned an invalid WireGuard config.',
+        );
       }
       if (current == interface && key == 'privatekey') {
         if (value.isNotEmpty) {
@@ -87,11 +97,12 @@ class WireGuardConfigParameters {
               'publickey',
               'endpoint',
               'allowedips',
-              'persistentkeepalive'
+              'persistentkeepalive',
             };
       if (!allowed.contains(key) || !_safeValue(value)) {
         throw const ApiException(
-            'SecureWave returned unsupported WireGuard settings.');
+          'SecureWave returned unsupported WireGuard settings.',
+        );
       }
       current[key] = value;
     }
@@ -109,7 +120,8 @@ class WireGuardConfigParameters {
         allowedIps == null ||
         !_safeNetworkList(allowedIps)) {
       throw const ApiException(
-          'SecureWave returned incomplete WireGuard settings.');
+        'SecureWave returned incomplete WireGuard settings.',
+      );
     }
     final dns = interface?['dns'];
     if (dns != null && !_safeNetworkList(dns)) {
@@ -121,11 +133,14 @@ class WireGuardConfigParameters {
     if (keepaliveText != null &&
         (keepalive == null || keepalive < 0 || keepalive > 3600)) {
       throw const ApiException(
-          'SecureWave returned invalid WireGuard settings.');
+        'SecureWave returned invalid WireGuard settings.',
+      );
     }
     final rawLocation = json['server_location']?.toString().trim();
 
     return WireGuardConfigParameters(
+      deviceId: json['device_id'] is int ? json['device_id'] as int : null,
+      serverId: json['server_id']?.toString(),
       address: address,
       dns: dns,
       serverPublicKey: serverPublicKey,
@@ -196,14 +211,8 @@ class ApiService {
 
   void setAccessToken(String? token) => _accessToken = token;
 
-  Future<String> login({
-    required String email,
-    required String password,
-  }) =>
-      _authenticate('/auth/login', {
-        'email': email,
-        'password': password,
-      });
+  Future<String> login({required String email, required String password}) =>
+      _authenticate('/auth/login', {'email': email, 'password': password});
 
   Future<void> register({
     required String email,
@@ -247,6 +256,64 @@ class ApiService {
     );
     return WireGuardConfigParameters.fromJson(data);
   }
+
+  Future<UsageSession> startUsage(WireGuardConfigParameters parameters) async {
+    if (parameters.deviceId == null ||
+        parameters.deviceId! <= 0 ||
+        parameters.serverId == null ||
+        parameters.serverId!.isEmpty) {
+      throw const ApiException(
+        'The server does not support persistent usage recording.',
+      );
+    }
+    final random = Random.secure();
+    final token = List.generate(
+      32,
+      (_) => random.nextInt(256).toRadixString(16).padLeft(2, '0'),
+    ).join();
+    final startKey = List.generate(
+            16, (_) => random.nextInt(256).toRadixString(16).padLeft(2, '0'))
+        .join();
+    final body = {
+      'device_id': parameters.deviceId,
+      'server_id': parameters.serverId,
+      'protocol': 'wireguard',
+      'metering_version': 2,
+      'idempotency_key': 'start:$startKey',
+      'reporting_token': token,
+    };
+    for (var attempt = 0;; attempt++) {
+      try {
+        final data = await _request(
+          'POST',
+          '/vpn/usage/sessions/start',
+          body: body,
+        );
+        final id = data['session_id'];
+        if (id is! int ||
+            id <= 0 ||
+            data['metering_version'] != 2 ||
+            data['disconnected_at'] != null) {
+          throw const ApiException(
+            'The server did not create a persistent usage session.',
+          );
+        }
+        return UsageSession(id: id, token: token);
+      } on ApiException catch (error) {
+        if (error.statusCode != null || attempt >= 2) rethrow;
+        await Future<void>.delayed(Duration(seconds: attempt + 1));
+      }
+    }
+  }
+
+  Future<void> finishFailedUsage(UsageSession session) => _request(
+        'POST',
+        '/vpn/usage/sessions/${session.id}/disconnect',
+        body: {
+          'idempotency_key': 'failed:${session.id}',
+          'reason': 'connect_failed',
+        },
+      ).then((_) {});
 
   Future<Map<String, dynamic>> _request(
     String method,
@@ -332,4 +399,10 @@ class ApiService {
     final message = error is Map ? error['message'] : responseData['detail'];
     return message == 'Email already registered';
   }
+}
+
+class UsageSession {
+  const UsageSession({required this.id, required this.token});
+  final int id;
+  final String token;
 }

@@ -23,4 +23,5 @@ class VPNUsageEvent(Base):
     sequence = Column(BigInteger, nullable=False)
     bytes_sent = Column(BigInteger, nullable=False, default=0)
     bytes_received = Column(BigInteger, nullable=False, default=0)
+    payload_digest = Column(String(64), nullable=True)
     created_at = Column(DateTime, nullable=False, default=utcnow)

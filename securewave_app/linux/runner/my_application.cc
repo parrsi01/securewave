@@ -36,7 +36,7 @@ const char* kBundledHelperDaemonRelativePath = "packaging/linux/securewave-helpe
 const char* kBundledHelperContractRelativePath = "packaging/linux/securewave-wg-quick.contract";
 const char* kBundledHelperServiceRelativePath = "packaging/linux/securewave-helper.service";
 const char* kBundledHelperTmpfilesRelativePath = "packaging/linux/securewave-helper.tmpfiles";
-const guint kSecureWaveHelperContractVersion = 14;
+const guint kSecureWaveHelperContractVersion = 15;
 const gsize kMaxHelperResponseBytes = 1024 * 1024;
 
 using Fields = std::map<std::string, std::string>;
@@ -1057,6 +1057,26 @@ static void handle_vpn_call(FlMethodChannel* channel,
     return;
   }
 
+  if (g_strcmp0(method, "getUsageRecordingStatus") == 0) {
+    HelperResponse response {};
+    g_autofree gchar* detail = nullptr;
+    if (!helper_operation("usage.status", Fields(), &response, &detail)) {
+      respond_error(method_call, "usage_status_unavailable", "Usage recording status is unavailable.", nullptr);
+      return;
+    }
+    g_autoptr(FlValue) value = fl_value_new_map();
+    for (const char* key : {"bytes_sent", "bytes_received", "pending"})
+      fl_value_set_string_take(value, key, fl_value_new_int(field_uint64(response.fields, key)));
+    fl_value_set_string_take(value, "owned", fl_value_new_bool(field(response.fields, "owned") == "true"));
+    fl_value_set_string_take(value, "gap", fl_value_new_bool(field(response.fields, "gap") == "true"));
+    g_autoptr(FlMethodResponse) result = FL_METHOD_RESPONSE(fl_method_success_response_new(value));
+    fl_method_call_respond(method_call, result, nullptr);
+    return;
+  }
+  if (g_strcmp0(method, "confirmUsage") == 0) {
+    run_helper_operation_async(method_call, "usage_confirmation_failed", "usage.confirm", Fields());
+    return;
+  }
   if (g_strcmp0(method, "connect") == 0) {
     FlValue* args = fl_method_call_get_args(method_call);
     const gchar* protocol = get_string_arg(args, "protocol");
@@ -1090,12 +1110,33 @@ static void handle_vpn_call(FlMethodChannel* channel,
     }
 
     g_clear_pointer(&state->config_path, g_free);
-    state->config_path = build_state_path(kWireGuardConfigFileName);
+    const gchar* session_id = get_string_arg(args, "session_id");
+    guint64 numeric_session = 0;
+    if (!session_id || !parse_uint64_strict(session_id, &numeric_session) || numeric_session == 0) {
+      respond_error(method_call, "recording_required", "A usage session is required.", nullptr);
+      return;
+    }
+    g_autofree gchar* root_path = build_state_path(kWireGuardConfigFileName);
+    g_autofree gchar* root_directory = g_path_get_dirname(root_path);
+    const std::string directory = std::string(root_directory) + "/usage-" + session_id;
+    if (g_mkdir_with_parents(directory.c_str(), 0700) != 0) {
+      respond_error(method_call, "recording_error", "Could not create session configuration directory.", nullptr);
+      return;
+    }
+    state->config_path = g_build_filename(directory.c_str(), kWireGuardConfigFileName, nullptr);
     if (!write_config_file(method_call, state->config_path, config)) {
       return;
     }
     persist_active_protocol(state, protocol);
     Fields helper_args = helper_args_for_wireguard(state);
+    for (const char* key : {"session_id", "reporting_token", "expected_peer"}) {
+      FlValue* input = args ? fl_value_lookup_string(args, key) : nullptr;
+      if (input == nullptr || fl_value_get_type(input) != FL_VALUE_TYPE_STRING) {
+        respond_error(method_call, "recording_required", "Persistent usage recording is required.", nullptr);
+        return;
+      }
+      helper_args[key] = fl_value_get_string(input);
+    }
     run_helper_operation_async(
         method_call,
         "vpn_connect_failed",
@@ -1129,6 +1170,14 @@ struct _MyApplication {
 
 G_DEFINE_TYPE(MyApplication, my_application, GTK_TYPE_APPLICATION)
 
+static gboolean main_window_close_cb(GtkWidget*, GdkEvent*, gpointer) {
+  HelperResponse response {};
+  gchar* detail = nullptr;
+  helper_operation("usage.stop", {{"reason", "app_exit"}}, &response, &detail);
+  g_free(detail);
+  return FALSE;
+}
+
 static void main_window_destroy_cb(MyApplication* self) {
   self->main_window = nullptr;
 }
@@ -1151,6 +1200,7 @@ static void my_application_activate(GApplication* application) {
   GtkWindow* window =
       GTK_WINDOW(gtk_application_window_new(GTK_APPLICATION(application)));
   self->main_window = window;
+  g_signal_connect(window, "delete-event", G_CALLBACK(main_window_close_cb), nullptr);
   g_signal_connect_swapped(window, "destroy",
                            G_CALLBACK(main_window_destroy_cb), self);
 

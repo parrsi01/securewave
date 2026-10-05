@@ -9,6 +9,9 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime
+import hashlib
+import hmac
+import json
 from typing import Optional
 
 from sqlalchemy import update
@@ -81,12 +84,20 @@ class UsageMeteringService:
         server_id: int,
         protocol: str,
         idempotency_key: str,
+        metering_version: int = 1,
+        reporting_token: Optional[str] = None,
     ) -> MeteringResult:
         existing = self.db.query(VPNConnection).filter(
             VPNConnection.user_id == user_id,
             VPNConnection.start_idempotency_key == idempotency_key,
         ).first()
         if existing is not None:
+            if existing.metering_version != metering_version or (
+                metering_version == 2 and not hmac.compare_digest(
+                    existing.reporting_token_hash or "", hashlib.sha256((reporting_token or "").encode()).hexdigest()
+                )
+            ):
+                raise UsageIdempotencyConflict()
             if not self._start_matches(
                 existing,
                 device_id=device_id,
@@ -101,7 +112,7 @@ class UsageMeteringService:
             WireGuardPeer.user_id == user_id,
             WireGuardPeer.is_active.is_(True),
             WireGuardPeer.is_revoked.is_(False),
-        ).first()
+        ).with_for_update().first()
         if peer is None:
             raise UsageSessionNotFound()
         if protocol != "wireguard" or peer.server_id != server_id:
@@ -125,6 +136,9 @@ class UsageMeteringService:
             protocol=protocol,
             start_idempotency_key=idempotency_key,
             connected_at=now,
+            metering_version=metering_version,
+            reporting_token_hash=hashlib.sha256(reporting_token.encode()).hexdigest() if reporting_token else None,
+            recording_quality="pending" if metering_version == 2 else "legacy",
         )
         self.db.add(connection)
         self.db.execute(
@@ -141,6 +155,12 @@ class UsageMeteringService:
                 VPNConnection.start_idempotency_key == idempotency_key,
             ).first()
             if existing is not None:
+                if existing.metering_version != metering_version or (
+                    metering_version == 2 and not hmac.compare_digest(
+                        existing.reporting_token_hash or "", hashlib.sha256((reporting_token or "").encode()).hexdigest()
+                    )
+                ):
+                    raise UsageIdempotencyConflict()
                 if not self._start_matches(
                     existing,
                     device_id=device_id,
@@ -197,6 +217,8 @@ class UsageMeteringService:
             )
 
         connection = self._owned_connection(user_id, connection_id)
+        if connection.metering_version == 2:
+            raise UsageSequenceConflict()
         if connection.disconnected_at is not None:
             raise UsageSessionFinalized()
 
@@ -247,7 +269,6 @@ class UsageMeteringService:
                     .values(
                         total_data_sent=WireGuardPeer.total_data_sent + bytes_sent,
                         total_data_received=WireGuardPeer.total_data_received + bytes_received,
-                        last_handshake_at=now,
                     )
                 )
             self.db.commit()
@@ -271,6 +292,75 @@ class UsageMeteringService:
             raise
 
         return MeteringResult(self._owned_connection(user_id, connection_id), idempotent=False)
+
+    def checkpoint(self, *, connection_id: int, reporting_token: str, sequence: int,
+                   bytes_sent: int, bytes_received: int, final: bool, reason: str,
+                   stopped_at: Optional[datetime], verified: bool, gap: bool) -> MeteringResult:
+        """Apply cumulative observations under a row lock; retries never add bytes twice."""
+        connection = self.db.query(VPNConnection).filter(
+            VPNConnection.id == connection_id
+        ).with_for_update().first()
+        digest = hashlib.sha256(reporting_token.encode()).hexdigest()
+        if connection is None or connection.metering_version != 2 or not hmac.compare_digest(
+            connection.reporting_token_hash or "", digest
+        ):
+            self.db.rollback()
+            raise UsageSessionNotFound()
+        current = int(connection.last_meter_sequence or 0)
+        payload_digest = hashlib.sha256(json.dumps({
+            "sequence": sequence, "sent": bytes_sent, "received": bytes_received,
+            "final": final, "verified": verified, "gap": gap, "reason": reason,
+            "stopped_at": stopped_at.isoformat() if stopped_at else None,
+        }, sort_keys=True).encode()).hexdigest()
+        key = f"checkpoint:{connection_id}:{sequence}"
+        event = self.db.query(VPNUsageEvent).filter(
+            VPNUsageEvent.user_id == connection.user_id,
+            VPNUsageEvent.idempotency_key == key,
+        ).first()
+        # Store cumulative values in v2 ledger entries. The version on the
+        # parent connection distinguishes them from legacy increment events.
+        if sequence <= current:
+            if event and event.payload_digest == payload_digest:
+                if final != (connection.final_meter_sequence == sequence):
+                    raise UsageIdempotencyConflict()
+                return MeteringResult(connection, idempotent=True)
+            raise UsageSequenceConflict()
+        if connection.final_meter_sequence is not None:
+            raise UsageSessionFinalized()
+        sent_delta = bytes_sent - int(connection.total_bytes_sent or 0)
+        received_delta = bytes_received - int(connection.total_bytes_received or 0)
+        if sent_delta < 0 or received_delta < 0:
+            raise UsageSequenceConflict()
+        now = datetime.utcnow()
+        connection.total_bytes_sent = bytes_sent
+        connection.total_bytes_received = bytes_received
+        connection.last_meter_sequence = sequence
+        connection.last_metered_at = now
+        if verified and connection.client_verified_at is None:
+            connection.client_verified_at = now
+        if gap or connection.recording_quality == "gap":
+            connection.recording_quality = "gap"
+        else:
+            connection.recording_quality = "complete" if final else "recording"
+        if final:
+            if stopped_at is None or stopped_at > now or stopped_at < connection.connected_at:
+                # Client clocks can drift. Bound the control-plane end time
+                # without presenting the server timestamp as a tunnel proof.
+                stopped_at = now
+            connection.disconnected_at = stopped_at
+            connection.finalization_reason = reason
+            connection.final_meter_sequence = sequence
+        self.db.add(VPNUsageEvent(user_id=connection.user_id, connection_id=connection.id,
+                                 idempotency_key=key, sequence=sequence,
+                                 bytes_sent=bytes_sent, bytes_received=bytes_received,
+                                 payload_digest=payload_digest))
+        self.db.execute(update(WireGuardPeer).where(
+            WireGuardPeer.id == connection.device_id, WireGuardPeer.user_id == connection.user_id
+        ).values(total_data_sent=WireGuardPeer.total_data_sent + sent_delta,
+                 total_data_received=WireGuardPeer.total_data_received + received_delta))
+        self.db.commit()
+        self.db.refresh(connection)
+        return MeteringResult(connection, idempotent=False)
 
     def finalize(
         self,

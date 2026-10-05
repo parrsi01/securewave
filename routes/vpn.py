@@ -16,7 +16,7 @@ import os
 import re
 import signal
 from datetime import datetime, timedelta
-from typing import Optional
+from typing import Optional, Literal
 from urllib.parse import urlsplit
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
@@ -121,6 +121,8 @@ class ClientWireGuardConfigRequest(BaseModel):
 class ClientWireGuardConfigResponse(BaseModel):
     wireguard_config: str
     server_location: str
+    device_id: int
+    server_id: str
 
 
 class VpnProfileDns(BaseModel):
@@ -205,6 +207,8 @@ class UsageSessionStartRequest(BaseModel):
     server_id: str = Field(..., min_length=1, max_length=128)
     protocol: str = Field("wireguard", min_length=2, max_length=16)
     idempotency_key: str = Field(..., min_length=8, max_length=128, pattern=r"^[A-Za-z0-9._:-]+$")
+    metering_version: Literal[1, 2] = 1
+    reporting_token: Optional[str] = Field(None, pattern=r"^[0-9a-f]{64}$")
 
 
 class UsageIncrementRequest(BaseModel):
@@ -966,6 +970,8 @@ async def provision_client_wireguard_config(
     return ClientWireGuardConfigResponse(
         wireguard_config=config,
         server_location=location,
+        device_id=peer.id,
+        server_id=server.server_id,
     )
 
 
@@ -1170,6 +1176,11 @@ def _usage_session_response(result) -> dict:
         "bytes_received": int(connection.total_bytes_received or 0),
         "last_sequence": int(connection.last_meter_sequence or 0),
         "idempotent": result.idempotent,
+        "metering_version": connection.metering_version,
+        "recording_quality": connection.recording_quality,
+        "finalization_reason": connection.finalization_reason,
+        "client_verified_at": connection.client_verified_at.isoformat() if connection.client_verified_at else None,
+        "final_sequence": connection.final_meter_sequence,
     }
 
 
@@ -1180,6 +1191,8 @@ async def start_usage_session(
     db: Session = Depends(get_db),
 ):
     _normalize_wireguard(payload.protocol)
+    if (payload.metering_version == 2) != (payload.reporting_token is not None):
+        raise HTTPException(status_code=422, detail="Version 2 requires a session reporting token.")
     await require_active_subscription(db, current_user)
     server = VPNServerService.get_server_by_id(db, payload.server_id)
     if server is None:
@@ -1191,6 +1204,8 @@ async def start_usage_session(
             server_id=server.id,
             protocol="wireguard",
             idempotency_key=payload.idempotency_key,
+            metering_version=payload.metering_version,
+            reporting_token=payload.reporting_token,
         )
     except UsageMeteringError as exc:
         raise HTTPException(status_code=exc.status_code, detail=exc.detail) from exc
@@ -1272,3 +1287,8 @@ async def vpn_health(db: Session = Depends(get_db)):
         "servers": len(servers),
         "ready_servers": len(ready),
     }
+
+
+# Keep the existing app router registration and its production URL unchanged.
+from routes.usage_recording import router as usage_recording_router
+router.include_router(usage_recording_router)

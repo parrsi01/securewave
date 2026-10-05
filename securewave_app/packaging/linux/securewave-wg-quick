@@ -74,6 +74,7 @@ case "$action" in
     command -v wg >/dev/null 2>&1
     command -v wg-quick >/dev/null 2>&1
     command -v ip >/dev/null 2>&1
+    systemctl is-active --quiet securewave-usage-reporter.service
     exit 0
     ;;
   up)
@@ -108,6 +109,10 @@ case "$action" in
     ;;
   policy-ensure|nm-unmanaged|nm-reset)
     exit 0
+    ;;
+  quiesce)
+    [[ $# -eq 0 ]] || exit 64
+    exec ip link set dev "$WG_IFACE" down
     ;;
   wireguard-transfer)
     [[ $# -eq 0 ]] || {
