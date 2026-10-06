@@ -5,6 +5,9 @@
 `master` is the only project branch. Usage recording, presentation and pending
 dependency maintenance are integrated into its history. Tags identify retained
 checkpoints and package candidates; they are not additional branches.
+Automatic Dependabot fix pull requests are disabled to preserve that branch
+policy. Vulnerability alerts remain enabled; review dependency alerts and apply
+tested updates directly on master.
 
 Before changing files, inspect `git status --short` and `git diff`. Keep private
 configuration and local evidence outside commits. Review and stage named paths,

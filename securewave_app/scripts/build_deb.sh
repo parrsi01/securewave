@@ -334,7 +334,8 @@ find "$package_root" -exec touch -h -d "@$SOURCE_DATE_EPOCH" {} +
 
 mkdir -p "$output_dir"
 dpkg-deb --root-owner-group --build "$package_root" "$output_file" >/dev/null
-sha256sum "$output_file" > "$output_file.sha256"
+# A sidecar must verify beside a downloaded package on any machine.
+(cd "$output_dir" && sha256sum "$(basename "$output_file")" > "$(basename "$output_file").sha256")
 if [[ "$source_commit" != "unversioned" ]]; then
   if [[ "$source_tree_state" == "dirty" ]]; then
     tracked_diff_sha256="$({ git -C "$REPO_ROOT" diff --binary HEAD -- . ':!securewave_app/build'; git -C "$REPO_ROOT" diff --binary --cached -- . ':!securewave_app/build'; } | sha256sum | awk '{print $1}')"
