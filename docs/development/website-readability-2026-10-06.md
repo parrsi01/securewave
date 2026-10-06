@@ -65,3 +65,18 @@ This website publication does not close the separate exact-1.0.0 post-reboot
 VPN acceptance gate documented in [current state](../current-state.md).
 Historical GitHub release archives remain historical evidence; this update
 only controls the current website's download offering.
+
+## Follow-up: support widget
+
+The shared support widget was repaired and published at **23:03 UTC**. The old
+widget had no matching styles, did not load on account/error pages, depended
+on browser storage, and steered typed questions back to a stale plan chooser.
+All HTML pages now load a standalone, idempotent assistant. The existing
+palette is reused for its fixed Help button and responsive panel.
+
+Interaction tests cover Help/close/Escape, focus return, typed questions, all
+seven support topics, unknown and blank input, safe plain-text rendering,
+blocked storage, repeated initialization and script presence on every page.
+The 22 deployed HTML/CSS/JS files matched saved source. This is automated
+support guidance with contact-page escalation, not a live support agent. It
+does not save chat or change accounts. No backend restart was needed.

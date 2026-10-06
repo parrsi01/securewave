@@ -249,25 +249,4 @@ document.addEventListener('DOMContentLoaded', () => {
       '</svg>';
   }
 
-  /* ── Load assistant widget ── */
-  const ensureAssistant = () => {
-    if (window.SecureWaveAssistant && typeof window.SecureWaveAssistant.init === 'function') {
-      window.SecureWaveAssistant.init({});
-      return;
-    }
-    if (document.querySelector('script[data-sw-assistant]')) return;
-    const script = document.createElement('script');
-    script.src = '/js/chat_assistant.js';
-    script.defer = true;
-    script.setAttribute('data-sw-assistant', '1');
-    script.addEventListener('load', () => {
-      try {
-        if (window.SecureWaveAssistant && typeof window.SecureWaveAssistant.init === 'function') {
-          window.SecureWaveAssistant.init({});
-        }
-      } catch { /* ignore */ }
-    });
-    document.head.appendChild(script);
-  };
-  ensureAssistant();
 });

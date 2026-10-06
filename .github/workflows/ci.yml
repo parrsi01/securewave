@@ -68,3 +68,11 @@ jobs:
       - run: sudo apt-get update && sudo apt-get install -y fonts-dejavu-core
       - run: make check
       - run: make docs
+
+  website:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - run: python3 website/tests/check_design_contract.py
+      - run: node website/tests/check_download_selector.cjs
+      - run: node website/tests/check_support_widget.cjs
