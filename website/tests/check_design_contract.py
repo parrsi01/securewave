@@ -23,5 +23,5 @@ for page in root.glob('*.html'):
 manifest = json.loads((root / 'downloads/manifest.json').read_text())
 assert manifest['version'] == '1.0.0'
 assert len(manifest['downloads']) == 1
-assert manifest['downloads'][0]['filename'] == 'securewave-vpn_1.0.0_arm64.deb'
+assert re.fullmatch(r'securewave-vpn_1\.0\.0_arm64(?:-ui-[0-9a-f]{12})?\.deb', manifest['downloads'][0]['filename'])
 print('PASS: existing palette; minimum CSS text sizes; responsive pricing; explicit billing; page metadata; one release.')

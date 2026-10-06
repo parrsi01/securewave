@@ -20,7 +20,7 @@ for (const [ua, platform, arch, expected] of [
  assert.equal(!!context.bestDownloadForPlatform(manifest.downloads, platform, arch), expected);
 }
 const card = context.renderCard(manifest.downloads[0]);
-assert.match(card, /v\.1\.0\.0/); assert.match(card, /securewave-vpn_1\.0\.0_arm64\.deb/);
+assert.match(card, /v\.1\.0\.0/); assert(card.includes(manifest.downloads[0].url));
 assert(!card.includes('4.0.0'));
 assert.match(card, /DEB file/);
 assert(!card.includes('SHA256'));
