@@ -3,7 +3,7 @@
 import os
 
 
-DEFAULT_APP_VERSION = "4.0.0+11"
+DEFAULT_APP_VERSION = "1.0.0"
 
 
 def get_app_version() -> str:

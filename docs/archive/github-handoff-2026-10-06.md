@@ -50,7 +50,7 @@ nonempty credential settings or high-confidence secret match. This was a
 publish-safety check, not a security audit or validation of those old releases.
 
 The pre-existing local September release note is also saved as an explicitly
-[historical snapshot](archive/linux-release-status-2026-09-29.md).
+[historical snapshot](linux-release-status-2026-09-29.md).
 
 ## Local data and remaining acceptance
 

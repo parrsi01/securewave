@@ -67,7 +67,6 @@ webapp-logs/
 
 # Deployment
 deploy.zip
-build/
 deployments/
 *.deployment.bak
 
@@ -93,7 +92,6 @@ zi0MjjAd
 
 # OS
 Thumbs.db
-.DS_Store
 
 # Backup files
 *.bak
@@ -134,21 +132,12 @@ keys_and_storage_configurations/*.env
 keys_and_storage_configurations/.env.*
 
 # Runtime/deployment artifacts
-LogFiles/
-deployments/
-*.log
-deploy.zip
 
 # Python
-__pycache__/
 *.pyc
 *.pyo
-venv/
-.venv/
 
 # IDE
-.vscode/
-.idea/
 
 # Local data
 data/models/*.pkl
@@ -164,3 +153,13 @@ securewave-tests/results/*.json
 !securewave_app/lib/
 !securewave_app/lib/**/*
 !securewave_app/pubspec.yaml
+
+# Local runtime, historical evidence, and generated platform scaffolding
+/artifacts/
+/.aws
+/securewave_private/
+/securewave_app/android/
+/securewave_app/ios/
+/docs/linux-release-status.md
+/research-build/
+.venv-docs/

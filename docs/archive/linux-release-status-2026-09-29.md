@@ -3,7 +3,7 @@
 Saved 2026-10-06 from the pre-existing local note dated 2026-09-29.
 The candidate and pending checks below describe that earlier checkpoint;
 this is not the current installed-package or release status. Current candidate
-evidence is recorded in [4.0.0+12 verification](../releases/4.0.0+12-verification.md).
+evidence is recorded in [4.0.0+12 verification](releases/4.0.0+12-verification.md).
 
 ---
 

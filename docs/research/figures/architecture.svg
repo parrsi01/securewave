@@ -1,0 +1,47 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="680" height="510" viewBox="0 0 680 510">
+<defs><marker id="arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8" fill="#147caf"/></marker></defs>
+<rect width="680" height="510" fill="white"/>
+<text x="20" y="28" font-family="DejaVu Sans" font-size="18" font-weight="bold" fill="#17263a">SecureWave component and trust model</text>
+<rect x="20" y="60" width="280" height="110" rx="5" fill="#f0f7fb" stroke="#147caf"/>
+<text x="32" y="85" font-family="DejaVu Sans" font-size="14" font-weight="bold" fill="#17263a">Desktop user</text>
+<text x="32" y="109" font-family="DejaVu Sans" font-size="11" font-weight="normal" fill="#17263a">Flutter state owner + UI</text>
+<text x="32" y="125" font-family="DejaVu Sans" font-size="11" font-weight="normal" fill="#17263a">ApiService / VpnService</text>
+<text x="32" y="141" font-family="DejaVu Sans" font-size="11" font-weight="normal" fill="#17263a">Secure store: account token + local key</text>
+<rect x="380" y="60" width="280" height="110" rx="5" fill="#f0f7fb" stroke="#147caf"/>
+<text x="392" y="85" font-family="DejaVu Sans" font-size="14" font-weight="bold" fill="#17263a">Backend control plane</text>
+<text x="392" y="109" font-family="DejaVu Sans" font-size="11" font-weight="normal" fill="#17263a">FastAPI auth / provisioning / usage</text>
+<text x="392" y="125" font-family="DejaVu Sans" font-size="11" font-weight="normal" fill="#17263a">Server-side WireGuard peer registration</text>
+<text x="392" y="141" font-family="DejaVu Sans" font-size="11" font-weight="normal" fill="#17263a">PostgreSQL transactional ledger</text>
+<path d="M302,110 L378,110" stroke="#147caf" stroke-width="2" fill="none" marker-end="url(#arrow)"/>
+<text x="310" y="96" font-family="DejaVu Sans" font-size="11" font-weight="normal" fill="#17263a">HTTPS</text>
+<rect x="20" y="220" width="280" height="115" rx="5" fill="#f0f7fb" stroke="#147caf"/>
+<text x="32" y="245" font-family="DejaVu Sans" font-size="14" font-weight="bold" fill="#17263a">Local privilege boundary</text>
+<text x="32" y="269" font-family="DejaVu Sans" font-size="11" font-weight="normal" fill="#17263a">GTK method channel → Unix socket</text>
+<text x="32" y="285" font-family="DejaVu Sans" font-size="11" font-weight="normal" fill="#17263a">Root helper: fixed operations + ownership</text>
+<text x="32" y="301" font-family="DejaVu Sans" font-size="11" font-weight="normal" fill="#17263a">WireGuard interface, routes and counters</text>
+<path d="M155,172 L155,217" stroke="#147caf" stroke-width="2" fill="none" marker-end="url(#arrow)"/>
+<text x="166" y="199" font-family="DejaVu Sans" font-size="11" font-weight="normal" fill="#17263a">authorized IPC</text>
+<rect x="380" y="220" width="280" height="115" rx="5" fill="#f0f7fb" stroke="#147caf"/>
+<text x="392" y="245" font-family="DejaVu Sans" font-size="14" font-weight="bold" fill="#17263a">VPN gateway</text>
+<text x="392" y="269" font-family="DejaVu Sans" font-size="11" font-weight="normal" fill="#17263a">WireGuard peer endpoint</text>
+<text x="392" y="285" font-family="DejaVu Sans" font-size="11" font-weight="normal" fill="#17263a">Encrypted IP packet transport</text>
+<text x="392" y="301" font-family="DejaVu Sans" font-size="11" font-weight="normal" fill="#17263a">Kernel networking and internet egress</text>
+<path d="M302,278 L378,278" stroke="#147caf" stroke-width="2" fill="none" marker-end="url(#arrow)"/>
+<text x="309" y="261" font-family="DejaVu Sans" font-size="10" font-weight="normal" fill="#17263a">UDP tunnel</text>
+<rect x="20" y="380" width="280" height="105" rx="5" fill="#f0f7fb" stroke="#147caf"/>
+<text x="32" y="405" font-family="DejaVu Sans" font-size="14" font-weight="bold" fill="#17263a">Durable accounting</text>
+<text x="32" y="429" font-family="DejaVu Sans" font-size="11" font-weight="normal" fill="#17263a">Root-only journal: counts + capability</text>
+<text x="32" y="445" font-family="DejaVu Sans" font-size="11" font-weight="normal" fill="#17263a">Independent reporter / acknowledgements</text>
+<text x="32" y="461" font-family="DejaVu Sans" font-size="11" font-weight="normal" fill="#17263a">Gap quality on interrupted observations</text>
+<path d="M155,337 L155,377" stroke="#147caf" stroke-width="2" fill="none" marker-end="url(#arrow)"/>
+<path d="M302,434 L650,434" stroke="#147caf" stroke-width="2" fill="none" marker-end="url(#arrow)"/>
+<path d="M650,434 L650,172" stroke="#147caf" stroke-width="2" fill="none" marker-end="url(#arrow)"/>
+<text x="315" y="421" font-family="DejaVu Sans" font-size="11" font-weight="normal" fill="#17263a">HTTPS cumulative checkpoints</text>
+<text x="20" y="503" font-family="DejaVu Sans" font-size="11" font-weight="normal" fill="#17263a">Figure 1. Control, network and accounting planes have distinct failure domains.</text>
+<polygon points="378,110 370,106 370,114" fill="#147caf"/>
+<polygon points="155,217 159,209 151,209" fill="#147caf"/>
+<polygon points="378,278 370,274 370,282" fill="#147caf"/>
+<polygon points="155,377 159,369 151,369" fill="#147caf"/>
+<polygon points="650,434 642,430 642,438" fill="#147caf"/>
+<polygon points="650,172 646,180 654,180" fill="#147caf"/>
+</svg>

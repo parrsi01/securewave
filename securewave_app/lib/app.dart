@@ -205,133 +205,89 @@ class _AuthViewState extends State<_AuthView> {
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).colorScheme;
-    return Scaffold(
-      body: SafeArea(
-        child: Center(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.all(24),
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 420),
-              child: Form(
-                key: _formKey,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    Center(
-                      child: Image.asset(
-                        'assets/icon.png',
-                        width: 56,
-                        height: 56,
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    Text(
-                      'SecureWave',
-                      textAlign: TextAlign.center,
-                      style: Theme.of(context).textTheme.headlineSmall,
-                    ),
-                    const SizedBox(height: 28),
-                    Text(
-                      _registering ? 'Create account' : 'Sign in',
-                      style: Theme.of(context).textTheme.titleLarge,
-                    ),
-                    const SizedBox(height: 20),
-                    const _FieldLabel('Email'),
-                    TextFormField(
-                      controller: _email,
-                      keyboardType: TextInputType.emailAddress,
-                      autofillHints: const [AutofillHints.username],
-                      decoration: const InputDecoration(
-                        hintText: 'you@example.com',
-                      ),
-                      validator: (value) {
-                        final email = value?.trim() ?? '';
-                        return email.contains('@') && email.contains('.')
-                            ? null
-                            : 'Enter a valid email address.';
-                      },
-                    ),
-                    const SizedBox(height: 16),
-                    const _FieldLabel('Password'),
-                    TextFormField(
-                      controller: _password,
-                      obscureText: true,
-                      autofillHints: [
-                        _registering
-                            ? AutofillHints.newPassword
-                            : AutofillHints.password,
-                      ],
-                      decoration: const InputDecoration(
-                        hintText: 'At least 8 characters',
-                      ),
-                      validator: (value) {
-                        final password = value ?? '';
-                        if (password.length < 8) {
-                          return 'Use at least 8 characters.';
-                        }
-                        return null;
-                      },
-                    ),
-                    if (_registering) ...[
-                      const SizedBox(height: 16),
-                      const _FieldLabel('Confirm password'),
-                      TextFormField(
-                        controller: _confirmation,
-                        obscureText: true,
-                        decoration: const InputDecoration(
-                          hintText: 'Enter the password again',
-                        ),
-                        validator: (value) => value == _password.text
-                            ? null
-                            : 'Passwords do not match.',
-                      ),
-                    ],
-                    if (_error != null) ...[
-                      const SizedBox(height: 16),
-                      Text(_error!, style: TextStyle(color: colors.error)),
-                    ],
-                    if (_notice != null) ...[
-                      const SizedBox(height: 16),
-                      Text(_notice!, style: TextStyle(color: colors.primary)),
-                    ],
-                    const SizedBox(height: 24),
-                    SizedBox(
-                      height: 46,
-                      child: FilledButton(
-                        onPressed: _busy ? null : _submit,
-                        child: _busy
-                            ? const SizedBox.square(
-                                dimension: 18,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                ),
-                              )
-                            : Text(_registering ? 'Create account' : 'Sign in'),
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    TextButton(
-                      onPressed: _busy
-                          ? null
-                          : () => setState(() {
-                                _registering = !_registering;
-                                _error = null;
-                                _notice = null;
-                              }),
-                      child: Text(
-                        _registering
-                            ? 'Already have an account? Sign in'
-                            : 'New to SecureWave? Create an account',
-                      ),
-                    ),
-                  ],
-                ),
+    return AuthForm(
+      formKey: _formKey,
+      registering: _registering,
+      busy: _busy,
+      error: _error,
+      notice: _notice,
+      onSubmit: _submit,
+      onSwitchMode: () => setState(() {
+        _registering = !_registering;
+        _error = null;
+        _notice = null;
+      }),
+      fields: [
+        const _FieldLabel('Email'),
+        Semantics(
+            label: 'Email',
+            child: TextFormField(
+              controller: _email,
+              keyboardType: TextInputType.emailAddress,
+              textInputAction: TextInputAction.next,
+              autofillHints: const [AutofillHints.username],
+              decoration: const InputDecoration(
+                hintText: 'you@example.com',
               ),
-            ),
-          ),
-        ),
-      ),
+              validator: (value) {
+                final email = value?.trim() ?? '';
+                return email.contains('@') && email.contains('.')
+                    ? null
+                    : 'Enter a valid email address.';
+              },
+            )),
+        const SizedBox(height: 16),
+        const _FieldLabel('Password'),
+        Semantics(
+            label: 'Password',
+            child: TextFormField(
+              controller: _password,
+              textInputAction:
+                  _registering ? TextInputAction.next : TextInputAction.done,
+              onFieldSubmitted: (_) {
+                if (!_registering && !_busy) _submit();
+              },
+              obscureText: true,
+              autofillHints: [
+                _registering
+                    ? AutofillHints.newPassword
+                    : AutofillHints.password,
+              ],
+              decoration: const InputDecoration(
+                hintText: 'At least 8 characters',
+              ),
+              validator: (value) {
+                final password = value ?? '';
+                if (password.length < 8) {
+                  return 'Use at least 8 characters.';
+                }
+                return null;
+              },
+            )),
+        if (_registering) ...[
+          const SizedBox(height: 8),
+          Text('Use at least 8 characters.', style: AppTheme.caption)
+        ],
+        if (_registering) ...[
+          const SizedBox(height: 16),
+          const _FieldLabel('Confirm password'),
+          Semantics(
+              label: 'Confirm password',
+              child: TextFormField(
+                controller: _confirmation,
+                textInputAction: TextInputAction.done,
+                onFieldSubmitted: (_) {
+                  if (!_busy) _submit();
+                },
+                obscureText: true,
+                decoration: const InputDecoration(
+                  hintText: 'Enter the password again',
+                ),
+                validator: (value) =>
+                    value == _password.text ? null : 'Passwords do not match.',
+              )),
+        ],
+      ],
     );
   }
 }
@@ -709,14 +665,6 @@ class _HomeViewState extends State<_HomeView> {
     await widget.onLogout();
   }
 
-  String _statusText() => switch (_status) {
-        VpnStatus.disconnected => 'Disconnected',
-        VpnStatus.connecting => 'Connecting',
-        VpnStatus.connected => 'Connected',
-        VpnStatus.disconnecting => 'Disconnecting',
-        VpnStatus.error => 'Error',
-      };
-
   Future<void> _toggleConnection() async {
     final canDisconnect = _status == VpnStatus.connected ||
         (_status == VpnStatus.error && _vpn.status == VpnStatus.error);
@@ -727,172 +675,6 @@ class _HomeViewState extends State<_HomeView> {
       await _connect();
     }
   }
-
-  @override
-  Widget build(BuildContext context) {
-    final connected = _status == VpnStatus.connected;
-    final canDisconnect = connected ||
-        (_status == VpnStatus.error && _vpn.status == VpnStatus.error);
-    final transitioning = _busy ||
-        _status == VpnStatus.connecting ||
-        _status == VpnStatus.disconnecting;
-    final colors = Theme.of(context).colorScheme;
-
-    return Scaffold(
-      appBar: AppBar(
-        title: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Image.asset('assets/icon.png', width: 28, height: 28),
-            const SizedBox(width: 10),
-            const Text('SecureWave'),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: transitioning ? null : _handleLogout,
-            child: const Text('Log out'),
-          ),
-          const SizedBox(width: 12),
-        ],
-      ),
-      body: SafeArea(
-        child: Center(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.all(24),
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 560),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Text(
-                    'WireGuard VPN',
-                    style: Theme.of(context).textTheme.headlineSmall,
-                  ),
-                  const SizedBox(height: 20),
-                  Container(
-                    padding: const EdgeInsets.all(24),
-                    decoration: BoxDecoration(
-                      color: colors.surface,
-                      border: Border.all(color: colors.outline),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            Icon(
-                              connected ? Icons.check_circle : Icons.circle,
-                              size: 18,
-                              color: connected
-                                  ? colors.primary
-                                  : _status == VpnStatus.error
-                                      ? colors.error
-                                      : colors.onSurfaceVariant,
-                            ),
-                            const SizedBox(width: 10),
-                            Text(
-                              _statusText(),
-                              style: Theme.of(context).textTheme.titleMedium,
-                            ),
-                            const Spacer(),
-                            Text(
-                              'WireGuard',
-                              style: Theme.of(context).textTheme.labelLarge,
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 20),
-                        const Divider(),
-                        const SizedBox(height: 12),
-                        Text(
-                          'VPN location',
-                          style: Theme.of(context).textTheme.labelMedium,
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          _location,
-                          style: Theme.of(context).textTheme.bodyLarge,
-                        ),
-                        const SizedBox(height: 24),
-                        SizedBox(
-                          height: 48,
-                          child: FilledButton.icon(
-                            onPressed: transitioning ? null : _toggleConnection,
-                            icon: transitioning
-                                ? const SizedBox.square(
-                                    dimension: 18,
-                                    child: CircularProgressIndicator(
-                                      strokeWidth: 2,
-                                    ),
-                                  )
-                                : Icon(
-                                    canDisconnect
-                                        ? Icons.pause
-                                        : Icons.shield_outlined,
-                                  ),
-                            label: Text(
-                              canDisconnect ? 'Disconnect' : 'Connect',
-                            ),
-                          ),
-                        ),
-                        if (_error != null) ...[
-                          const SizedBox(height: 16),
-                          Text(_error!, style: TextStyle(color: colors.error)),
-                        ],
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 24),
-                  Text(
-                    'Data used this session',
-                    style: Theme.of(context).textTheme.titleMedium,
-                  ),
-                  if (_recordingNotice != null) ...[
-                    const SizedBox(height: 8),
-                    Text(
-                      _recordingNotice!,
-                      style: Theme.of(context).textTheme.bodySmall,
-                    ),
-                  ],
-                  const SizedBox(height: 12),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: _UsageValue(
-                          label: 'Download',
-                          value: _countersAvailable
-                              ? _formatBytes(_downloadBytes)
-                              : 'Unavailable',
-                        ),
-                      ),
-                      const SizedBox(width: 24),
-                      Expanded(
-                        child: _UsageValue(
-                          label: 'Upload',
-                          value: _countersAvailable
-                              ? _formatBytes(_uploadBytes)
-                              : 'Unavailable',
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _UsageValue extends StatelessWidget {
-  const _UsageValue({required this.label, required this.value});
-
-  final String label;
-  final String value;
 
   @override
   Widget build(BuildContext context) {

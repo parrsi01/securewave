@@ -1,99 +1,78 @@
-# SecureWave
+# SecureWave 1.0.0
 
-SecureWave **4.0.0+11** is a Linux ARM64 WireGuard VPN application for Ubuntu
-24.04. The installed application supports account registration, sign-in,
-Connect, real WireGuard traffic and usage counters, Disconnect, Reconnect,
-and logout. The user confirmed the installed application is fully functional
-on 2026-10-04. Independent post-reboot release acceptance remains open.
+A Linux WireGuard VPN application by **Simon Parris**, with a Flutter desktop
+client, FastAPI control plane, PostgreSQL persistence, and a C++ privilege
+boundary. The project focuses on reliable connection lifecycle management and
+durable accounting of real tunnel traffic.
 
-The **4.0.0+12 usage-recording candidate** is installed locally and its usage
-backend is deployed. Real Connect, traffic, Disconnect and app-crash final
-reporting passed against production. The public download remains 4.0.0+11
-while post-reboot checks are pending. Installed queued-report recovery through
-a helper restart also passed. See the
-[candidate verification record](docs/releases/4.0.0+12-verification.md).
-The VM rebooted on 2026-10-06. Post-reboot baseline and cold-launch checks
-passed; VPN lifecycle testing awaits sign-in after session expiry. The
-[post-reboot checkpoint and automation](docs/releases/4.0.0+12-post-reboot.md)
-record the remaining checks.
+## Start here
 
-## Download and install
+| Reader | Recommended route |
+| --- | --- |
+| HR or talent acquisition | [Project overview](docs/portfolio/project-overview.md): purpose, contribution, skills, and delivery history |
+| Software engineering reviewer | [Engineering walkthrough](docs/portfolio/engineering-walkthrough.md): code map, decisions, and review exercises |
+| Architecture or research reviewer | [Technical monograph](docs/research/README.md): formal model, algorithms, correctness, evaluation, and limitations |
+| Developer | [Quick start](QUICK_START.md), [workflows](docs/development/workflows.md), and [testing](docs/development/testing.md) |
 
-Use the [official download page](https://www.securewaveapp.com/download.html)
-or the [GitHub release](https://github.com/parrsi01/securewave/releases/tag/v4.0.0%2B11).
-The current distributable is `securewave-vpn_4.0.0+11_arm64.deb`.
-This package requires an ARM64 Linux desktop; it is not an x86-64, Windows,
-macOS, Android, or iOS release.
+## Implemented behavior
 
-From the directory containing the downloaded package:
+- Registration, sign-in, token validation, and logout.
+- Client-owned WireGuard keys, per-account identity reuse, and authenticated peer provisioning.
+- Connect, Disconnect, and Reconnect through a restricted Linux helper.
+- Connection verification using the interface, expected peer, recent handshake, counters, routing, and changed public egress.
+- Durable usage sessions, cumulative checkpoints, idempotent database updates, and final reporting after window close or process death.
+- Responsive navy/cyan presentation with keyboard/accessibility and visual regression tests.
 
-```sh
-sudo apt install ./securewave-vpn_4.0.0+11_arm64.deb
+The current desktop target is **Ubuntu 24.04 ARM64 with WireGuard**. This
+release does not claim supported Windows, macOS, mobile, OpenVPN, IKEv2, or
+machine-learning anomaly detection.
+
+## Repository map
+
+```text
+securewave_app/     Flutter UI, API/VPN services, native runner, helper, packaging
+routes/            HTTP authentication, peer provisioning, and usage contracts
+services/          Authentication, server management, transactional metering
+models/            SQLAlchemy account, peer, session, and event models
+database/          Database engine, sessions, and model metadata
+infrastructure/    Server provisioning and systemd integration
+scripts/           Development, migration, packaging, acceptance entrypoints
+tests/             Backend contracts and real PostgreSQL checks
+docs/portfolio/    Recruiter overview and engineering review guide
+docs/research/     Research-style chapters, figures, and PDF
+docs/development/  Reproducible workflows, testing, release procedures
+docs/archive/      Earlier evidence, version names, and design notes
 ```
 
-Open **SecureWave VPN** from Applications, or run `securewave-vpn`. Upgrades
-use the same installation command. Disconnect before upgrading or removing
-the package. The installed app runs from `/usr/lib/securewave/securewave_app`
-and uses the `securewave-helper.service` systemd service.
-
-## Changes in 4.0.0+11
-
-- Registration explicitly uses an unauthenticated request.
-- HTTP 401 messages distinguish rejected login credentials, account-creation
-  authorization failures, and expired sessions.
-- An expired saved session clears its token and opens **Sign in** with a
-  session-expired notice, rather than sending an existing user to Create account.
-- Duplicate registration recognizes production's HTTP 400 error envelope
-  and explains that the account already exists.
-- Regression coverage now contains 17 passing Flutter tests. Analysis and
-  a live check through the actual Dart/Dio client passed: registration 201,
-  login 200, and authenticated `/api/auth/me` 200. Incorrect passwords remain
-  rejected with 401.
-
-See the [release notes](docs/releases/4.0.0+11.md),
-[current stack and evidence](docs/current-state.md), and
-[UI-only handoff](docs/ui-only-handoff.md).
-
-## Stack
-
-| Component | Languages and tools | Responsibility |
-| --- | --- | --- |
-| Desktop app | Dart, Flutter, Dio | UI, HTTPS API requests, session and VPN orchestration |
-| Linux integration | C++, GTK/GLib, Flutter method channels | Native runner and restricted local helper daemon |
-| Tunnel operations | Bash, WireGuard, `wg`, `wg-quick`, `iproute2`, `iptables`, `systemd-resolved` | Tunnel lifecycle, routing, DNS, and real traffic counters |
-| Local secret storage | Flutter Secure Storage, libsecret, desktop Secret Service | Access token and per-account client private key |
-| Backend | Python, FastAPI, Pydantic, SQLAlchemy, psycopg2 | Authentication, account data, VPN provisioning, usage |
-| Authentication | PyJWT, bcrypt/passlib | Bearer tokens and password hashing |
-| Database and hosting | PostgreSQL, Hetzner, systemd, Gunicorn/Uvicorn, nginx | Production persistence, API, HTTPS, VPN infrastructure |
-| Public website | HTML, CSS, JavaScript, guarded download manifest | Website and current release download selection |
-| Build and release | Flutter/Dart CLI, CMake, Ninja, Debian packaging, APT, Git, GitHub CLI, SSH/SCP | Checks, ARM64 package build, versioned publishing |
-
-The website runs in the existing production deployment; its legacy frontend
-and download router are not part of this simplified source checkout. A client
-release does not imply that the whole production backend has been redeployed
-from the client release commit.
-
-## Development and checks
+## Build and verify
 
 ```sh
-cd securewave_app
-flutter pub get
-flutter analyze --no-pub
-flutter test --no-pub
-SOURCE_DATE_EPOCH=0 bash scripts/build_deb.sh
+python3 -m venv .venv
+. .venv/bin/activate
+pip install -r requirements-dev.txt
+make test-backend
+make test-flutter
+make test-native
+make check
 ```
 
-The package builder defaults to `https://api.securewaveapp.com/api` and embeds
-the version, architecture, helper contract, source commit, and tree state.
-Published packages should come from a clean checkout of their release commit.
-Checksums prove file integrity; the embedded source identity establishes
-provenance.
+See [Quick Start](QUICK_START.md) for native dependencies and packaging.
+Contract tests use disposable fixtures; they do not establish a production VPN.
 
-For a development launch only, install the helper with
-`make linux-runtime-install`, then use
-`SECUREWAVE_API_BASE_URL=https://api.securewaveapp.com/api make flutter-run`.
-Installed-package acceptance uses the installed desktop application.
+## Evidence and release status
 
-Database credentials, JWT signing secrets, server WireGuard keys, and SSH
-private keys remain outside the app and Git. The client WireGuard private key
-is generated and stored locally. See [the protected boundaries](docs/DO_NOT_LOSE.md).
+**1.0.0 is the consolidated source version.** Earlier `4.0.0+…` names remain
+in historical records and original package provenance. The project uses one
+active branch, `master`; archive tags preserve checkpoints.
+
+The [current validation record](docs/current-state.md) distinguishes source
+checks from installed-product evidence. Historical tests demonstrated real
+traffic, teardown, crash recovery, and final database persistence. Post-reboot
+baseline and cold launch passed; authenticated lifecycle testing awaits
+sign-in after session expiry. These earlier observations do not establish
+acceptance of a newly built 1.0.0 package.
+
+The [technical monograph](docs/research/README.md) adopts the research-question,
+system-model, algorithm, and evaluation structure of
+[my anomaly-detection paper](https://github.com/parrsi01/Decentralized-Federated-Detection-of-Network-Anomalies-in-Mobile-Networks/blob/main/Research/IEEE_conference_paper_simon_parris.pdf).
+It provides original VPN-specific analysis as an engineering case study.
