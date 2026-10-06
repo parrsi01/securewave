@@ -65,3 +65,44 @@ This website publication does not close the separate exact-1.0.0 post-reboot
 VPN acceptance gate documented in [current state](../current-state.md).
 Historical GitHub release archives remain historical evidence; this update
 only controls the current website's download offering.
+
+## Follow-up: support widget
+
+The shared support widget was repaired and published at **23:03 UTC**. The old
+widget had no matching styles, did not load on account/error pages, depended
+on browser storage, and steered typed questions back to a stale plan chooser.
+All HTML pages now load a standalone, idempotent assistant. The existing
+palette is reused for its fixed Help button and responsive panel.
+
+Interaction tests cover Help/close/Escape, focus return, typed questions, all
+seven support topics, unknown and blank input, safe plain-text rendering,
+blocked storage, repeated initialization and script presence on every page.
+The 22 deployed HTML/CSS/JS files matched saved source. This is automated
+support guidance with contact-page escalation, not a live support agent. It
+does not save chat or change accounts. No backend restart was needed.
+
+## Follow-up: open login page and authenticated navigation
+
+The login page no longer uses the 560-pixel form card, enclosing background or
+border. Its main content and form use the full available page width with
+responsive outer padding, large fields and explicit spacing. Existing
+authentication endpoints, form IDs and submission script are preserved. The
+message region now sits inside the form where the existing script expects it,
+so validation and server errors can be shown. Unsupported platform buttons
+were replaced by the single current download link.
+
+Dashboard links in navigation, footers and page actions start hidden, including
+without JavaScript. The cookie-session endpoint must confirm authenticated
+status before they appear; failed, missing or invalid sessions keep them
+hidden. The plan page offers an explicit sign-in action to guests. Tests cover
+signed-in and guest responses, failures, all gated links and login bindings.
+The palette and shared support widget remain intact. This changes website
+presentation only; it does not change server authorization or the VPN app.
+
+### Login spacing refinement
+
+Following visual feedback, the open login layout now aligns its heading, form
+and app guidance in a centered 48-rem column. There is still no enclosing
+card, border or panel. Fields have a comfortable 64-pixel height and 24-pixel
+vertical gaps; the desktop submit button is compact, while it fills the form
+width on phones. Account links and footer alignment were refined as well.

@@ -1,398 +1,133 @@
-/* SecureWave Assistant (local-only, no network calls)
- * - Floating button + panel
- * - Guided plan chooser (use-case, device count, region)
- * - Stores state in localStorage
- */
+/* Shared automated support. Runs locally, stores no messages, makes no account changes. */
 (function () {
   'use strict';
-
-  const STORAGE_KEY = 'sw_assistant_v1';
-
-  function safeJsonParse(value, fallback) {
-    try {
-      return JSON.parse(value);
-    } catch {
-      return fallback;
-    }
+  let instance;
+  const topics = {
+    download: {
+      label: 'Download & install',
+      text: 'SecureWave v.1.0.0 is available as a DEB file for Ubuntu 24.04 ARM64. Download it, open the DEB in your software installer, then launch SecureWave. Windows, macOS, iOS, Android and Linux x64 downloads are not currently available.',
+      links: [['Download v.1.0.0', '/download.html']],
+    },
+    account: {
+      label: 'Sign-in & account',
+      text: 'Create an account, follow any email-verification prompt, then sign in with the same account in the app. If verification mail is missing, check spam. For a forgotten password or a persistent sign-in error, contact support. Never share your password or verification code in chat.',
+      links: [['Sign in', '/login.html'], ['Create an account', '/register.html'], ['Contact support', '/contact.html']],
+    },
+    plans: {
+      label: 'Plans & billing',
+      text: 'Free includes 5 GB of VPN traffic per month and one device. Premium includes unlimited transfer and up to five devices: USD $9.99 monthly or $99.99 paid yearly (about $8.33 per month). Review your account for billing and renewal details. This assistant cannot charge, cancel or refund a subscription.',
+      links: [['Compare plans', '/subscription.html'], ['Account dashboard', '/dashboard.html'], ['Billing support', '/contact.html']],
+    },
+    connection: {
+      label: 'VPN connection',
+      text: 'Connect inside the installed SecureWave app; the website does not start a VPN. First check your normal internet connection, sign in, then select Connect. If connection fails, disconnect and try again. If it still fails, contact support with your operating system and the exact error message, without passwords or keys.',
+      links: [['Connection diagnostics', '/diagnostics.html'], ['Contact support', '/contact.html']],
+    },
+    usage: {
+      label: 'Data & devices',
+      text: 'Your dashboard shows your plan, usage and registered devices. Free has a 5 GB monthly allowance and one device; Premium supports up to five devices and unlimited transfer. If you reach a limit, check your account plan and registered devices before reconnecting.',
+      links: [['View dashboard', '/dashboard.html'], ['Compare plans', '/subscription.html']],
+    },
+    privacy: {
+      label: 'Privacy & safety',
+      text: 'SecureWave uses WireGuard in the available app. Check connection status in the app and use the leak-test page for additional checks. This assistant gives general help and cannot inspect your tunnel or account. Your chat messages stay on this page and are not saved or sent to a server.',
+      links: [['Privacy policy', '/privacy.html'], ['Leak test', '/leak_test.html']],
+    },
+    contact: {
+      label: 'Contact support',
+      text: 'For account-specific help, payment questions or unresolved errors, open the support page and use its contact form. Include your operating system, app version and the error you see. This chat is automated guidance, not a live support agent; it does not submit a ticket.',
+      links: [['Open support page', '/contact.html']],
+    },
+  };
+  function findTopic(text) {
+    const q = text.toLowerCase();
+    if (/refund|cancel|payment|bill|price|pricing|plan|premium|subscription|cost/.test(q)) return 'plans';
+    if (/log.?in|sign.?in|password|verify|verification|email|register|account/.test(q)) return 'account';
+    if (/install|download|deb\b|ubuntu|linux|arm64|windows|macos|iphone|ipad|ios\b|android|version/.test(q)) return 'download';
+    if (/connect|tunnel|wireguard|vpn|offline|internet|network|error|fail/.test(q)) return 'connection';
+    if (/usage|allowance|limit|device|data|bandwidth|transfer/.test(q)) return 'usage';
+    if (/privacy|safe|security|leak|dns|store|save|messages/.test(q)) return 'privacy';
+    if (/contact|support|human|agent|ticket|help/.test(q)) return 'contact';
+    return null;
   }
-
-  function loadState() {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    const state = safeJsonParse(raw, null);
-    if (!state || typeof state !== 'object') return null;
-    if (!Array.isArray(state.messages)) return null;
-    return state;
-  }
-
-  function saveState(state) {
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-    } catch {
-      // Ignore storage quota / privacy mode issues.
-    }
-  }
-
-  function defaultState(intent) {
-    return {
-      version: 1,
-      intent: intent || 'general',
-      step: 0,
-      answers: {
-        useCase: null,
-        devices: null,
-        region: null,
-      },
-      messages: [],
-    };
-  }
-
-  function computeRecommendation(answers) {
-    const use = answers.useCase;
-    const devices = answers.devices;
-    const region = answers.region;
-
-    const deviceCount = devices === '1' ? 1 : devices === '2-3' ? 3 : devices === '4+' ? 4 : 0;
-    const travelHeavy = region === 'multiple' || region === 'travel';
-    const heavyUse = use === 'streaming' || use === 'work' || use === 'travel';
-    const lightUse = use === 'browsing' || use === 'other';
-
-    // Conservative: recommend Pro if anything suggests sustained usage.
-    const recommendPro = heavyUse || travelHeavy || deviceCount >= 2;
-
-    if (recommendPro) {
-      return {
-        plan: 'Pro',
-        price: '$9',
-        summary: 'Unlimited data with priority routing for everyday use.',
-        bullets: [
-          'Unlimited data (no monthly cap)',
-          'Better fit for multiple devices or travel',
-          'Best choice for streaming and daily work',
-        ],
-        cta: { label: 'Get Pro', href: '/register.html' },
-      };
-    }
-
-    return {
-      plan: 'Free Starter',
-      price: '$0',
-      summary: 'Max 5 GB / month for light browsing and occasional use.',
-      bullets: [
-        'Max 5 GB / month data',
-        'Good fit for one device and light use',
-        'Upgrade anytime if you hit the cap',
-      ],
-      cta: { label: 'Start Free', href: '/register.html' },
-    };
-  }
-
-  function el(tag, attrs, children) {
+  function element(tag, attributes, text) {
     const node = document.createElement(tag);
-    if (attrs) {
-      for (const [k, v] of Object.entries(attrs)) {
-        if (k === 'class') node.className = v;
-        else if (k === 'text') node.textContent = v;
-        else if (k === 'html') node.innerHTML = v;
-        else if (k.startsWith('data-')) node.setAttribute(k, v);
-        else if (k === 'disabled') node.disabled = Boolean(v);
-        else node.setAttribute(k, v);
-      }
-    }
-    if (children) {
-      for (const child of children) {
-        node.appendChild(typeof child === 'string' ? document.createTextNode(child) : child);
-      }
-    }
+    for (const [name, value] of Object.entries(attributes || {})) node.setAttribute(name, value);
+    if (text) node.textContent = text;
     return node;
   }
-
-  function buildUi() {
-    const fab = el('button', {
-      class: 'sw-chat-fab',
-      type: 'button',
-      'aria-label': 'Open SecureWave Assistant',
-      'aria-expanded': 'false',
-    }, [
-      el('span', { class: 'sw-chat-fab-dot', 'aria-hidden': 'true' }),
-      el('span', { class: 'sw-chat-fab-label', text: 'Help' }),
-    ]);
-
-    const panel = el('section', {
-      class: 'sw-chat-panel',
-      role: 'dialog',
-      'aria-label': 'SecureWave Assistant',
-      'aria-modal': 'false',
-      hidden: 'hidden',
-    });
-
-    const header = el('div', { class: 'sw-chat-header' });
-    const title = el('div', { class: 'sw-chat-title' }, [
-      el('div', { class: 'sw-chat-title-name', text: 'SecureWave Assistant' }),
-      el('div', { class: 'sw-chat-title-sub', text: 'Help choosing a plan, locally.' }),
-    ]);
-
-    const close = el('button', {
-      class: 'sw-chat-close',
-      type: 'button',
-      'aria-label': 'Close assistant',
-    }, [el('span', { 'aria-hidden': 'true', text: '×' })]);
-
-    header.appendChild(title);
-    header.appendChild(close);
-
-    const body = el('div', { class: 'sw-chat-body' });
-    const messages = el('div', { class: 'sw-chat-messages', 'data-sw-chat-messages': '1' });
-    const quick = el('div', { class: 'sw-chat-quick', 'data-sw-chat-quick': '1' });
-    body.appendChild(messages);
-    body.appendChild(quick);
-
-    const footer = el('div', { class: 'sw-chat-footer' });
-    const input = el('input', {
-      class: 'sw-chat-input',
-      type: 'text',
-      placeholder: 'Type a question (optional)',
-      autocomplete: 'off',
-      'aria-label': 'Message',
-    });
-    const send = el('button', { class: 'btn btn-secondary sw-chat-send', type: 'button', text: 'Send' });
-    footer.appendChild(input);
-    footer.appendChild(send);
-
-    panel.appendChild(header);
-    panel.appendChild(body);
-    panel.appendChild(footer);
-
-    return { fab, panel, messages, quick, close, input, send };
-  }
-
-  function assistantInit(options) {
-    const intent = (options && options.intent) || null;
-    let state = loadState() || defaultState(intent);
-    if (intent && state.intent !== intent) state.intent = intent;
-
-    const ui = buildUi();
-    document.body.appendChild(ui.fab);
-    document.body.appendChild(ui.panel);
-
-    function renderMessages() {
-      ui.messages.innerHTML = '';
-      for (const msg of state.messages) {
-        const isUser = msg.role === 'user';
-        ui.messages.appendChild(el('div', { class: isUser ? 'sw-chat-msg sw-chat-msg-user' : 'sw-chat-msg sw-chat-msg-bot' }, [
-          el('div', { class: 'sw-chat-bubble', text: msg.text }),
-        ]));
+  function init() {
+    if (instance) return instance;
+    const fab = element('button', {class: 'sw-chat-fab', type: 'button', 'aria-label': 'Open support chat', 'aria-expanded': 'false', 'aria-controls': 'sw-support-panel'}, 'Help');
+    const panel = element('section', {id: 'sw-support-panel', class: 'sw-chat-panel', role: 'dialog', 'aria-labelledby': 'sw-support-title'});
+    panel.hidden = true;
+    const header = element('div', {class: 'sw-chat-header'});
+    const heading = element('div');
+    heading.appendChild(element('h2', {id: 'sw-support-title', class: 'sw-chat-title'}, 'SecureWave support'));
+    heading.appendChild(element('p', {class: 'sw-chat-subtitle'}, 'Automated help · not a live agent'));
+    const closeButton = element('button', {type: 'button', class: 'sw-chat-close', 'aria-label': 'Close support chat'}, '×');
+    header.appendChild(heading); header.appendChild(closeButton);
+    const messages = element('div', {class: 'sw-chat-messages', role: 'log', 'aria-live': 'polite', 'aria-relevant': 'additions', 'aria-label': 'Support conversation', tabindex: '0'});
+    const quick = element('div', {class: 'sw-chat-quick', 'aria-label': 'Support topics'});
+    const form = element('form', {class: 'sw-chat-footer'});
+    const input = element('input', {class: 'sw-chat-input', type: 'text', maxlength: '500', placeholder: 'Ask a support question', autocomplete: 'off', 'aria-label': 'Your support question'});
+    const send = element('button', {class: 'btn btn-secondary sw-chat-send', type: 'submit'}, 'Send');
+    form.appendChild(input); form.appendChild(send);
+    panel.appendChild(header); panel.appendChild(messages); panel.appendChild(quick); panel.appendChild(form);
+    document.body.appendChild(fab); document.body.appendChild(panel);
+    function push(text, isUser, links) {
+      const bubble = element('div', {class: isUser ? 'sw-chat-bubble sw-chat-bubble-user' : 'sw-chat-bubble'});
+      bubble.appendChild(element('p', {}, text));
+      if (links && links.length) {
+        const actions = element('div', {class: 'sw-chat-links'});
+        for (const [label, href] of links) actions.appendChild(element('a', {href}, label));
+        bubble.appendChild(actions);
       }
-      ui.messages.scrollTop = ui.messages.scrollHeight;
+      messages.appendChild(bubble);
+      while (messages.children.length > 40) messages.removeChild(messages.firstChild);
+      messages.scrollTop = messages.scrollHeight;
     }
-
-    function setQuickReplies(replies) {
-      ui.quick.innerHTML = '';
-      if (!replies || replies.length === 0) return;
-      for (const r of replies) {
-        const b = el('button', { class: 'sw-chat-chip', type: 'button', text: r.label, 'data-value': r.value });
-        b.addEventListener('click', () => onQuickReply(r.value, r.label));
-        ui.quick.appendChild(b);
-      }
+    function reply(key) { const topic = topics[key]; push(topic.text, false, topic.links); }
+    for (const [key, topic] of Object.entries(topics)) {
+      const button = element('button', {class: 'sw-chat-chip', type: 'button'}, topic.label);
+      button.addEventListener('click', () => { push(topic.label, true); reply(key); });
+      quick.appendChild(button);
     }
-
-    function push(role, text) {
-      state.messages.push({ role, text, ts: Date.now() });
-      saveState(state);
-      renderMessages();
-    }
-
-    function restart(intentOverride) {
-      const nextIntent = intentOverride || state.intent || 'general';
-      state = defaultState(nextIntent);
-      saveState(state);
-      push('bot', "Hi. I can help you pick a plan. What's your main use-case?");
-      state.step = 0;
-      saveState(state);
-      setQuickReplies([
-        { label: 'Browsing / email', value: 'use:browsing' },
-        { label: 'Work / remote access', value: 'use:work' },
-        { label: 'Streaming / gaming', value: 'use:streaming' },
-        { label: 'Travel / public Wi-Fi', value: 'use:travel' },
-        { label: 'Other', value: 'use:other' },
-      ]);
-    }
-
-    function showRecommendation() {
-      const rec = computeRecommendation(state.answers);
-      push('bot', `Recommendation: ${rec.plan} (${rec.price}/mo). ${rec.summary}`);
-      for (const b of rec.bullets) push('bot', `• ${b}`);
-      push('bot', 'Next steps: create an account, then download the app to connect.');
-
-      setQuickReplies([
-        { label: 'Create account', value: `go:${rec.cta.href}` },
-        { label: 'Download', value: 'go:/home.html#download' },
-        { label: 'Compare plans', value: 'go:/subscription.html' },
-        { label: 'Start over', value: 'restart' },
-      ]);
-    }
-
-    function advance() {
-      if (state.step === 0) {
-        push('bot', 'How many devices do you want to protect?');
-        state.step = 1;
-        saveState(state);
-        setQuickReplies([
-          { label: '1 device', value: 'devices:1' },
-          { label: '2-3 devices', value: 'devices:2-3' },
-          { label: '4+ devices', value: 'devices:4+' },
-        ]);
-        return;
-      }
-
-      if (state.step === 1) {
-        push('bot', 'Where do you use SecureWave most often?');
-        state.step = 2;
-        saveState(state);
-        setQuickReplies([
-          { label: 'North America', value: 'region:na' },
-          { label: 'Europe', value: 'region:eu' },
-          { label: 'Asia-Pacific', value: 'region:apac' },
-          { label: 'Multiple regions', value: 'region:multiple' },
-          { label: 'Mostly traveling', value: 'region:travel' },
-        ]);
-        return;
-      }
-
-      if (state.step === 2) {
-        state.step = 3;
-        saveState(state);
-        showRecommendation();
-      }
-    }
-
-    function onQuickReply(value, label) {
-      if (value === 'restart') {
-        restart(state.intent);
-        return;
-      }
-
-      if (value.startsWith('go:')) {
-        const href = value.slice('go:'.length);
-        window.location.href = href;
-        return;
-      }
-
-      push('user', label);
-
-      const [k, v] = value.split(':', 2);
-      if (k === 'use') state.answers.useCase = v;
-      if (k === 'devices') state.answers.devices = v;
-      if (k === 'region') state.answers.region = v;
-      saveState(state);
-
-      advance();
-    }
-
+    let returnFocus = fab;
     function open() {
-      ui.panel.hidden = false;
-      ui.fab.setAttribute('aria-expanded', 'true');
-      ui.panel.classList.add('open');
-      ui.input.focus({ preventScroll: true });
+      if (panel.hidden) returnFocus = document.activeElement || fab;
+      panel.hidden = false; fab.setAttribute('aria-expanded', 'true');
+      input.focus({preventScroll: true});
     }
-
     function close() {
-      ui.panel.classList.remove('open');
-      ui.fab.setAttribute('aria-expanded', 'false');
-      ui.panel.hidden = true;
-      ui.fab.focus({ preventScroll: true });
+      panel.hidden = true; fab.setAttribute('aria-expanded', 'false');
+      if (returnFocus && typeof returnFocus.focus === 'function') returnFocus.focus({preventScroll: true});
     }
-
-    function toggle() {
-      if (ui.panel.hidden) open();
-      else close();
-    }
-
-    ui.fab.addEventListener('click', toggle);
-    ui.close.addEventListener('click', close);
-
-    function sendFreeform() {
-      const text = (ui.input.value || '').trim();
+    fab.addEventListener('click', () => panel.hidden ? open() : close());
+    closeButton.addEventListener('click', close);
+    form.addEventListener('submit', (event) => {
+      event.preventDefault();
+      const text = (input.value || '').trim().slice(0, 500);
       if (!text) return;
-      ui.input.value = '';
-      push('user', text);
-
-      // Minimal offline behavior: steer back to the guided flow.
-      if (state.step < 3) {
-        push('bot', "For the best recommendation, use the quick questions below.");
-        return;
-      }
-
-      push('bot', 'I can help you restart the plan chooser, or you can compare plans.');
-      setQuickReplies([
-        { label: 'Start over', value: 'restart' },
-        { label: 'Compare plans', value: 'go:/subscription.html' },
-        { label: 'Download', value: 'go:/home.html#download' },
-      ]);
-    }
-
-    ui.send.addEventListener('click', sendFreeform);
-    ui.input.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter') {
-        e.preventDefault();
-        sendFreeform();
-      } else if (e.key === 'Escape') {
-        close();
-      }
+      input.value = ''; push(text, true);
+      const key = findTopic(text);
+      if (key) reply(key);
+      else if (/^(hi|hello|hey|thanks|thank you)[.!\s]*$/i.test(text)) push('Hello! Choose a topic below, or ask about installation, sign-in, plans or your VPN connection.', false);
+      else push('I do not have a specific answer for that question. Choose a support topic below, or contact support for help with your situation.', false, topics.contact.links);
+      input.focus({preventScroll: true});
     });
-
-    document.addEventListener('keydown', (e) => {
-      if (e.key === 'Escape' && !ui.panel.hidden) close();
+    document.addEventListener('keydown', (event) => {
+      if (event.key === 'Escape' && !panel.hidden) { event.preventDefault(); close(); }
     });
-
-    // External triggers: any element with data-open-assistant opens the panel.
-    document.addEventListener('click', (e) => {
-      const target = e.target && e.target.closest ? e.target.closest('[data-open-assistant]') : null;
-      if (!target) return;
-      e.preventDefault();
-      open();
-      if (state.messages.length === 0) restart(target.getAttribute('data-assistant-intent') || state.intent);
+    document.addEventListener('click', (event) => {
+      const trigger = event.target && event.target.closest ? event.target.closest('[data-open-assistant]') : null;
+      if (trigger) { event.preventDefault(); open(); }
     });
-
-    if (state.messages.length === 0) {
-      restart(state.intent);
-    } else {
-      renderMessages();
-      // Rebuild quick replies based on step.
-      if (state.step === 0) {
-        setQuickReplies([
-          { label: 'Browsing / email', value: 'use:browsing' },
-          { label: 'Work / remote access', value: 'use:work' },
-          { label: 'Streaming / gaming', value: 'use:streaming' },
-          { label: 'Travel / public Wi-Fi', value: 'use:travel' },
-          { label: 'Other', value: 'use:other' },
-        ]);
-      } else if (state.step === 1) {
-        setQuickReplies([
-          { label: '1 device', value: 'devices:1' },
-          { label: '2-3 devices', value: 'devices:2-3' },
-          { label: '4+ devices', value: 'devices:4+' },
-        ]);
-      } else if (state.step === 2) {
-        setQuickReplies([
-          { label: 'North America', value: 'region:na' },
-          { label: 'Europe', value: 'region:eu' },
-          { label: 'Asia-Pacific', value: 'region:apac' },
-          { label: 'Multiple regions', value: 'region:multiple' },
-          { label: 'Mostly traveling', value: 'region:travel' },
-        ]);
-      } else {
-        setQuickReplies([
-          { label: 'Compare plans', value: 'go:/subscription.html' },
-          { label: 'Download', value: 'go:/home.html#download' },
-          { label: 'Start over', value: 'restart' },
-        ]);
-      }
-    }
-
-    return { open, close, restart };
+    push('Hi! I can help with downloads, account access, plans and connection problems. Choose a topic or type a question. Please do not share passwords, payment details or verification codes.', false);
+    instance = {open, close};
+    return instance;
   }
-
-  window.SecureWaveAssistant = {
-    init: assistantInit,
-  };
+  window.SecureWaveAssistant = {init};
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init, {once: true});
+  else init();
 })();

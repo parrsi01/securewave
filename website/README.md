@@ -14,6 +14,7 @@ October 2026 update changes readability, copy and download publication only.
 | `static/download.html` | Supported release, compatibility and installation steps |
 | `static/css/web_ui_v1.css` | Shared typography and existing responsive visual system |
 | `static/js/downloads.js` | Verified catalog rendering and compatible-device recommendation |
+| `static/js/chat_assistant.js` | Shared automated support widget on every HTML page |
 | `static/js/site.js` | Navigation and published VPN app version display |
 | `static/downloads/manifest.json` | The single public 1.0.0 package and exact checksum/source identity |
 | `patches/download-catalog-version.patch` | Website download router correction on the separate production backend |
@@ -33,6 +34,8 @@ From the repository root:
 ```sh
 python3 -m http.server 8080 --directory website/static
 node website/tests/check_download_selector.cjs
+node website/tests/check_support_widget.cjs
+node website/tests/check_account_navigation.cjs
 python3 website/tests/check_design_contract.py
 python3 website/tests/verify_public_downloads.py
 ```
@@ -62,3 +65,24 @@ it downloads package bytes and checks compatibility and retired URLs.
 
 See [the publication record](../docs/development/website-readability-2026-10-06.md)
 for the completed update and its verification limits.
+
+## Support assistant
+
+Every HTML page loads the same standalone support script, including sign-in,
+registration, verification and error pages that do not load the marketing
+script. The Help button opens a keyboard-accessible, responsive panel with
+topic buttons and typed questions. Answers cover the published package,
+account access, pricing, VPN connection troubleshooting, usage and privacy.
+Unrecognized or account-specific requests link to the contact page.
+
+This is local automated guidance, not a generative AI service or a live agent.
+It does not inspect accounts, collect payment, submit tickets, persist chat
+messages or call a chat backend. Rendering uses plain text to prevent injected
+markup. Initialization is idempotent and does not depend on browser storage.
+The review workflow runs the website interaction and design checks. Visual
+inspection in an actual browser remains unavailable in this session.
+
+The sign-in page uses an open layout without the old form card. Its fields
+now use a centered reading width rather than stretching across wide screens.
+Dashboard links start hidden and appear only after the cookie-session endpoint
+confirms authentication. Cached email text is never used as session proof.

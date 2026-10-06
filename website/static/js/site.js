@@ -35,11 +35,19 @@ document.addEventListener('DOMContentLoaded', () => {
     return '';
   };
 
+  const accountSession = fetch('/api/auth/session', { credentials: 'include', cache: 'no-store' })
+    .then((res) => res.ok ? res.json() : null)
+    .catch(() => null);
+  accountSession.then((session) => {
+    const signedIn = session?.authenticated === true;
+    document.querySelectorAll('[data-auth-only]').forEach((link) => { link.hidden = !signedIn; });
+    document.querySelectorAll('[data-guest-only]').forEach((link) => { link.hidden = signedIn; });
+  });
+
   if (navActions) {
-    fetch('/api/auth/session', { credentials: 'include' })
-      .then((res) => res.ok ? res.json() : null)
+    accountSession
       .then((session) => {
-        if (!session?.authenticated) return;
+        if (session?.authenticated !== true) return;
         navActions.innerHTML =
           '<a class="btn btn-ghost btn-sm" href="/dashboard">Dashboard</a>' +
           '<button class="btn btn-secondary btn-sm" type="button" data-logout>Sign out</button>';
@@ -249,25 +257,4 @@ document.addEventListener('DOMContentLoaded', () => {
       '</svg>';
   }
 
-  /* ── Load assistant widget ── */
-  const ensureAssistant = () => {
-    if (window.SecureWaveAssistant && typeof window.SecureWaveAssistant.init === 'function') {
-      window.SecureWaveAssistant.init({});
-      return;
-    }
-    if (document.querySelector('script[data-sw-assistant]')) return;
-    const script = document.createElement('script');
-    script.src = '/js/chat_assistant.js';
-    script.defer = true;
-    script.setAttribute('data-sw-assistant', '1');
-    script.addEventListener('load', () => {
-      try {
-        if (window.SecureWaveAssistant && typeof window.SecureWaveAssistant.init === 'function') {
-          window.SecureWaveAssistant.init({});
-        }
-      } catch { /* ignore */ }
-    });
-    document.head.appendChild(script);
-  };
-  ensureAssistant();
 });

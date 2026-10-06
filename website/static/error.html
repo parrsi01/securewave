@@ -7,7 +7,7 @@
   <meta name="ui-version" content="UI_VERSION v1.0">
   <title>Error - SecureWave</title>
   <meta name="description" content="A SecureWave error occurred while loading the requested page." />
-  <link rel="stylesheet" href="/css/web_ui_v1.css?v=20261006-readability">
+  <link rel="stylesheet" href="/css/web_ui_v1.css?v=20261006-open-login">
   <link rel="icon" type="image/svg+xml" href="/favicon.svg?v=20260719">
 </head>
 <body>
@@ -19,10 +19,12 @@
       <p class="subtitle" style="margin-top: var(--space-3);">Retry from the dashboard or return to the homepage if the action is no longer available.</p>
       <div class="stat-list" style="margin-top: var(--space-5);">
         <a class="btn btn-primary" href="/">Go to home</a>
-        <a class="btn btn-secondary" href="/dashboard.html">Open dashboard</a>
+        <a class="btn btn-secondary" href="/dashboard.html" data-auth-only hidden>Open dashboard</a>
         <a class="btn btn-ghost" href="/contact.html">Support center</a>
       </div>
     </div>
   </main>
+  <script src="/js/chat_assistant.js?v=20261006-support" defer></script>
+  <script src="/js/site.js?v=20261006-account-nav" defer></script>
 </body>
 </html>

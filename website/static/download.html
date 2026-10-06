@@ -7,7 +7,7 @@
   <meta name="ui-version" content="UI_VERSION v1.0">
   <title>Download - SecureWave</title>
   <meta name="description" content="Download SecureWave VPN 1.0.0 for Ubuntu 24.04 ARM64, with a SHA-256 checksum and clear installation steps." />
-  <link rel="stylesheet" href="/css/web_ui_v1.css?v=20261006-readability">
+  <link rel="stylesheet" href="/css/web_ui_v1.css?v=20261006-open-login">
   <link rel="icon" type="image/svg+xml" href="/favicon.svg?v=20260719">
 </head>
 <body>
@@ -50,7 +50,7 @@
             <p class="subtitle" style="margin-top: var(--space-3);" data-reco-notes></p>
             <div class="stat-list" style="margin-top: var(--space-5);">
               <a class="btn btn-primary" data-reco-link href="#" rel="nofollow">Download</a>
-              <a class="btn btn-secondary" href="/dashboard.html">Open dashboard</a>
+              <a class="btn btn-secondary" href="/dashboard.html" data-auth-only hidden>Open dashboard</a>
             </div>
           </aside>
         </div>
@@ -61,7 +61,7 @@
           <div class="section-header">
             <span class="eyebrow">Current release</span>
             <h2>SecureWave VPN 1.0.0</h2>
-            <p class="text-measure">Download the Debian package below. The SHA-256 checksum lets you verify that your file matches the published package. Other platform installers are not currently available.</p>
+            <p class="text-measure">Download the DEB file below.</p>
           </div>
           <div class="grid" data-download-grid>
             <div class="card">
@@ -97,7 +97,7 @@
             <div class="footer-title">Account</div>
             <a href="/register.html">Create account</a>
             <a href="/login.html">Sign in</a>
-            <a href="/dashboard.html">Dashboard</a>
+            <a href="/dashboard.html" data-auth-only hidden>Dashboard</a>
           </div>
           <div class="footer-column">
             <div class="footer-title">Support</div>
@@ -112,7 +112,8 @@
     </footer>
   </div>
 
-  <script src="/js/site.js?v=20261006-readability" defer></script>
-  <script src="/js/downloads.js?v=20261006-1.0.0" defer></script>
+  <script src="/js/site.js?v=20261006-account-nav" defer></script>
+  <script src="/js/downloads.js?v=20261006-simple-card" defer></script>
+  <script src="/js/chat_assistant.js?v=20261006-support" defer></script>
 </body>
 </html>
