@@ -9,7 +9,8 @@ on 2026-10-04. Independent post-reboot release acceptance remains open.
 The **4.0.0+12 usage-recording candidate** is installed locally and its usage
 backend is deployed. Real Connect, traffic, Disconnect and app-crash final
 reporting passed against production. The public download remains 4.0.0+11
-while installed restart recovery and post-reboot checks are pending. See the
+while post-reboot checks are pending. Installed queued-report recovery through
+a helper restart also passed. See the
 [candidate verification record](docs/releases/4.0.0+12-verification.md).
 
 ## Download and install
