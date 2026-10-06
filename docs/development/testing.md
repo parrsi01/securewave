@@ -54,8 +54,19 @@ Reconnect and final Disconnect, checking helper/peer/handshake/counters,
 route/DNS/egress and baseline restoration. The `register` operation creates a
 live disposable account and is used only when explicitly authorized.
 
-The harness does not independently close the final production-ledger gate.
-Verify owner-scoped usage history separately. Retain raw evidence privately;
-publish a redacted result tied to package/source identity. The installed
-4.0.0+12 post-reboot run remains at the baseline/cold-launch stage because its
-session expired. See [current state](../current-state.md).
+The lifecycle harness does not independently close the final production-ledger
+gate. A companion
+[`securewave_usage_history_acceptance.py`](../../scripts/securewave_usage_history_acceptance.py)
+is prepared to check owner-scoped history. After private sign-in, run its
+`before` operation with the same `--evidence-dir`, run the lifecycle harness,
+then run its `after` operation. It checks two new finalized version-2 sessions,
+complete quality, verification timestamps and totals covering independently
+observed traffic. It uses the installed app's account token only in process
+memory through libsecret, refuses redirects, and stores only permitted history
+fields. The desktop also needs `gir1.2-secret-1`. This new verifier has passed
+syntax/CLI checks; positive live verification awaits sign-in.
+
+Retain raw evidence privately; publish a redacted result tied to package/source
+identity. The 1.0.0 installation and baseline checks passed; authenticated
+lifecycle and an additional boot with 1.0.0 installed remain open. See
+[current state](../current-state.md).

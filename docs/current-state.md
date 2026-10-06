@@ -40,12 +40,19 @@ Draft assets are owner-visible until publication. Building source does not
 replace the installed package or change existing public downloads; follow the
 [release procedure](development/releasing.md) for that transition.
 
-The VM currently has the historical **4.0.0+12** ARM64 usage candidate, source
-`c90dc03f5ccbab5fffb2fcaefedc72ea36e34527`, clean tree, helper contract 15.
-The new boot began **2026-10-06 08:37:39 UTC**. Helper startup, disconnected
-baseline networking and visible cold launch passed. The app's saved session
-expired; authenticated post-reboot lifecycle and final usage history remain
-pending private sign-in. No 1.0.0 installed/reboot acceptance is claimed.
+The VM now has **1.0.0 installed**, with source
+`a9181ea8828d6b66557260042bbbcde0675c0e84`, clean tree, ARM64 and helper contract
+15. Administrator-authenticated installation completed on
+**2026-10-06 at 18:20:02 UTC**, following recovery from laptop power loss.
+The installed executable, AOT library, helper and reporter match the verified
+package byte for byte. Both services are active; visible cold launch,
+disconnected runtime, absence of stale interface/configuration, route/DNS/egress
+baseline and production API readiness passed.
+
+The VM's current boot began **2026-10-06 at 11:03:01 UTC**, before the 1.0.0
+installation. The app is on Sign in. Authenticated lifecycle and final usage
+history are pending private sign-in. A reboot *with 1.0.0 installed* and its
+subsequent lifecycle still need separate evidence; neither is claimed complete.
 
 The existing public release baseline is **4.0.0+11**; its publication record is
 [archived](archive/releases/4.0.0+11-publication.md). No deployment or website
