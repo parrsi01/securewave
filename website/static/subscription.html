@@ -7,7 +7,7 @@
   <meta name="ui-version" content="UI_VERSION v1.0">
   <title>Plans - SecureWave</title>
   <meta name="description" content="Compare Free and Premium plans, monthly and annual prices, device limits, and SecureWave 1.0.0 compatibility." />
-  <link rel="stylesheet" href="/css/web_ui_v1.css?v=20261006-support">
+  <link rel="stylesheet" href="/css/web_ui_v1.css?v=20261006-open-login">
   <link rel="icon" type="image/svg+xml" href="/favicon.svg?v=20260719">
 </head>
 <body>
@@ -23,7 +23,7 @@
             <a class="nav-link" href="/">Home</a>
             <a class="nav-link" href="/services.html">Services</a>
             <a class="nav-link active" href="/subscription.html" aria-current="page">Plans</a>
-            <a class="nav-link" href="/dashboard.html">Dashboard</a>
+            <a class="nav-link" href="/dashboard.html" data-auth-only hidden>Dashboard</a>
             <a class="nav-link" href="/contact.html">Support</a>
           </nav>
           <div class="nav-actions">
@@ -63,7 +63,8 @@
                 <li>Priority support</li>
                 <li>Up to 5 VPN devices</li>
               </ul>
-              <a class="btn btn-primary" style="margin-top: var(--space-5);" href="/dashboard.html">View account plans</a>
+              <a class="btn btn-primary" style="margin-top: var(--space-5);" href="/dashboard.html" data-auth-only hidden>View account plans</a>
+              <a class="btn btn-primary" style="margin-top: 24px;" href="/login.html" data-guest-only>Sign in to view account plans</a>
             </article>
           </div>
         </div>
@@ -117,7 +118,7 @@
             <div class="footer-title">Account</div>
             <a href="/register.html">Create account</a>
             <a href="/login.html">Sign in</a>
-            <a href="/dashboard.html">Dashboard</a>
+            <a href="/dashboard.html" data-auth-only hidden>Dashboard</a>
           </div>
           <div class="footer-column">
             <div class="footer-title">Legal</div>
@@ -130,7 +131,7 @@
     </footer>
   </div>
   <script src="/js/bootstrap.bundle.min.js" defer></script>
-  <script src="/js/site.js?v=20261006-support" defer></script>
+  <script src="/js/site.js?v=20261006-account-nav" defer></script>
   <script src="/js/chat_assistant.js?v=20261006-support" defer></script>
 </body>
 </html>

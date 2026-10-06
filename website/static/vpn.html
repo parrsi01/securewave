@@ -7,7 +7,7 @@
   <meta name="ui-version" content="UI_VERSION v1.0">
   <title>VPN App - SecureWave</title>
   <meta name="description" content="The SecureWave app handles VPN connection, routing, and diagnostics on your device." />
-  <link rel="stylesheet" href="/css/web_ui_v1.css?v=20261006-support">
+  <link rel="stylesheet" href="/css/web_ui_v1.css?v=20261006-open-login">
   <link rel="icon" type="image/svg+xml" href="/favicon.svg?v=20260719">
 </head>
 <body>
@@ -23,7 +23,7 @@
             <a class="nav-link" href="/">Home</a>
             <a class="nav-link" href="/services.html">Services</a>
             <a class="nav-link" href="/subscription.html">Plans</a>
-            <a class="nav-link" href="/dashboard.html">Dashboard</a>
+            <a class="nav-link" href="/dashboard.html" data-auth-only hidden>Dashboard</a>
             <a class="nav-link active" href="/vpn.html" aria-current="page">VPN app</a>
           </nav>
           <div class="nav-actions">
@@ -94,7 +94,7 @@
             <div class="footer-title">Account</div>
             <a href="/login.html">Sign in</a>
             <a href="/register.html">Create account</a>
-            <a href="/dashboard.html">Dashboard</a>
+            <a href="/dashboard.html" data-auth-only hidden>Dashboard</a>
           </div>
           <div class="footer-column">
             <div class="footer-title">Support</div>
@@ -107,7 +107,7 @@
     </footer>
   </div>
   <script src="/js/bootstrap.bundle.min.js" defer></script>
-  <script src="/js/site.js?v=20261006-support" defer></script>
+  <script src="/js/site.js?v=20261006-account-nav" defer></script>
   <script src="/js/chat_assistant.js?v=20261006-support" defer></script>
 </body>
 </html>

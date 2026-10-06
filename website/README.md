@@ -35,6 +35,7 @@ From the repository root:
 python3 -m http.server 8080 --directory website/static
 node website/tests/check_download_selector.cjs
 node website/tests/check_support_widget.cjs
+node website/tests/check_account_navigation.cjs
 python3 website/tests/check_design_contract.py
 python3 website/tests/verify_public_downloads.py
 ```
@@ -80,3 +81,7 @@ messages or call a chat backend. Rendering uses plain text to prevent injected
 markup. Initialization is idempotent and does not depend on browser storage.
 The review workflow runs the website interaction and design checks. Visual
 inspection in an actual browser remains unavailable in this session.
+
+The sign-in page uses a full-width open layout, without the old form card.
+Dashboard links start hidden and appear only after the cookie-session endpoint
+confirms authentication. Cached email text is never used as session proof.

@@ -35,9 +35,17 @@ document.addEventListener('DOMContentLoaded', () => {
     return '';
   };
 
+  const accountSession = fetch('/api/auth/session', { credentials: 'include', cache: 'no-store' })
+    .then((res) => res.ok ? res.json() : null)
+    .catch(() => null);
+  accountSession.then((session) => {
+    const signedIn = session?.authenticated === true;
+    document.querySelectorAll('[data-auth-only]').forEach((link) => { link.hidden = !signedIn; });
+    document.querySelectorAll('[data-guest-only]').forEach((link) => { link.hidden = signedIn; });
+  });
+
   if (navActions) {
-    fetch('/api/auth/session', { credentials: 'include' })
-      .then((res) => res.ok ? res.json() : null)
+    accountSession
       .then((session) => {
         if (!session?.authenticated) return;
         navActions.innerHTML =

@@ -76,3 +76,4 @@ jobs:
       - run: python3 website/tests/check_design_contract.py
       - run: node website/tests/check_download_selector.cjs
       - run: node website/tests/check_support_widget.cjs
+      - run: node website/tests/check_account_navigation.cjs
