@@ -48,8 +48,8 @@ class VPNConnection(Base):
             "uq_vpn_connection_active_device",
             "device_id",
             unique=True,
-            postgresql_where=text("device_id IS NOT NULL AND disconnected_at IS NULL"),
-            sqlite_where=text("device_id IS NOT NULL AND disconnected_at IS NULL"),
+            postgresql_where=text("device_id IS NOT NULL AND disconnected_at IS NULL AND metering_version = 1"),
+            sqlite_where=text("device_id IS NOT NULL AND disconnected_at IS NULL AND metering_version = 1"),
         ),
     )
 

@@ -119,12 +119,15 @@ class UsageMeteringService:
             raise UsageDeviceServerMismatch()
 
         now = datetime.utcnow()
-        # A reconnect finalizes any prior control-plane record for this device.
+        # Legacy starts supersede legacy records. A v2 session ends only when
+        # its recorder observes teardown, including a final report replayed
+        # after an offline reconnect. An API start is not tunnel-exit evidence.
         self.db.execute(
             update(VPNConnection)
             .where(
                 VPNConnection.user_id == user_id,
                 VPNConnection.device_id == device_id,
+                VPNConnection.metering_version == 1,
                 VPNConnection.disconnected_at.is_(None),
             )
             .values(disconnected_at=now, finalization_reason="reconnect")

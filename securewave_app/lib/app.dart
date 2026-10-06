@@ -481,6 +481,10 @@ class _HomeViewState extends State<_HomeView> {
       _countersAvailable = false;
     });
     try {
+      if (await _vpn.refreshRuntimeStatus() == VpnStatus.connected) {
+        throw const VpnServiceException(
+            'Another SecureWave window already controls the VPN.');
+      }
       final baseline = await _vpn.getPublicIp();
       _baselinePublicIp = baseline;
       await _storage.write(key: _baselineKey, value: baseline);
@@ -579,7 +583,7 @@ class _HomeViewState extends State<_HomeView> {
             'Could not safely restore the normal internet connection.';
       }
     }
-    await _storage.delete(key: _baselineKey);
+    if (_baselinePublicIp != null) await _storage.delete(key: _baselineKey);
     _baselinePublicIp = null;
     return cleanupError;
   }

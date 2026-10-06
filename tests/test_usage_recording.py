@@ -65,7 +65,7 @@ def test_reconnect_accepts_old_recorders_final_tail(provisioning):
     service, first = session(provisioning)
     checkpoint(service, first)
     _, second = session(provisioning, "test-start-2")
-    assert first.disconnected_at is not None
+    assert first.disconnected_at is None  # A new API request cannot end a real tunnel.
     checkpoint(service, first, sequence=2, sent=150, received=250, final=True)
     checkpoint(service, second, sent=10, received=20, final=True)
     peer = provisioning["db"].query(WireGuardPeer).filter_by(id=first.device_id).one()

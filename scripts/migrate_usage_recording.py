@@ -20,6 +20,8 @@ def migrate():
         "ALTER TABLE wireguard_peers ADD COLUMN IF NOT EXISTS server_transfer_tx BIGINT NOT NULL DEFAULT 0",
         "ALTER TABLE wireguard_peers ADD COLUMN IF NOT EXISTS server_snapshot_at TIMESTAMP",
         "ALTER TABLE vpn_usage_events ADD COLUMN IF NOT EXISTS payload_digest VARCHAR(64)",
+        "DROP INDEX IF EXISTS uq_vpn_connection_active_device",
+        "CREATE UNIQUE INDEX uq_vpn_connection_active_device ON vpn_connections (device_id) WHERE device_id IS NOT NULL AND disconnected_at IS NULL AND metering_version = 1",
     ]
     with engine.begin() as connection:
         for statement in statements:
