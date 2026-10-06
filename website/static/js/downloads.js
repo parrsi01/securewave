@@ -32,11 +32,6 @@ function renderCard(entry) {
     coming_soon: ['Coming soon', 'badge-muted'],
   };
   const [status, badgeClass] = statusMap[entry.status] || statusMap.coming_soon;
-  const size = entry.size_display ? ` • ${entry.size_display}` : '';
-  const notes = entry.notes ? `<p class="muted">${escapeHtml(entry.notes)}</p>` : '';
-  const checksum = entry.checksum_sha256
-    ? `<p class="muted" style="word-break: break-all">SHA256 ${escapeHtml(entry.checksum_sha256)}</p>`
-    : '';
   const evidence = entry.evidence_url
     ? `<a class="btn btn-secondary btn-block" href="${escapeHtml(entry.evidence_url)}" rel="nofollow noopener">View ${escapeHtml(entry.evidence_label || 'build evidence')}</a>`
     : '';
@@ -55,9 +50,8 @@ function renderCard(entry) {
           <span class="badge ${badgeClass}">${escapeHtml(status)}</span>
         </div>
         <p class="muted" style="margin-top: var(--space-2); margin-bottom: 0">
-          v${escapeHtml(entry.version || '--')}${escapeHtml(size)}
+          v.${escapeHtml(entry.version || '--')} • DEB file
         </p>
-        <div style="margin-top: var(--space-3)">${notes}${checksum}</div>
         <div style="margin-top: var(--space-3)">
           ${action}
         </div>
@@ -119,7 +113,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       const platformEl = document.querySelector('[data-reco-platform]');
       const notesEl = document.querySelector('[data-reco-notes]');
       if (platformEl) platformEl.textContent = platformLabel(data.platform);
-      if (notesEl) notesEl.textContent = 'SecureWave 1.0.0 for Ubuntu 24.04 ARM64. Check compatibility before installing.';
+      if (notesEl) notesEl.textContent = 'v.1.0.0 • DEB file';
       if (link) link.setAttribute('href', data.recommended_download);
     }
   } catch (_) {
@@ -142,7 +136,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         const platformEl = document.querySelector('[data-reco-platform]');
         const notesEl = document.querySelector('[data-reco-notes]');
         if (platformEl) platformEl.textContent = platformLabel(recommended.platform);
-        if (notesEl) notesEl.textContent = recommended.notes || 'Recommended for this device.';
+        if (notesEl) notesEl.textContent = `v.${recommended.version} • DEB file`;
         if (link) link.setAttribute('href', recommended.url);
       }
     }
