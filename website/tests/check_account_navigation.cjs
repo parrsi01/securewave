@@ -5,10 +5,11 @@ async function check(session, fail = false, ok = true) {
   const protectedLinks = [{hidden: true}, {hidden: true}];
   const guestLinks = [{hidden: false}];
   let ready;
+  const navActions = {innerHTML: "", querySelector() {return null;}};
   const document = {
     cookie: '',
     addEventListener(type, callback) { if (type === 'DOMContentLoaded') ready = callback; },
-    querySelector() {return null;},
+    querySelector(selector) {return selector === ".nav-actions" ? navActions : null;},
     getElementById() {return null;},
     querySelectorAll(selector) {
       if (selector === '[data-auth-only]') return protectedLinks;
@@ -28,6 +29,7 @@ async function check(session, fail = false, ok = true) {
   const authenticated = !fail && ok && session?.authenticated === true;
   assert(protectedLinks.every(link => link.hidden === !authenticated));
   assert.equal(guestLinks[0].hidden, authenticated);
+  assert.equal(navActions.innerHTML.includes("Dashboard"), authenticated);
   assert.equal(requests.length, 1);
   assert.equal(requests[0].url, '/api/auth/session');
   assert.equal(requests[0].options.credentials, 'include');

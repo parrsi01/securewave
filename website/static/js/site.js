@@ -47,7 +47,7 @@ document.addEventListener('DOMContentLoaded', () => {
   if (navActions) {
     accountSession
       .then((session) => {
-        if (!session?.authenticated) return;
+        if (session?.authenticated !== true) return;
         navActions.innerHTML =
           '<a class="btn btn-ghost btn-sm" href="/dashboard">Dashboard</a>' +
           '<button class="btn btn-secondary btn-sm" type="button" data-logout>Sign out</button>';
