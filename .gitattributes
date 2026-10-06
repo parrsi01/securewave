@@ -1,0 +1,2 @@
+# Generated report artifacts are binary; keep diffs and whitespace checks textual.
+*.pdf binary
