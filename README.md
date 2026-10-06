@@ -38,6 +38,7 @@ database/          Database engine, sessions, and model metadata
 infrastructure/    Server provisioning and systemd integration
 scripts/           Development, migration, packaging, acceptance entrypoints
 tests/             Backend contracts and real PostgreSQL checks
+website/           Public website source, download manifest and verification
 docs/portfolio/    Recruiter overview and engineering review guide
 docs/research/     Research-style chapters, figures, and PDF
 docs/development/  Reproducible workflows, testing, release procedures
@@ -77,3 +78,6 @@ The [technical monograph](docs/research/README.md) adopts the research-question,
 system-model, algorithm, and evaluation structure of
 [my anomaly-detection paper](https://github.com/parrsi01/Decentralized-Federated-Detection-of-Network-Anomalies-in-Mobile-Networks/blob/main/Research/IEEE_conference_paper_simon_parris.pdf).
 It provides original VPN-specific analysis as an engineering case study.
+
+Website source and preview instructions: [website/README.md](website/README.md).
+The public website offers only the verified **1.0.0 Linux ARM64** package.

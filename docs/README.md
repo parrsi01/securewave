@@ -7,6 +7,7 @@
 | Read architecture and algorithms | [Research monograph](research/README.md) |
 | Find current source/runtime evidence | [Current state](current-state.md) |
 | Build, test, configure, and package | [Development workflows](development/workflows.md) |
+| Review website changes and publication | [Website readability record](development/website-readability-2026-10-06.md) |
 | Consult older evidence | [Archive index](archive/README.md) |
 
 Current source: **1.0.0** on **master**. Historical documents retain original

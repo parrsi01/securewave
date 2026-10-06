@@ -62,9 +62,12 @@ The VM's current boot began **2026-10-06 at 11:03:01 UTC**, before the 1.0.0
 installation. A reboot *with 1.0.0 installed* and its subsequent lifecycle
 still need separate evidence; this final gate is not claimed complete.
 
-The existing public release baseline is **4.0.0+11**; its publication record is
-[archived](archive/releases/4.0.0+11-publication.md). No deployment or website
-publication is part of this source/documentation consolidation.
+The website now offers **1.0.0 only**, published on 2026-10-06 with matching
+package bytes and source provenance. See the [website publication record](development/website-readability-2026-10-06.md)
+for catalogs, checksums, retired URLs, readability changes and validation limits.
+The previous **4.0.0+11** publication is [archived](archive/releases/4.0.0+11-publication.md).
+Historical GitHub releases are preserved; no full application/backend redeploy
+was performed as part of the website update.
 
 ## Preserved history
 

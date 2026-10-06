@@ -1,0 +1,11 @@
+--- a/routes/downloads.py
++++ b/routes/downloads.py
+@@ -444,0 +445,2 @@
++    entries = _build_download_entries()
++    versions = {entry.version for entry in entries}
+@@ -446 +448 @@
+-        version=APP_VERSION,
++        version=next(iter(versions)) if len(versions) == 1 else APP_VERSION,
+@@ -448 +450 @@
+-        downloads=_build_download_entries(),
++        downloads=entries,

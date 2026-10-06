@@ -163,3 +163,8 @@ securewave-tests/results/*.json
 /docs/linux-release-status.md
 /research-build/
 .venv-docs/
+
+# Website source keeps the manifest; installers are published separately.
+!website/static/downloads/
+website/static/downloads/*
+!website/static/downloads/manifest.json
