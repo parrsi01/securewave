@@ -82,6 +82,7 @@ markup. Initialization is idempotent and does not depend on browser storage.
 The review workflow runs the website interaction and design checks. Visual
 inspection in an actual browser remains unavailable in this session.
 
-The sign-in page uses a full-width open layout, without the old form card.
+The sign-in page uses an open layout without the old form card. Its fields
+now use a centered reading width rather than stretching across wide screens.
 Dashboard links start hidden and appear only after the cookie-session endpoint
 confirms authentication. Cached email text is never used as session proof.

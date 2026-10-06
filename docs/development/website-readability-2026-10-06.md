@@ -98,3 +98,11 @@ hidden. The plan page offers an explicit sign-in action to guests. Tests cover
 signed-in and guest responses, failures, all gated links and login bindings.
 The palette and shared support widget remain intact. This changes website
 presentation only; it does not change server authorization or the VPN app.
+
+### Login spacing refinement
+
+Following visual feedback, the open login layout now aligns its heading, form
+and app guidance in a centered 48-rem column. There is still no enclosing
+card, border or panel. Fields have a comfortable 64-pixel height and 24-pixel
+vertical gaps; the desktop submit button is compact, while it fills the form
+width on phones. Account links and footer alignment were refined as well.

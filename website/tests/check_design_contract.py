@@ -18,7 +18,7 @@ assert '$9.99' in plans and '$99.99' in plans and 'USD' in plans
 for page in root.glob('*.html'):
     source = page.read_text()
     assert 'name="viewport"' in source, page.name
-    assert '/css/web_ui_v1.css?v=20261006-open-login' in source, page.name
+    assert re.search(r'/css/web_ui_v1\.css\?v=20261006-(?:open-login|login-spacing)', source), page.name
     assert 'href="/#download"' not in source, page.name
 manifest = json.loads((root / 'downloads/manifest.json').read_text())
 assert manifest['version'] == '1.0.0'

@@ -1330,26 +1330,28 @@ code { overflow-wrap: anywhere; }
 /* Open login layout: full content width, no form card or enclosing box. */
 [data-auth-only][hidden], [data-guest-only][hidden] { display: none !important; }
 .login-main { width: 100%; padding: clamp(40px, 6vw, 100px) clamp(24px, 6vw, 100px) 48px; }
-.login-heading { margin-bottom: 48px; }
+.login-heading, .login-form, .login-app-note { max-width: 48rem; margin-inline: auto; }
+.login-heading { margin-bottom: 36px; }
 .login-heading h1 { font-size: clamp(44px, 5vw, 80px); line-height: 1.1; }
 .login-heading p { margin-top: 24px; font-size: clamp(20px, 2vw, 26px); }
-.login-form { width: 100%; display: grid; gap: 32px; }
-.login-form .field { gap: 14px; }
+.login-form { width: 100%; display: grid; gap: 24px; }
+.login-form .field { gap: 10px; }
 .login-form .field label { font-family: var(--sans); font-size: 20px; letter-spacing: normal; text-transform: none; }
-.login-form .input { min-height: 72px; padding: 18px 24px; font-size: 22px; }
+.login-form .input { min-height: 64px; padding: 16px 20px; font-size: 20px; }
 .login-form .field-hint:empty { display: none; }
 .login-form .form-message { margin: 0; }
-.login-submit { width: 100%; min-height: 64px; font-size: 22px; }
-.login-account-links { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 20px; }
-.login-account-links p, .login-account-links > a { font-size: 20px; }
+.login-submit { justify-self: start; min-width: 180px; min-height: 56px; font-size: 20px; }
+.login-account-links { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 16px; }
+.login-account-links p, .login-account-links > a { font-size: 18px; }
 .login-account-links a, .login-app-note a, .login-footer a { color: var(--accent); text-decoration: underline; text-underline-offset: 4px; }
-.login-app-note { margin-top: 56px; display: grid; gap: 12px; }
+.login-app-note { margin-top: 40px; display: grid; gap: 8px; }
 .login-app-note p { font-size: 18px; }
-.login-footer { padding: 24px clamp(24px, 6vw, 100px) 40px; display: flex; flex-wrap: wrap; gap: 24px; }
+.login-footer { width: min(48rem, calc(100% - 48px)); margin-inline: auto; padding: 24px 0 40px; display: flex; flex-wrap: wrap; gap: 24px; }
 @media (max-width: 560px) {
   .login-main { padding: 40px 24px; }
   .login-heading { margin-bottom: 36px; }
-  .login-form { gap: 28px; }
+  .login-form { gap: 24px; }
+  .login-submit { width: 100%; }
   .login-form .input { min-height: 64px; padding: 16px; font-size: 20px; }
   .login-account-links { flex-direction: column; align-items: flex-start; }
   .login-footer { padding-bottom: 96px; }
