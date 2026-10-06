@@ -63,10 +63,10 @@ then run its `after` operation. It checks two new finalized version-2 sessions,
 complete quality, verification timestamps and totals covering independently
 observed traffic. It uses the installed app's account token only in process
 memory through libsecret, refuses redirects, and stores only permitted history
-fields. The desktop also needs `gir1.2-secret-1`. This new verifier has passed
-syntax/CLI checks; positive live verification awaits sign-in.
+fields. The desktop also needs `gir1.2-secret-1`. The verifier passed live
+owner-scoped history checks for the installed 1.0.0 test on 6 October 2026.
 
 Retain raw evidence privately; publish a redacted result tied to package/source
-identity. The 1.0.0 installation and baseline checks passed; authenticated
-lifecycle and an additional boot with 1.0.0 installed remain open. See
+identity. The 1.0.0 installation, baseline, authenticated lifecycle and final
+usage-history checks passed; an additional boot with 1.0.0 installed remains open. See
 [current state](../current-state.md).

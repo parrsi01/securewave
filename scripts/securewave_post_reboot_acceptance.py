@@ -25,6 +25,12 @@ OUT = None
 CONFIG = Path.home() / '.config/securewave/sw-wg.conf'
 EVENTS = None
 
+def config_files():
+    # Contract 15 uses a separate config for each durable usage session.
+    # Include the legacy path so baseline/cleanup also detect stale old files.
+    root = CONFIG.parent
+    return ([CONFIG] if CONFIG.exists() or CONFIG.is_symlink() else []) + list(root.glob('usage-[0-9]*/sw-wg.conf'))
+
 def record(event, **data):
     item = dict(time=datetime.datetime.now(datetime.timezone.utc).isoformat(), event=event, **data)
     with EVENTS.open('a') as f:
@@ -145,7 +151,7 @@ def network():
 def initialize():
     require(runtime()['status']=='disconnected','Baseline tunnel was active')
     require(not Path('/sys/class/net/sw-wg').exists(),'Stale tunnel interface')
-    require(not CONFIG.exists(),'Stale temporary VPN config')
+    require(not config_files(),'Stale temporary VPN config')
     baseline=network()
     (OUT/'network-baseline.json').write_text(json.dumps(baseline,indent=2))
     record('network_baseline', public_ip=baseline['public_ip'], helper=runtime())
@@ -177,14 +183,17 @@ def register():
 
 def connected(label, baseline):
     click('Connect')
-    wait(lambda:has('Connected') and has('Disconnect','push button'),'GUI did not reach Connected')
+    wait(lambda:(has('Connected') or has('VPN connected.')) and has('Disconnect','push button'),'GUI did not reach Connected')
     r=runtime()
     require(r['status']=='connected' and r['counters_available']=='true','Connected runtime invalid')
     require(Path('/sys/class/net/sw-wg').is_dir(),'WireGuard interface missing')
-    require(CONFIG.is_file() and CONFIG.stat().st_mode & 0o777 == 0o600,'Temporary config missing or unsafe mode')
+    configs = config_files()
+    require(len(configs) == 1,'Expected exactly one session tunnel config')
+    config = configs[0]
+    require(not config.is_symlink() and config.is_file() and config.stat().st_uid == os.getuid() and config.stat().st_mode & 0o777 == 0o600,'Temporary config missing or unsafe mode')
     # Retain only the public server parameters from the installed app's config.
     public={}
-    for line in CONFIG.read_text().splitlines():
+    for line in config.read_text().splitlines():
         if '=' not in line:
             continue
         k,v=map(str.strip,line.split('=',1))
@@ -219,10 +228,10 @@ def connected(label, baseline):
 
 def disconnect(label, baseline):
     click('Disconnect')
-    wait(lambda:has('Disconnected') and has('Connect','push button'),'GUI did not reach Disconnected',45)
+    wait(lambda:(has('Disconnected') or has('VPN disconnected.')) and has('Connect','push button'),'GUI did not reach Disconnected',45)
     require(runtime()['status']=='disconnected','Helper still reports connected')
     require(not Path('/sys/class/net/sw-wg').exists(),'WireGuard interface remains')
-    require(not CONFIG.exists(),'Temporary VPN config remains')
+    require(not config_files(),'Temporary VPN config remains')
     net=network()
     require(net['public_ip']==baseline['public_ip'],'Baseline egress was not restored')
     for k in ['routes4','routes6','rules','dns','domains']:

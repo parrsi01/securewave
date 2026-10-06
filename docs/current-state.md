@@ -49,10 +49,18 @@ package byte for byte. Both services are active; visible cold launch,
 disconnected runtime, absence of stale interface/configuration, route/DNS/egress
 baseline and production API readiness passed.
 
+The installed 1.0.0 authenticated lifecycle passed on **2026-10-06 at
+22:28 UTC**. Connect and Reconnect each transferred a real 3 MiB download;
+independent peer/handshake/counter/route/DNS/egress checks passed. Both
+disconnects restored baseline routes, IPv6 routes, rules, DNS/domains and
+public egress exactly, and removed the session configuration. Owner-scoped
+backend history confirms two finalized version-2 usage sessions, verified
+timestamps, complete quality and persisted totals covering each cycle's
+observed traffic. See the [acceptance record](archive/releases/1.0.0-installed-acceptance-2026-10-06.md).
+
 The VM's current boot began **2026-10-06 at 11:03:01 UTC**, before the 1.0.0
-installation. The app is on Sign in. Authenticated lifecycle and final usage
-history are pending private sign-in. A reboot *with 1.0.0 installed* and its
-subsequent lifecycle still need separate evidence; neither is claimed complete.
+installation. A reboot *with 1.0.0 installed* and its subsequent lifecycle
+still need separate evidence; this final gate is not claimed complete.
 
 The existing public release baseline is **4.0.0+11**; its publication record is
 [archived](archive/releases/4.0.0+11-publication.md). No deployment or website

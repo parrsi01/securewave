@@ -68,9 +68,10 @@ active branch, `master`; archive tags preserve checkpoints.
 The [current validation record](docs/current-state.md) distinguishes source
 checks from installed-product evidence. Historical tests demonstrated real
 traffic, teardown, crash recovery, and final database persistence. Version
-1.0.0 is installed with matching package bytes; services, cold launch and the
-disconnected network baseline passed. Its authenticated lifecycle and reboot
-acceptance remain open. Earlier observations do not establish those gates.
+1.0.0 is installed with matching package bytes; services, cold launch,
+authenticated Connect/Disconnect/Reconnect, real traffic and final backend
+usage persistence passed. A fresh reboot with 1.0.0 installed and its
+subsequent lifecycle remain the final open acceptance gate.
 
 The [technical monograph](docs/research/README.md) adopts the research-question,
 system-model, algorithm, and evaluation structure of

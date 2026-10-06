@@ -12,8 +12,16 @@ class NoRedirect(urllib.request.HTTPRedirectHandler):
  def redirect_request(self,*args,**kwargs):raise RuntimeError('History redirects refused')
 
 def history():
- schema=Secret.Schema.new('com.example.securewave_app/FlutterSecureStorage',Secret.SchemaFlags.NONE,{'account':Secret.SchemaAttributeType.STRING})
- blob=Secret.password_lookup_sync(schema,{'account':'com.example.securewave_app.secureStorage'},None)
+ # Identify only this app's item. The plugin's stored schema name can differ
+ # from its visible label, so do not reconstruct a schema from that label.
+ service=Secret.Service.get_sync(Secret.ServiceFlags.OPEN_SESSION|Secret.ServiceFlags.LOAD_COLLECTIONS,None)
+ items=[item for collection in service.get_collections() for item in collection.get_items()
+        if item.get_label()=='com.example.securewave_app/FlutterSecureStorage'
+        and item.get_attributes().get('account')=='com.example.securewave_app.secureStorage']
+ if len(items)!=1:raise RuntimeError('Expected exactly one SecureWave secure-store item')
+ items[0].load_secret_sync(None)
+ value=items[0].get_secret()
+ blob=value.get_text() if value else None
  if not blob:raise RuntimeError('Installed app session is unavailable')
  token=json.loads(blob).get('access_token');del blob
  if not isinstance(token,str) or not token:raise RuntimeError('Installed app is not signed in')
@@ -48,6 +56,9 @@ def main():
   complete=len(rows)==2 and all(r['metering_version']==2 and r['disconnected_at'] and r['final_sequence']==r['last_sequence'] and r['last_sequence']>0 and r['client_verified_at'] and r['recording_quality']=='complete' and r['finalization_reason']=='client_disconnect' for r in rows)
   if complete:
    if sum(r['bytes_received'] for r in rows)<minimum_rx or sum(r['bytes_sent'] for r in rows)<minimum_tx:raise RuntimeError('Persisted totals do not cover independently observed traffic')
+   for session, observed in zip(sorted(rows, key=lambda row: row['session_id']), traffic):
+    if session['bytes_received']<observed['delta_rx'] or session['bytes_sent']<observed['delta_tx']:
+     raise RuntimeError('A finalized session does not cover its independently observed traffic')
    (OUT/'ledger-after.json').write_text(json.dumps(rows,indent=2))
    print('Final ledger verified: two finalized v2 sessions, complete quality, verified timestamps and cumulative totals covering observed traffic.');return
   if time.monotonic()>=deadline:
