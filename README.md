@@ -6,6 +6,12 @@ Connect, real WireGuard traffic and usage counters, Disconnect, Reconnect,
 and logout. The user confirmed the installed application is fully functional
 on 2026-10-04. Independent post-reboot release acceptance remains open.
 
+The **4.0.0+12 usage-recording candidate** is installed locally and its usage
+backend is deployed. Real Connect, traffic, Disconnect and app-crash final
+reporting passed against production. The public download remains 4.0.0+11
+while installed restart recovery and post-reboot checks are pending. See the
+[candidate verification record](docs/releases/4.0.0+12-verification.md).
+
 ## Download and install
 
 Use the [official download page](https://www.securewaveapp.com/download.html)
