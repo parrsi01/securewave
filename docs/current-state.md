@@ -1,11 +1,28 @@
 # Current SecureWave state
 
-Recorded 2026-10-04 for Linux release **4.0.0+11**.
+Updated 2026-10-06. The published GitHub release baseline is **4.0.0+11**.
+The installed **4.0.0+12 usage-recording candidate** is saved on
+`codex/usage-recording-20261005`; its GitHub package release remains a draft.
 
-## Working baseline and evidence
+## Current installed candidate
 
-The ARM64 package is installed at `/usr/lib/securewave/securewave_app` on the
-Ubuntu VM. Its installed AOT library was checked against the rebuilt package.
+Installed package provenance identifies source
+`c90dc03f5ccbab5fffb2fcaefedc72ea36e34527`, a clean tree, ARM64, and helper
+contract 15. The VM rebooted on 2026-10-06 at 08:37:39 UTC. The post-reboot
+helper, baseline network and cold-launch checks passed. The saved GUI session
+expired; post-reboot VPN lifecycle and final usage persistence await sign-in.
+See the [candidate verification](releases/4.0.0+12-verification.md) and
+[post-reboot checkpoint](releases/4.0.0+12-post-reboot.md).
+
+The UI preview is saved separately on `codex/flutter-ui-redesign`, source
+`0e72924ea61924b34b969407fe05d5020dc4b4f7`. It is not integrated into the
+usage-recording candidate. These branches preserve separate work for review.
+
+## Historical 4.0.0+11 baseline and evidence (2026-10-04)
+
+At that checkpoint, the ARM64 package was installed at
+`/usr/lib/securewave/securewave_app` on the Ubuntu VM. Its installed AOT library
+was checked against the rebuilt package.
 The local helper is enabled, active, and exposes `/run/securewave/helper.sock`.
 The user confirmed that the installed app is fully functional.
 
@@ -75,6 +92,8 @@ checksum, public URL checks, and recovery location.
 
 ## Next work
 
-The next requested changes are visual UI changes only. The detailed handoff
-is in [ui-only-handoff.md](ui-only-handoff.md). No UI redesign is part of this
-release publication.
+Complete post-reboot VPN lifecycle and final usage persistence for the
+installed 4.0.0+12 candidate after sign-in. Its draft release must remain a
+candidate until the remaining evidence is recorded. The separate UI preview
+follows the visual-only boundaries in [ui-only-handoff.md](ui-only-handoff.md)
+and needs review and reconciliation with the usage candidate before integration.

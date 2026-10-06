@@ -12,6 +12,10 @@ reporting passed against production. The public download remains 4.0.0+11
 while post-reboot checks are pending. Installed queued-report recovery through
 a helper restart also passed. See the
 [candidate verification record](docs/releases/4.0.0+12-verification.md).
+The VM rebooted on 2026-10-06. Post-reboot baseline and cold-launch checks
+passed; VPN lifecycle testing awaits sign-in after session expiry. The
+[post-reboot checkpoint and automation](docs/releases/4.0.0+12-post-reboot.md)
+record the remaining checks.
 
 ## Download and install
 
