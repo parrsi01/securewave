@@ -18,16 +18,27 @@ usage protocol **2** remain distinct compatibility identifiers.
 | Architecture report | 29-page PDF | Rebuilt from 7,400+ words of chapter sources and original SVG diagrams; reviewed sample pages |
 
 The pre-consolidation backend also passed in a fresh-source copy without
-ignored local environment files. Consolidated CI is defined in
-[Review checks](../.github/workflows/ci.yml). Local checks do not establish a
-completed GitHub Actions run; the workflow records its own result for each SHA.
+ignored local environment files. All three consolidated
+[CI jobs passed](https://github.com/parrsi01/securewave/actions/runs/37480826413)
+for `c733457d6170c5393d60f531bd8075cc46096ca4`. Later changes make the checksum
+sidecar portable and record maintenance/package evidence; each push has its own
+run in [Review checks](../.github/workflows/ci.yml).
 
 ## Package and installed-product evidence
 
-The reviewed source is ready for an exact-commit candidate build. The package
-must carry 1.0.0 and the clean source markers described in the
-[release procedure](development/releasing.md). Building source does not replace
-the installed package or change existing public downloads.
+The **1.0.0 ARM64 candidate** was built from a clean detached checkout of
+`a9181ea8828d6b66557260042bbbcde0675c0e84`, also identified by the immutable
+tag `candidate/1.0.0-20261006`. Extracted markers match that source, version,
+ARM64 architecture and helper contract 15; the installed binary is an AArch64
+ELF. The portable checksum sidecar verifies beside the package.
+
+Package: `securewave-vpn_1.0.0_arm64.deb`, **15,180,502 bytes**.
+SHA-256: `9b561d5444ee39259b9dad3e656f840e4657f89db18fdbfaf2396e9a8c2bc622`.
+It is saved with checksum/source sidecars in the
+[GitHub draft candidate](https://github.com/parrsi01/securewave/releases/tag/candidate/1.0.0-20261006).
+Draft assets are owner-visible until publication. Building source does not
+replace the installed package or change existing public downloads; follow the
+[release procedure](development/releasing.md) for that transition.
 
 The VM currently has the historical **4.0.0+12** ARM64 usage candidate, source
 `c90dc03f5ccbab5fffb2fcaefedc72ea36e34527`, clean tree, helper contract 15.
