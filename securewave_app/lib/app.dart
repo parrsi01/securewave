@@ -6,6 +6,8 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'services/api_service.dart';
 import 'services/vpn_service.dart';
 import 'ui/theme.dart';
+import 'ui/auth_form.dart';
+import 'ui/connection_view.dart';
 
 class SecureWaveApp extends StatefulWidget {
   const SecureWaveApp({super.key, this.api});
@@ -113,7 +115,7 @@ class _LoadingView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    return const BootView();
   }
 }
 
@@ -342,7 +344,7 @@ class _FieldLabel extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Padding(
         padding: const EdgeInsets.only(bottom: 8),
-        child: Text(text, style: Theme.of(context).textTheme.labelLarge),
+        child: ExcludeSemantics(child: Text(text, style: AppTheme.fieldLabel)),
       );
 }
 
@@ -894,13 +896,26 @@ class _UsageValue extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(label, style: Theme.of(context).textTheme.labelMedium),
-        const SizedBox(height: 4),
-        Text(value, style: Theme.of(context).textTheme.titleMedium),
-      ],
+    final connected = _status == VpnStatus.connected;
+    final canDisconnect = connected ||
+        (_status == VpnStatus.error && _vpn.status == VpnStatus.error);
+    final transitioning = _busy ||
+        _status == VpnStatus.connecting ||
+        _status == VpnStatus.disconnecting;
+    final unavailable =
+        _status == VpnStatus.connecting ? 'Pending' : 'Unavailable';
+    return ConnectionView(
+      status: _status,
+      canDisconnect: canDisconnect,
+      transitioning: transitioning,
+      serverLabel: _location,
+      error: _error,
+      recordingNotice: _recordingNotice,
+      countersAvailable: _countersAvailable,
+      download: _countersAvailable ? _formatBytes(_downloadBytes) : unavailable,
+      upload: _countersAvailable ? _formatBytes(_uploadBytes) : unavailable,
+      onToggle: _toggleConnection,
+      onLogout: _handleLogout,
     );
   }
 }
