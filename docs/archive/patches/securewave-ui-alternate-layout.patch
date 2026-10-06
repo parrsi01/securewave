@@ -1,0 +1,590 @@
+--- a/securewave_app/lib/ui/auth_form.dart
++++ b/securewave_app/lib/ui/auth_form.dart
+@@ -107,105 +107,188 @@
+   @override
+   Widget build(BuildContext context) => Scaffold(
+         body: SafeArea(
+-          child: LayoutBuilder(builder: (context, constraints) {
+-            final padding = AppTheme.outerPadding(constraints.maxWidth);
+-            return SingleChildScrollView(
+-              padding: EdgeInsets.all(padding),
+-              child: ConstrainedBox(
+-                constraints: BoxConstraints(
+-                    minHeight: (constraints.maxHeight - padding * 2)
+-                        .clamp(0, double.infinity)),
+-                child: Align(
+-                  alignment: constraints.maxHeight < 640
+-                      ? Alignment.topCenter
+-                      : Alignment.center,
+-                  child: ConstrainedBox(
+-                    constraints: const BoxConstraints(maxWidth: 420),
+-                    child: FocusTraversalGroup(
+-                      child: Form(
+-                        key: formKey,
+-                        child: Column(
+-                          mainAxisSize: MainAxisSize.min,
++          child: LayoutBuilder(builder: (context, viewport) {
++            final padding = AppTheme.outerPadding(viewport.maxWidth);
++            final scale = MediaQuery.textScalerOf(context).scale(16) / 16;
++            final split = viewport.maxWidth >= 800 && scale < 1.5;
++            return Column(children: [
++              const DesktopBrandHeader(),
++              Expanded(
++                child: LayoutBuilder(builder: (context, body) {
++                  final heading = Column(
++                    crossAxisAlignment: CrossAxisAlignment.start,
++                    mainAxisSize: MainAxisSize.min,
++                    children: [
++                      Semantics(
++                        header: true,
++                        child: Text(
++                          registering ? 'Create account' : 'Sign in',
++                          style: AppTheme.type(32, 600, 1.2, spacing: -.4),
++                        ),
++                      ),
++                      const SizedBox(height: 12),
++                      Text(
++                        registering
++                            ? 'Create your SecureWave account.'
++                            : 'Sign in to use SecureWave.',
++                        style: AppTheme.smallBody,
++                      ),
++                    ],
++                  );
++                  final form = FocusTraversalGroup(
++                    child: Form(
++                      key: formKey,
++                      child: Column(
++                        mainAxisSize: MainAxisSize.min,
++                        crossAxisAlignment: CrossAxisAlignment.stretch,
++                        children: [
++                          ...fields,
++                          if (error != null) ...[
++                            const SizedBox(height: 16),
++                            UiFeedback(error!.contains('(HTTP ')
++                                ? 'SecureWave could not complete that request.'
++                                : error!),
++                          ],
++                          if (notice != null) ...[
++                            const SizedBox(height: 16),
++                            UiFeedback(notice!, isError: false),
++                          ],
++                          const SizedBox(height: 24),
++                          FilledButton(
++                            key: const ValueKey('auth-submit'),
++                            clipBehavior: Clip.none,
++                            style: ButtonStyle(
++                                animationDuration:
++                                    AppTheme.reduceMotion(context)
++                                        ? Duration.zero
++                                        : AppTheme.interactionDuration),
++                            onPressed: busy ? null : onSubmit,
++                            child: Wrap(
++                              alignment: WrapAlignment.center,
++                              crossAxisAlignment: WrapCrossAlignment.center,
++                              spacing: 12,
++                              runSpacing: 8,
++                              children: [
++                                if (busy)
++                                  if (AppTheme.reduceMotion(context))
++                                    const Icon(Icons.hourglass_empty, size: 18)
++                                  else
++                                    const SizedBox.square(
++                                        dimension: 18,
++                                        child: CircularProgressIndicator(
++                                            strokeWidth: 2)),
++                                Text(busy
++                                    ? registering
++                                        ? 'Creating account…'
++                                        : 'Signing in…'
++                                    : registering
++                                        ? 'Create account'
++                                        : 'Sign in'),
++                              ],
++                            ),
++                          ),
++                          const SizedBox(height: 24),
++                          const Divider(),
++                          const SizedBox(height: 8),
++                          TextButton(
++                            onPressed: busy ? null : onSwitchMode,
++                            child: Text(
++                              registering
++                                  ? 'Already have an account? Sign in'
++                                  : 'New to SecureWave? Create an account',
++                              textAlign: TextAlign.center,
++                            ),
++                          ),
++                        ],
++                      ),
++                    ),
++                  );
++                  return SingleChildScrollView(
++                    padding: EdgeInsets.all(padding),
++                    child: ConstrainedBox(
++                      constraints: BoxConstraints(
++                          minHeight: (body.maxHeight - padding * 2)
++                              .clamp(0, double.infinity)),
++                      child: Align(
++                        alignment: viewport.maxHeight < 640
++                            ? Alignment.topCenter
++                            : Alignment.center,
++                        child: ConstrainedBox(
++                          constraints:
++                              BoxConstraints(maxWidth: split ? 840 : 420),
++                          child: split
++                              ? Row(
++                                  crossAxisAlignment: CrossAxisAlignment.start,
++                                  children: [
++                                    Expanded(child: heading),
++                                    const SizedBox(width: 48),
++                                    SizedBox(width: 420, child: form),
++                                  ],
++                                )
++                              : Column(
++                                  mainAxisSize: MainAxisSize.min,
++                                  crossAxisAlignment:
++                                      CrossAxisAlignment.stretch,
++                                  children: [
++                                    heading,
++                                    const SizedBox(height: 32),
++                                    form,
++                                  ],
++                                ),
++                        ),
++                      ),
++                    ),
++                  );
++                }),
++              ),
++            ]);
++          }),
++        ),
++      );
++}
++
++/// Shared desktop framing; optional trailing content remains caller-owned.
++class DesktopBrandHeader extends StatelessWidget {
++  const DesktopBrandHeader({super.key, this.trailing});
++  final Widget? trailing;
++
++  @override
++  Widget build(BuildContext context) => DecoratedBox(
++        decoration: const BoxDecoration(
++          color: AppTheme.backgroundSecondary,
++          border: Border(bottom: BorderSide(color: AppTheme.borderSubtle)),
++        ),
++        child: Center(
++          child: ConstrainedBox(
++            constraints: const BoxConstraints(maxWidth: 960),
++            child: LayoutBuilder(builder: (context, constraints) {
++              final padding =
++                  AppTheme.outerPadding(MediaQuery.sizeOf(context).width);
++              final stacked = constraints.maxWidth < 400 &&
++                  MediaQuery.textScalerOf(context).scale(16) / 16 >= 1.5;
++              return Padding(
++                padding:
++                    EdgeInsets.symmetric(horizontal: padding, vertical: 12),
++                child: ConstrainedBox(
++                  constraints: const BoxConstraints(minHeight: 44),
++                  child: stacked && trailing != null
++                      ? Column(
+                           crossAxisAlignment: CrossAxisAlignment.stretch,
+                           children: [
+-                            const Align(
+-                                alignment: Alignment.centerLeft,
+-                                child: BrandWordmark()),
+-                            const SizedBox(height: 32),
+-                            Text(registering ? 'Create account' : 'Sign in',
+-                                style: AppTheme.pageTitle),
+-                            const SizedBox(height: 8),
+-                            Text(
+-                                registering
+-                                    ? 'Create your SecureWave account.'
+-                                    : 'Sign in to use SecureWave.',
+-                                style: AppTheme.smallBody),
+-                            const SizedBox(height: 24),
+-                            ...fields,
+-                            if (error != null) ...[
+-                              const SizedBox(height: 16),
+-                              UiFeedback(error!.contains('(HTTP ')
+-                                  ? 'SecureWave could not complete that request.'
+-                                  : error!),
+-                            ],
+-                            if (notice != null) ...[
+-                              const SizedBox(height: 16),
+-                              UiFeedback(notice!, isError: false),
+-                            ],
+-                            const SizedBox(height: 24),
+-                            FilledButton(
+-                              key: const ValueKey('auth-submit'),
+-                              clipBehavior: Clip.none,
+-                              style: ButtonStyle(
+-                                  animationDuration:
+-                                      AppTheme.reduceMotion(context)
+-                                          ? Duration.zero
+-                                          : AppTheme.interactionDuration),
+-                              onPressed: busy ? null : onSubmit,
+-                              child: Wrap(
+-                                alignment: WrapAlignment.center,
+-                                crossAxisAlignment: WrapCrossAlignment.center,
+-                                spacing: 12,
+-                                runSpacing: 8,
+-                                children: [
+-                                  if (busy)
+-                                    if (AppTheme.reduceMotion(context))
+-                                      const Icon(Icons.hourglass_empty,
+-                                          size: 18)
+-                                    else
+-                                      const SizedBox.square(
+-                                          dimension: 18,
+-                                          child: CircularProgressIndicator(
+-                                              strokeWidth: 2)),
+-                                  Text(busy
+-                                      ? registering
+-                                          ? 'Creating account…'
+-                                          : 'Signing in…'
+-                                      : registering
+-                                          ? 'Create account'
+-                                          : 'Sign in'),
+-                                ],
+-                              ),
+-                            ),
+-                            const SizedBox(height: 12),
+-                            TextButton(
+-                              onPressed: busy ? null : onSwitchMode,
+-                              child: Text(
+-                                registering
+-                                    ? 'Already have an account? Sign in'
+-                                    : 'New to SecureWave? Create an account',
+-                                textAlign: TextAlign.center,
+-                              ),
+-                            ),
++                            const BrandWordmark(),
++                            Align(
++                                alignment: Alignment.centerRight,
++                                child: trailing),
+                           ],
+-                        ),
+-                      ),
+-                    ),
+-                  ),
++                        )
++                      : Row(children: [
++                          const Expanded(child: BrandWordmark()),
++                          if (trailing != null) trailing!,
++                        ]),
+                 ),
+-              ),
+-            );
+-          }),
+-        ),
+-      );
+-}
++              );
++            }),
++          ),
++        ),
++      );
++}
+--- a/securewave_app/lib/ui/connection_view.dart
++++ b/securewave_app/lib/ui/connection_view.dart
+@@ -120,112 +120,104 @@
+             final padding = AppTheme.outerPadding(viewport.maxWidth);
+             final compact = viewport.maxWidth < 640;
+             final scale = MediaQuery.textScalerOf(context).scale(16) / 16;
+-            final logout = TextButton(
+-              key: const ValueKey('logout'),
+-              onPressed: transitioning ? null : onLogout,
+-              child: const Text('Log out'),
++            final split = viewport.maxWidth >= 800 && scale < 1.5;
++            final hero = Column(
++              mainAxisSize: MainAxisSize.min,
++              crossAxisAlignment: CrossAxisAlignment.stretch,
++              children: [
++                Semantics(
++                  key: const ValueKey('vpn-state'),
++                  liveRegion: true,
++                  label: status == VpnStatus.error
++                      ? 'VPN connection error.'
++                      : 'VPN ${headline.toLowerCase()}.',
++                  excludeSemantics: true,
++                  child: Column(
++                    mainAxisSize: MainAxisSize.min,
++                    children: [
++                      Icon(statusIcon, size: 24, color: stateColor),
++                      const SizedBox(height: 12),
++                      AnimatedSwitcher(
++                        duration: AppTheme.reduceMotion(context)
++                            ? Duration.zero
++                            : AppTheme.stateDuration,
++                        child: Text(
++                          headline,
++                          key: ValueKey(headline),
++                          textAlign: TextAlign.center,
++                          style: AppTheme.type(compact ? 32 : 40, 600, 1.2,
++                              color: status == VpnStatus.error
++                                  ? AppTheme.error
++                                  : AppTheme.textPrimary,
++                              spacing: -.6),
++                        ),
++                      ),
++                    ],
++                  ),
++                ),
++                const SizedBox(height: 32),
++                _ConnectionControl(
++                  status: status,
++                  action: action,
++                  compact: compact,
++                  disabled: transitioning,
++                  onPressed: onToggle,
++                ),
++                if (error != null) ...[
++                  const SizedBox(height: 24),
++                  UiFeedback(
++                      safeVpnMessage(error!, canDisconnect: canDisconnect)),
++                ],
++              ],
+             );
+-            final header = ConstrainedBox(
+-              constraints: const BoxConstraints(minHeight: 56, maxWidth: 960),
+-              child: Padding(
+-                padding: EdgeInsets.symmetric(horizontal: padding),
+-                child: viewport.maxWidth < 400 && scale >= 1.5
+-                    ? Column(
+-                        crossAxisAlignment: CrossAxisAlignment.stretch,
+-                        children: [
+-                            const BrandWordmark(),
+-                            Align(
+-                                alignment: Alignment.centerRight, child: logout)
+-                          ])
+-                    : Row(children: [
+-                        const Expanded(child: BrandWordmark()),
+-                        logout,
+-                      ]),
+-              ),
++            final information = _ConnectionInformation(
++              productLabel: productLabel,
++              compact: compact,
++              download: download,
++              upload: upload,
++              countersAvailable: countersAvailable,
++              recordingNotice: recordingNotice,
+             );
+             return Column(children: [
+-              Center(child: header),
+-              const Divider(),
++              DesktopBrandHeader(
++                trailing: TextButton(
++                  key: const ValueKey('logout'),
++                  onPressed: transitioning ? null : onLogout,
++                  child: const Text('Log out'),
++                ),
++              ),
+               Expanded(
+                 child: LayoutBuilder(builder: (context, body) {
+                   return SingleChildScrollView(
+-                    padding: EdgeInsets.fromLTRB(padding, 16, padding, 16),
++                    padding: EdgeInsets.all(padding),
+                     child: ConstrainedBox(
+                       constraints: BoxConstraints(
+-                          minHeight:
+-                              (body.maxHeight - 32).clamp(0, double.infinity)),
++                          minHeight: (body.maxHeight - padding * 2)
++                              .clamp(0, double.infinity)),
+                       child: Align(
+                         alignment: viewport.maxHeight < 640
+                             ? Alignment.topCenter
+                             : Alignment.center,
+                         child: ConstrainedBox(
+-                          constraints: const BoxConstraints(maxWidth: 560),
+-                          child: SizedBox(
+-                            width: double.infinity,
+-                            child: Column(
+-                              mainAxisSize: MainAxisSize.min,
+-                              children: [
+-                                Semantics(
+-                                  key: const ValueKey('vpn-state'),
+-                                  liveRegion: true,
+-                                  label: status == VpnStatus.error
+-                                      ? 'VPN connection error.'
+-                                      : 'VPN ${headline.toLowerCase()}.',
+-                                  excludeSemantics: true,
+-                                  child: Row(
+-                                    mainAxisAlignment: MainAxisAlignment.center,
+-                                    children: [
+-                                      Icon(statusIcon,
+-                                          size: 20, color: stateColor),
+-                                      const SizedBox(width: 12),
+-                                      Flexible(
+-                                        child: AnimatedSwitcher(
+-                                          duration:
+-                                              AppTheme.reduceMotion(context)
+-                                                  ? Duration.zero
+-                                                  : AppTheme.stateDuration,
+-                                          child: Text(headline,
+-                                              key: ValueKey(headline),
+-                                              textAlign: TextAlign.center,
+-                                              style: AppTheme.type(
+-                                                  compact ? 32 : 40, 600, 1.2,
+-                                                  color: stateColor,
+-                                                  spacing: -.6)),
+-                                        ),
+-                                      ),
+-                                    ],
+-                                  ),
++                          constraints:
++                              BoxConstraints(maxWidth: split ? 840 : 560),
++                          child: split
++                              ? Row(
++                                  crossAxisAlignment: CrossAxisAlignment.center,
++                                  children: [
++                                    SizedBox(width: 320, child: hero),
++                                    const SizedBox(width: 48),
++                                    Expanded(child: information),
++                                  ],
++                                )
++                              : Column(
++                                  mainAxisSize: MainAxisSize.min,
++                                  children: [
++                                    hero,
++                                    const SizedBox(height: 32),
++                                    information,
++                                  ],
+                                 ),
+-                                const SizedBox(height: 24),
+-                                _ConnectionControl(
+-                                  status: status,
+-                                  action: action,
+-                                  compact: compact,
+-                                  disabled: transitioning,
+-                                  onPressed: onToggle,
+-                                ),
+-                                if (error != null) ...[
+-                                  const SizedBox(height: 16),
+-                                  ConstrainedBox(
+-                                    constraints:
+-                                        const BoxConstraints(maxWidth: 420),
+-                                    child: UiFeedback(safeVpnMessage(error!,
+-                                        canDisconnect: canDisconnect)),
+-                                  ),
+-                                  const SizedBox(height: 16),
+-                                ] else
+-                                  const SizedBox(height: 32),
+-                                _ConnectionInformation(
+-                                  productLabel: productLabel,
+-                                  compact: compact,
+-                                  download: download,
+-                                  upload: upload,
+-                                  countersAvailable: countersAvailable,
+-                                  recordingNotice: recordingNotice,
+-                                ),
+-                              ],
+-                            ),
+-                          ),
+                         ),
+                       ),
+                     ),
+@@ -279,7 +271,9 @@
+                 child: Column(
+                   crossAxisAlignment: CrossAxisAlignment.start,
+                   children: [
+-                    Text(productLabel, style: AppTheme.sectionTitle),
++                    Text('Location', style: AppTheme.caption),
++                    const SizedBox(height: 8),
++                    Text(productLabel, style: AppTheme.type(22, 500, 1.3)),
+                     if (productLabel != 'SecureWave Network') ...[
+                       const SizedBox(height: 4),
+                       Text('SecureWave Network', style: AppTheme.caption),
+@@ -290,12 +284,23 @@
+               final protocol = Semantics(
+                 label: 'Protocol: WireGuard',
+                 excludeSemantics: true,
+-                child: Text('WireGuard', style: AppTheme.smallBody),
++                child: Column(
++                  crossAxisAlignment: CrossAxisAlignment.start,
++                  children: [
++                    Text('Protocol', style: AppTheme.caption),
++                    const SizedBox(height: 8),
++                    Text('WireGuard', style: AppTheme.body),
++                  ],
++                ),
+               );
+               return stacked
+                   ? Column(
+                       crossAxisAlignment: CrossAxisAlignment.start,
+-                      children: [location, const SizedBox(height: 8), protocol],
++                      children: [
++                        location,
++                        const SizedBox(height: 16),
++                        protocol
++                      ],
+                     )
+                   : Row(
+                       crossAxisAlignment: CrossAxisAlignment.start,
+@@ -450,7 +455,7 @@
+               textDirection: Directionality.of(context),
+               textScaler: scaler)
+             ..layout();
+-          final contentHeight = 32 + 12 + painter.height;
++          final contentHeight = 44 + 12 + painter.height;
+           final fits =
+               painter.width <= diameter - 40 && contentHeight <= diameter - 40;
+           painter.dispose();
+@@ -478,7 +483,7 @@
+                     foregroundColor:
+                         const WidgetStatePropertyAll(AppTheme.textPrimary),
+                     side: WidgetStatePropertyAll(BorderSide(
+-                        width: 2,
++                        width: 4,
+                         color: widget.disabled && !_transition
+                             ? AppTheme.borderStrong
+                             : _hue)),
+@@ -487,13 +492,26 @@
+                     label: widget.action,
+                     excludeSemantics: true,
+                     child: Column(mainAxisSize: MainAxisSize.min, children: [
+-                      Icon(icon, size: 32, color: _hue),
++                      Icon(icon, size: 44, color: _hue),
+                       if (fits) ...[
+                         const SizedBox(height: 12),
+                         Text(widget.action,
+                             textAlign: TextAlign.center, style: style),
+                       ],
+                     ]),
++                  ),
++                ),
++              ),
++              IgnorePointer(
++                child: ExcludeSemantics(
++                  child: Container(
++                    width: diameter - 24,
++                    height: diameter - 24,
++                    decoration: BoxDecoration(
++                      shape: BoxShape.circle,
++                      border: Border.all(
++                          color: AppTheme.borderStrong.withValues(alpha: .3)),
++                    ),
+                   ),
+                 ),
+               ),
+--- a/securewave_app/lib/ui/theme.dart
++++ b/securewave_app/lib/ui/theme.dart
+@@ -166,7 +166,7 @@
+       ),
+       inputDecorationTheme: InputDecorationTheme(
+         filled: true,
+-        fillColor: surfacePrimary,
++        fillColor: surfaceElevated,
+         hoverColor: surfaceElevated,
+         constraints: const BoxConstraints(minHeight: 52),
+         contentPadding:
+@@ -186,6 +186,6 @@
+ 
+   static OutlineInputBorder _fieldBorder(Color color, {double width = 1}) =>
+       OutlineInputBorder(
+-          borderRadius: BorderRadius.circular(6),
++          borderRadius: BorderRadius.circular(8),
+           borderSide: BorderSide(color: color, width: width));
+ }

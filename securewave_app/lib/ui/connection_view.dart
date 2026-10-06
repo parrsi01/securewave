@@ -159,7 +159,7 @@ class ConnectionView extends StatelessWidget {
                             ? Alignment.topCenter
                             : Alignment.center,
                         child: ConstrainedBox(
-                          constraints: const BoxConstraints(maxWidth: 640),
+                          constraints: const BoxConstraints(maxWidth: 560),
                           child: SizedBox(
                             width: double.infinity,
                             child: Column(
@@ -196,12 +196,7 @@ class ConnectionView extends StatelessWidget {
                                     ],
                                   ),
                                 ),
-                                SizedBox(
-                                    height: viewport.maxHeight >= 720
-                                        ? 24
-                                        : viewport.maxHeight >= 640
-                                            ? 16
-                                            : 12),
+                                const SizedBox(height: 24),
                                 _ConnectionControl(
                                   status: status,
                                   action: action,
@@ -220,51 +215,13 @@ class ConnectionView extends StatelessWidget {
                                   const SizedBox(height: 16),
                                 ] else
                                   const SizedBox(height: 32),
-                                ConstrainedBox(
-                                  constraints:
-                                      const BoxConstraints(maxWidth: 420),
-                                  child: SizedBox(
-                                    width: double.infinity,
-                                    child: Column(children: [
-                                      Semantics(
-                                        label:
-                                            'Server label: $productLabel. SecureWave Network.',
-                                        excludeSemantics: true,
-                                        child: Column(children: [
-                                          Text(productLabel,
-                                              textAlign: TextAlign.center,
-                                              style:
-                                                  AppTheme.type(16, 600, 1.4)),
-                                          if (productLabel !=
-                                              'SecureWave Network') ...[
-                                            const SizedBox(height: 4),
-                                            Text('SecureWave Network',
-                                                style: AppTheme.caption),
-                                          ],
-                                        ]),
-                                      ),
-                                      const SizedBox(height: 4),
-                                      Text('Protocol  WireGuard',
-                                          textAlign: TextAlign.center,
-                                          style: AppTheme.smallBody),
-                                      const SizedBox(height: 24),
-                                      const Divider(),
-                                      const SizedBox(height: 16),
-                                      TransferSummary(
-                                        download: download,
-                                        upload: upload,
-                                        available: countersAvailable,
-                                      ),
-                                      if (recordingNotice != null) ...[
-                                        const SizedBox(height: 12),
-                                        Text(
-                                          recordingNotice!,
-                                          textAlign: TextAlign.center,
-                                          style: AppTheme.caption,
-                                        ),
-                                      ],
-                                    ]),
-                                  ),
+                                _ConnectionInformation(
+                                  productLabel: productLabel,
+                                  compact: compact,
+                                  download: download,
+                                  upload: upload,
+                                  countersAvailable: countersAvailable,
+                                  recordingNotice: recordingNotice,
                                 ),
                               ],
                             ),
@@ -277,6 +234,91 @@ class ConnectionView extends StatelessWidget {
               ),
             ]);
           }),
+        ),
+      );
+}
+
+/// The existing location, protocol and recorded totals share one surface.
+/// This widget receives values only and never queries runtime state.
+class _ConnectionInformation extends StatelessWidget {
+  const _ConnectionInformation({
+    required this.productLabel,
+    required this.compact,
+    required this.download,
+    required this.upload,
+    required this.countersAvailable,
+    this.recordingNotice,
+  });
+
+  final String productLabel;
+  final bool compact;
+  final String download;
+  final String upload;
+  final bool countersAvailable;
+  final String? recordingNotice;
+
+  @override
+  Widget build(BuildContext context) => Container(
+        key: const ValueKey('connection-information'),
+        width: double.infinity,
+        padding: EdgeInsets.all(compact ? 16 : 24),
+        decoration: BoxDecoration(
+          color: AppTheme.surfacePrimary,
+          border: Border.all(color: AppTheme.borderSubtle),
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            LayoutBuilder(builder: (context, constraints) {
+              final stacked = constraints.maxWidth < 360 ||
+                  MediaQuery.textScalerOf(context).scale(16) / 16 >= 1.5;
+              final location = Semantics(
+                label: 'Server label: $productLabel. SecureWave Network.',
+                excludeSemantics: true,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(productLabel, style: AppTheme.sectionTitle),
+                    if (productLabel != 'SecureWave Network') ...[
+                      const SizedBox(height: 4),
+                      Text('SecureWave Network', style: AppTheme.caption),
+                    ],
+                  ],
+                ),
+              );
+              final protocol = Semantics(
+                label: 'Protocol: WireGuard',
+                excludeSemantics: true,
+                child: Text('WireGuard', style: AppTheme.smallBody),
+              );
+              return stacked
+                  ? Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [location, const SizedBox(height: 8), protocol],
+                    )
+                  : Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(child: location),
+                        const SizedBox(width: 24),
+                        protocol,
+                      ],
+                    );
+            }),
+            const SizedBox(height: 24),
+            const Divider(),
+            const SizedBox(height: 16),
+            TransferSummary(
+              download: download,
+              upload: upload,
+              available: countersAvailable,
+            ),
+            if (recordingNotice != null) ...[
+              const SizedBox(height: 12),
+              Text(recordingNotice!, style: AppTheme.caption),
+            ],
+          ],
         ),
       );
 }
@@ -370,6 +412,13 @@ class _ConnectionControlState extends State<_ConnectionControl>
 
   Color _surface(Set<WidgetState> states) {
     if (widget.disabled && !_transition) return AppTheme.disabledBackground;
+    if (widget.status == VpnStatus.error) {
+      if (states.contains(WidgetState.pressed)) {
+        return AppTheme.surfaceInteractive;
+      }
+      if (states.contains(WidgetState.hovered)) return AppTheme.surfaceElevated;
+      return AppTheme.surfacePrimary;
+    }
     var alpha = switch (widget.status) {
       VpnStatus.disconnected => 0.0,
       VpnStatus.disconnecting => .04,
@@ -429,7 +478,7 @@ class _ConnectionControlState extends State<_ConnectionControl>
                     foregroundColor:
                         const WidgetStatePropertyAll(AppTheme.textPrimary),
                     side: WidgetStatePropertyAll(BorderSide(
-                        width: 1.5,
+                        width: 2,
                         color: widget.disabled && !_transition
                             ? AppTheme.borderStrong
                             : _hue)),

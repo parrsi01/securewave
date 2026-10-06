@@ -47,6 +47,12 @@ void main() {
         status: VpnStatus.connected, download: '2.0 MB', upload: '512.0 KB'),
     'transfer_unavailable': () =>
         homeFixture(status: VpnStatus.connected, available: false),
+    'recording_pending': () => homeFixture(
+        status: VpnStatus.connected,
+        recordingNotice: 'Measured usage is awaiting server confirmation.'),
+    'recording_gap': () => homeFixture(
+        status: VpnStatus.connected,
+        recordingNotice: 'Usage recording contains a measurement gap.'),
     'long_feedback': () => const AuthFixture(
         error:
             'SecureWave could not authorize account creation. Please try again later. SecureWave could not authorize account creation. Please try again later.'),
@@ -93,6 +99,7 @@ void main() {
   }
   for (final viewport in [
     const Size(1280, 720),
+    const Size(1600, 900),
     const Size(640, 480),
     const Size(390, 844),
     const Size(320, 480)

@@ -217,6 +217,7 @@ void main() {
   for (final viewport in [
     const Size(900, 680),
     const Size(1280, 720),
+    const Size(1600, 900),
     const Size(640, 480),
     const Size(390, 844),
     const Size(320, 480),
@@ -277,6 +278,27 @@ void main() {
     await tester.pump();
     expect(find.text('Use at least 8 characters.'), findsOneWidget);
     expect(find.text('Signing in…'), findsNothing);
+  });
+
+  testWidgets('recording notices do not replace available transfer values',
+      (tester) async {
+    await size(tester, const Size(900, 680));
+    for (final notice in [
+      'Measured usage is awaiting server confirmation.',
+      'Usage recording contains a measurement gap.',
+    ]) {
+      await tester.pumpWidget(fixtureHost(homeFixture(
+        status: VpnStatus.connected,
+        download: '2.0 MB',
+        upload: '512.0 KB',
+        recordingNotice: notice,
+      )));
+      expect(find.text(notice), findsOneWidget);
+      expect(find.text('2.0 MB'), findsOneWidget);
+      expect(find.text('512.0 KB'), findsOneWidget);
+      expect(find.text('Unavailable'), findsNothing);
+      expect(tester.takeException(), isNull);
+    }
   });
 
   test('approved readable colors meet contrast requirements', () {

@@ -39,7 +39,8 @@ class TransferSummary extends StatelessWidget {
       );
 
   Widget _value(String label, String value, IconData icon) => Semantics(
-        label: '$label transfer recorded during this app session: $value',
+        label:
+            '$label transfer recorded during the current VPN usage session: $value',
         excludeSemantics: true,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,

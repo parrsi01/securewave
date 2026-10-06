@@ -63,7 +63,7 @@ abstract final class AppTheme {
   static TextStyle get fieldLabel => type(14, 500, 1.4);
   static TextStyle get button => type(16, 600, 1.25);
   static TextStyle get caption => type(13, 400, 1.45, color: textSecondary);
-  static TextStyle get transfer => type(24, 400, 1.3, family: 'JetBrainsMono');
+  static TextStyle get transfer => type(28, 400, 1.3, family: 'JetBrainsMono');
 
   static final ThemeData dark = _buildDark();
 
@@ -167,9 +167,10 @@ abstract final class AppTheme {
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
         fillColor: surfacePrimary,
+        hoverColor: surfaceElevated,
         constraints: const BoxConstraints(minHeight: 52),
         contentPadding:
-            const EdgeInsets.symmetric(horizontal: 14, vertical: 16),
+            const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
         hintStyle: smallBody.copyWith(color: textMuted),
         errorStyle: caption.copyWith(color: error),
         errorMaxLines: 4,

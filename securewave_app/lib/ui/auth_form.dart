@@ -45,7 +45,8 @@ class UiFeedback extends StatelessWidget {
           const SizedBox(width: 12),
           Expanded(
               child: Text(message,
-                  style: AppTheme.smallBody.copyWith(color: color))),
+                  style: AppTheme.smallBody
+                      .copyWith(color: AppTheme.textPrimary))),
         ]),
       ),
     );
@@ -138,8 +139,7 @@ class AuthForm extends StatelessWidget {
                                 registering
                                     ? 'Create your SecureWave account.'
                                     : 'Sign in to use SecureWave.',
-                                style: AppTheme.body
-                                    .copyWith(color: AppTheme.textSecondary)),
+                                style: AppTheme.smallBody),
                             const SizedBox(height: 24),
                             ...fields,
                             if (error != null) ...[

@@ -40,6 +40,7 @@ Widget homeFixture({
   bool available = true,
   String? download,
   String? upload,
+  String? recordingNotice,
   String server = 'Fixture server label',
   VoidCallback? onToggle,
   VoidCallback? onLogout,
@@ -57,6 +58,7 @@ Widget homeFixture({
     upload: upload ?? (available ? '0 B' : unavailable),
     countersAvailable: available,
     error: error,
+    recordingNotice: recordingNotice,
     onToggle: onToggle ?? () {},
     onLogout: onLogout ?? () {},
   );
@@ -147,4 +149,42 @@ class _AuthFixtureState extends State<AuthFixture> {
           ],
         ],
       );
+}
+
+/// Standalone Linux presentation capture target. This is never imported by the
+/// production entrypoint and never starts a service or tunnel.
+/// Run the built preview with one state argument, e.g. `connected`.
+void main(List<String> arguments) {
+  final name = arguments.isEmpty ? 'disconnected' : arguments.first;
+  final status = switch (name) {
+    'connecting' => VpnStatus.connecting,
+    'connected' => VpnStatus.connected,
+    'disconnecting' => VpnStatus.disconnecting,
+    'error' => VpnStatus.error,
+    _ => VpnStatus.disconnected,
+  };
+  final Widget screen = switch (name) {
+    'create-account' => const AuthFixture(registering: true),
+    'sign-in' => const AuthFixture(),
+    _ => homeFixture(
+        status: status,
+        server: 'Germany',
+        available: status != VpnStatus.connecting,
+        download: status == VpnStatus.connected ? '2.0 MB' : null,
+        upload: status == VpnStatus.connected ? '512.0 KB' : null,
+        error: status == VpnStatus.error
+            ? 'The Linux WireGuard helper is unavailable.'
+            : null,
+      ),
+  };
+  runApp(fixtureHost(
+    Banner(
+      message: 'VISUAL FIXTURE',
+      location: BannerLocation.topEnd,
+      color: AppTheme.surfaceInteractive,
+      textStyle: AppTheme.type(11, 500, 1.2),
+      child: screen,
+    ),
+    reducedMotion: false,
+  ));
 }

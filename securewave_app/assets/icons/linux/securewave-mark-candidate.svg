@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64">
+  <title>SecureWave interlocking wave mark — candidate revision 2</title>
+  <rect x="4" y="4" width="56" height="56" rx="13" fill="#060C18"/>
+  <rect x="4.5" y="4.5" width="55" height="55" rx="12.5" fill="none" stroke="#1A3060" stroke-width="1"/>
+  <path d="M48 14H31C21 14 14 21 14 29C14 36 19 39 26 41L33 34L25 31C23 30 23 29 23 28C23 25 26 23 31 23H41Z" fill="#00B4FF"/>
+  <path d="M48 14H31C21 14 14 21 14 29C14 36 19 39 26 41L33 34L25 31C23 30 23 29 23 28C23 25 26 23 31 23H41Z" transform="rotate(180 32 32)" fill="#D0E8FF"/>
+</svg>
