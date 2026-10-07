@@ -1,5 +1,16 @@
 # Routing reintegration validation — 7 October 2026
 
+## User manual acceptance
+
+On 7 October 2026, after launching the current Flutter Linux source app against
+the live API, the project owner reported: “manual test was successful, all
+actions worked smoothly without issue.” This is user-reported manual acceptance,
+separate from the independently observed automated results below. The source at
+launch was `425f53f487743a28d9321b5f96e52cdf6c487c39` (version 1.0.0).
+The native application window was independently confirmed visible and showing.
+The MARL+XGBoost implementation is saved on `master` and remains shadow-only;
+manual VPN success does not establish a model performance improvement.
+
 ## Scope and source
 
 The source baseline was clean `ee605ee4749324049d44862051bf98c15af4e530` on
