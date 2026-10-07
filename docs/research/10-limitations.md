@@ -45,7 +45,14 @@ need a new specification. Traffic metadata collection can itself affect user
 privacy. Before adding federated learning, define which observations leave the
 device, consent, adversarial participants, model-update protection and a
 reproducible baseline. No inference model or detection accuracy is claimed in
-the current application.
+the current application. A separate
+[MARL/XGBoost routing experiment](../development/routing-optimizer.md) trains
+on simulator episodes and observes measured inputs in shadow mode. Its frozen
+synthetic holdout does not establish production routing gains, and the combined
+policy did not outperform XGBoost alone. One physical production host cannot
+validate alternative-server selection. Backend ICMP probes and normalized load
+averages also differ from the simulator's client latency/congestion variables;
+fresh timestamps do not remove that domain mismatch.
 
 ## 10.3 Conclusion
 

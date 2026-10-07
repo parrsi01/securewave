@@ -16,6 +16,21 @@ environment is not activated. Python tests create disposable fixtures. Native
 tests build a temporary executable and simulate approved commands; they do not
 invoke the installed daemon or change host routes.
 
+For optional routing research, install `requirements-ml.txt`, then run:
+
+```sh
+python -m pytest --confcutdir=tests -q tests/test_routing_training.py \
+  tests/test_routing_shadow.py tests/test_routing_worker.py \
+  tests/test_routing_collection.py tests/test_routing_integration.py
+python -m ml.train_routing --output /var/tmp/securewave-routing-model \
+  --seed 42 --episodes 80
+```
+
+The core API imports no native ML libraries. Heavy training/worker tests skip
+explicitly when their optional dependencies are absent; CI has a separate job
+that installs them. See the [routing guide](routing-optimizer.md) for measured
+input provenance, fail-open tests, model hashes and evaluation limits.
+
 ## Real PostgreSQL
 
 Two tests require PostgreSQL: simultaneous identical cumulative checkpoints

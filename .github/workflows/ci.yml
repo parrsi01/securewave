@@ -77,3 +77,18 @@ jobs:
       - run: node website/tests/check_download_selector.cjs
       - run: node website/tests/check_support_widget.cjs
       - run: node website/tests/check_account_navigation.cjs
+
+  routing-research:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: |
+            requirements-dev.txt
+            requirements-ml.txt
+      - run: pip install -r requirements-dev.txt -r requirements-ml.txt
+      - run: python -m pytest --confcutdir=tests -q tests/test_routing_training.py tests/test_routing_shadow.py tests/test_routing_worker.py tests/test_routing_collection.py tests/test_routing_integration.py
+      - run: python -m ml.train_routing --output "$RUNNER_TEMP/routing-artifacts" --seed 42 --episodes 80

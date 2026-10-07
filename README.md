@@ -22,6 +22,8 @@ durable accounting of real tunnel traffic.
 - Connection verification using the interface, expected peer, recent handshake, counters, routing, and changed public egress.
 - Durable usage sessions, cumulative checkpoints, idempotent database updates, and final reporting after window close or process death.
 - Responsive navy/cyan presentation with keyboard/accessibility and visual regression tests.
+- Optional backend routing research: offline XGBoost and multi-agent Q-learning,
+  with measured-input shadow recommendations that preserve normal selection.
 
 The current desktop target is **Ubuntu 24.04 ARM64 with WireGuard**. This
 release does not claim supported Windows, macOS, mobile, OpenVPN, IKEv2, or
@@ -33,6 +35,7 @@ machine-learning anomaly detection.
 securewave_app/     Flutter UI, API/VPN services, native runner, helper, packaging
 routes/            HTTP authentication, peer provisioning, and usage contracts
 services/          Authentication, server management, transactional metering
+ml/                Offline routing simulator, trainer, and pure advisory policy
 models/            SQLAlchemy account, peer, session, and event models
 database/          Database engine, sessions, and model metadata
 infrastructure/    Server provisioning and systemd integration
@@ -60,6 +63,11 @@ make check
 See [Quick Start](QUICK_START.md) for native dependencies and packaging.
 Contract tests use disposable fixtures; they do not establish a production VPN.
 
+The [routing research guide](docs/development/routing-optimizer.md) explains
+the adaptation of the author's MARL/XGBoost research, optional dependencies,
+data provenance, frozen evaluation, and default-off deployment controls.
+The synthetic model is experimental; it never changes a connection decision.
+
 ## Evidence and release status
 
 **1.0.0 is the consolidated source version.** Earlier `4.0.0+…` names remain
@@ -71,8 +79,9 @@ checks from installed-product evidence. Historical tests demonstrated real
 traffic, teardown, crash recovery, and final database persistence. Version
 1.0.0 is installed with matching package bytes; services, cold launch,
 authenticated Connect/Disconnect/Reconnect, real traffic and final backend
-usage persistence passed. A fresh reboot with 1.0.0 installed and its
-subsequent lifecycle remain the final open acceptance gate.
+usage persistence passed. The current public UI bundle also passed fresh
+automated live lifecycle tests on 7 October; installation, public-bundle
+testing and package-specific reboot evidence remain separate in that record.
 
 The [technical monograph](docs/research/README.md) adopts the research-question,
 system-model, algorithm, and evaluation structure of

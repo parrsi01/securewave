@@ -70,7 +70,10 @@ tests but cannot substitute for the production concurrency model [2].
 
 The author's federated anomaly detection paper [9] provides a presentation
 example: define the problem, specify the model, present algorithms, explain
-evaluation and discuss limitations. SecureWave does not implement the paper's
-multi-agent reinforcement learning, XGBoost or federated training. A future
-anomaly detection experiment would require a separately defined dataset,
-privacy model, baseline, metrics and implementation.
+evaluation and discuss limitations. The optional
+[routing experiment](../development/routing-optimizer.md) adapts its
+multi-agent/XGBoost motivation to server selection, using a new simulator and
+explicit Bellman policy updates. It does not restore the anomaly classifier
+or implement federated training. The experiment is advisory: the established
+selector retains authority over every connection. An anomaly detection
+extension would require its own dataset, privacy model and evaluation.

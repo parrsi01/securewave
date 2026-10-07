@@ -1,9 +1,13 @@
 # Current validation record
 
-Updated **6 October 2026**. The consolidated application source is **1.0.0**.
+Updated **7 October 2026**. The consolidated application source is **1.0.0**.
 `master` integrates usage recording, the navy/cyan UI presentation and PyJWT
 2.15.0 maintenance. Helper contract **15**, socket request protocol **1**, and
 usage protocol **2** remain distinct compatibility identifiers.
+
+The [routing validation record](development/routing-validation-2026-10-07.md)
+documents the optional backend MARL/XGBoost experiment, passive production
+overlay, current data limits and exact GUI/package distinction.
 
 ## Consolidated software checks
 
@@ -13,9 +17,10 @@ usage protocol **2** remain distinct compatibility identifiers.
 | PostgreSQL race | Passed | Two identical concurrent cumulative reports counted once; totals exceed 32-bit range |
 | PostgreSQL migration | Passed | Preserved legacy rows; migration run twice against disposable legacy-shaped schema |
 | Flutter static analysis | No issues | Flutter 3.41.4 / Dart 3.11.1 |
-| Flutter tests | 120 passed | API/VPN/usage service, UI/accessibility and visual fixtures |
+| Flutter tests | 133 passed | API/VPN/usage service, UI/accessibility and visual fixtures |
+| Optional routing + backend suite | 168 passed | Clean Python environment, optional ML dependencies and disposable PostgreSQL 16 |
 | Native helper and wrapper | Passed | Temporary compiled helper tests; no host tunnel mutation |
-| Architecture report | 29-page PDF | Rebuilt from 7,400+ words of chapter sources and original SVG diagrams; reviewed sample pages |
+| Architecture report | 32-page PDF | Rebuilt from chapter sources, routing analysis and original SVG diagrams |
 
 The pre-consolidation backend also passed in a fresh-source copy without
 ignored local environment files. All three consolidated
@@ -58,9 +63,13 @@ backend history confirms two finalized version-2 usage sessions, verified
 timestamps, complete quality and persisted totals covering each cycle's
 observed traffic. See the [acceptance record](archive/releases/1.0.0-installed-acceptance-2026-10-06.md).
 
-The VM's current boot began **2026-10-06 at 11:03:01 UTC**, before the 1.0.0
-installation. A reboot *with 1.0.0 installed* and its subsequent lifecycle
-still need separate evidence; this final gate is not claimed complete.
+The VM's current boot began **2026-10-06 at 21:39:39 UTC**, after the 1.0.0
+installation. The previous 11:03 timing was stale. On 7 October the current
+public UI bundle (`a8096ae5`) passed fresh cold-launch, authentication, two real
+traffic cycles, ledger finalization, logout and route/DNS restoration against
+the installed helper/reporter. That test launched the extracted public bundle;
+it did not replace the installed GUI from `a9181ea8`. No new installation or
+reboot was performed. Package-specific installed/reboot claims remain separate.
 
 The website now offers **1.0.0 only**, published on 2026-10-06 with matching
 package bytes and source provenance. See the [website publication record](development/website-readability-2026-10-06.md)

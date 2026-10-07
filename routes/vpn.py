@@ -40,6 +40,7 @@ from services.usage_metering_service import UsageMeteringError, UsageMeteringSer
 from services.vpn_peer_manager import IP_POOL_END, IP_POOL_START, get_peer_manager
 from services.vpn_server_service import VPNServerService
 from services import wireguard_helper_client
+from services.routing_shadow import observe_selection
 from services.wireguard_peer_lifecycle import (
     WireGuardPeerSyncError,
     confirm_peer_assignment,
@@ -282,12 +283,21 @@ def _server_info(server: VPNServer) -> ServerInfo:
     )
 
 
+def _observe_routing(candidates, baseline, *, explicit=False):
+    # An advisory experiment must never become a provisioning dependency.
+    try:
+        observe_selection(candidates, baseline, explicit=explicit)
+    except Exception:
+        pass
+
+
 def _select_server(db: Session, user: User, server_id: Optional[str]) -> VPNServer:
     candidates = _active_wireguard_servers(db, user)
     if server_id:
         server = VPNServerService.get_server_by_id(db, server_id)
         if server is None or server not in candidates:
             raise HTTPException(status_code=404, detail="WireGuard server not found")
+        _observe_routing(candidates, server, explicit=True)
         return server
     if not candidates:
         raise HTTPException(
@@ -302,7 +312,9 @@ def _select_server(db: Session, user: User, server_id: Optional[str]) -> VPNServ
         ),
         reverse=True,
     )
-    return candidates[0]
+    baseline = candidates[0]
+    _observe_routing(candidates, baseline)
+    return baseline
 
 
 def _is_wireguard_public_key(value: str) -> bool:

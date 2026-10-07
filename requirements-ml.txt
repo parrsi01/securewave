@@ -1,0 +1,5 @@
+# Optional offline worker/trainer only. Not imported by the VPN API.
+numpy==1.26.4
+scipy==1.16.3
+scikit-learn==1.5.2
+xgboost==2.1.3

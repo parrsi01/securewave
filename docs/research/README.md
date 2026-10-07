@@ -1,7 +1,7 @@
 # SecureWave: Architecture, Algorithms and Assurance
 
 Master's-level engineering report for SecureWave 1.0.0. Prepared for the
-project maintained by Simon Parris, 6 October 2026. This is an engineering
+project maintained by Simon Parris, revised 7 October 2026. This is an engineering
 analysis of the repository, not a peer-reviewed publication or an independent
 security certification.
 
@@ -10,8 +10,10 @@ The PDF is generated from these Markdown sources and the SVG figures by
 [`scripts/build_research_pdf.py`](../../scripts/build_research_pdf.py).
 The report uses the problem–model–algorithm–evaluation structure of
 [the author's network anomaly detection paper](https://github.com/parrsi01/Decentralized-Federated-Detection-of-Network-Anomalies-in-Mobile-Networks/blob/main/Research/IEEE_conference_paper_simon_parris.pdf).
-Its research results, machine learning algorithms and university affiliations
-are not claimed as features or endorsements of SecureWave.
+Its published classifier results and university affiliations are not claimed
+as results or endorsements of SecureWave. The separately specified
+[routing adaptation](../development/routing-optimizer.md) uses new offline
+policy learning and shadow observation, with no production performance claim.
 
 | Chapter | Subject |
 | --- | --- |
@@ -26,6 +28,7 @@ are not claimed as features or endorsements of SecureWave.
 | [8. Evaluation methodology](08-evaluation.md) | Tests, acceptance protocol and threats to validity |
 | [9. Delivery and reproducibility](09-delivery.md) | Source, package, deployment and evidence |
 | [10. Limitations and future work](10-limitations.md) | Open questions and conclusion |
+| [11. Experimental routing policy](11-routing.md) | MARL/XGBoost adaptation, shadow authority and data validity |
 | [References](references.md) | Primary sources and code traceability |
 
 ## Rebuild the report
