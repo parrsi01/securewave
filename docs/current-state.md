@@ -7,7 +7,10 @@ usage protocol **2** remain distinct compatibility identifiers.
 
 The [routing validation record](development/routing-validation-2026-10-07.md)
 documents the optional backend MARL/XGBoost experiment, passive production
-overlay, current data limits and exact GUI/package distinction.
+overlay, current data limits and exact GUI/package distinction. Post-deployment
+live API and real GUI/WireGuard/usage tests passed; the latter used an isolated
+temporary display while preserving the locked owner desktop. All five GitHub
+checks passed for implementation commit `29c24967`.
 
 ## Consolidated software checks
 

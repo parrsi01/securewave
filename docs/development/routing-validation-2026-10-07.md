@@ -7,6 +7,12 @@ the sole branch `master`. Application version remains 1.0.0. No Flutter,
 native helper, authentication contract, website design or public download
 manifest was changed by this implementation.
 
+Implementation commits: `63d0b24c92ef0bccc4f3e17d37ada5c006d7d63d`
+(routing pipeline) and `29c24967c20d690d2951f51719c2e969d6547396`
+(client-owned revocation fix). All five
+[Review checks passed](https://github.com/parrsi01/securewave/actions/runs/37683367506)
+on the latter: backend, desktop, routing research, documentation and website.
+
 Local agents first audited research provenance, dataset quality and acceptance
 prerequisites. The resulting implementation contains an offline simulator and
 trainer, shared pure policy, measured-input collector, offline inference worker,
@@ -91,7 +97,7 @@ the repeat test cleaned its own peer through the fixed authenticated endpoint.
 No other account or peer was modified. No host tunnel was started by this API
 smoke; it is separate from the actual GUI/tunnel evidence below.
 
-## Real app evidence and remaining gate
+## Real app evidence
 
 The current public package is 1.0.0 ARM64 from clean source
 `a8096ae5f8fa07e380f4fad3cf189767912b816c`, package SHA256
@@ -106,8 +112,38 @@ logout. Independent checks confirmed expected peer, one-second handshake age,
 increasing counters, exact IPv4/IPv6 routes/rules/DNS/domains/egress restoration,
 no temporary configuration, no retained token and active services.
 
-The post-deployment GUI rerun encountered a locked desktop before entering
-credentials or starting a tunnel. The final live GUI gate is pending desktop
-unlock. A healthy API or local unit test is not a replacement for that proof.
-No new installation or reboot occurred in this task. Credentials/tokens are
-kept in memory; screenshots and raw evidence remain private, outside Git.
+The first post-deployment GUI attempts encountered a locked desktop before
+entering credentials or starting a tunnel. An isolated temporary X11 display
+and separate D-Bus/accessibility/Secret Service session provided fully automated
+acceptance while preserving the owner desktop and keyring. The test used the
+actual public binary, installed helper/reporter and deployed production API.
+
+The final supervised run passed at **20:43:55 UTC**, exit **0**: fresh GUI
+registration/sign-in, Connect, real traffic, Disconnect, Reconnect, more traffic,
+final Disconnect, owner-scoped ledger verification and logout.
+
+| Independent observation | First cycle | Reconnect cycle |
+| --- | ---: | ---: |
+| Real download bytes | 3,145,728 | 3,145,728 |
+| Handshake age, seconds | 1 | 0 |
+| RX increase, bytes | 3,355,344 | 3,356,780 |
+| TX increase, bytes | 50,416 | 65,964 |
+| Finalized persisted RX, bytes | 3,379,300 | 3,380,752 |
+| Finalized persisted TX, bytes | 74,444 | 91,400 |
+
+Both version-2 ledgers had complete quality and verified timestamps, with totals
+covering observed traffic. Independent post-exit checks confirmed exact IPv4/IPv6
+routes, rules, DNS/domains and egress restoration, no tunnel/configuration,
+active services and cleared app token. Test secrets stayed in a volatile session
+collection. The only keyring-directory file was exact seven-byte nonsecret
+default-alias metadata; there were zero durable secret keyrings. Display
+authorization used a memory file descriptor. All temporary GUI/display/D-Bus/
+keyring/accessibility/portal processes and sockets were cleaned.
+
+This is actual GUI evidence on a virtual display, distinct from the earlier
+owner-desktop run. Private raw evidence is under
+`/var/tmp/securewave-marl-regression-20261007/20261007T204324Z`, with directories
+0700 and records 0600. No new installation or reboot occurred. Package-specific
+installed/reboot evidence and untested network/failure scenarios remain separate.
+The experiment remains shadow-only; successful VPN regression does not establish
+real model performance or create a measured multi-server training dataset.
