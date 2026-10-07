@@ -18,7 +18,7 @@ overlay, current data limits and exact GUI/package distinction.
 | PostgreSQL migration | Passed | Preserved legacy rows; migration run twice against disposable legacy-shaped schema |
 | Flutter static analysis | No issues | Flutter 3.41.4 / Dart 3.11.1 |
 | Flutter tests | 133 passed | API/VPN/usage service, UI/accessibility and visual fixtures |
-| Optional routing + backend suite | 168 passed | Clean Python environment, optional ML dependencies and disposable PostgreSQL 16 |
+| Optional routing + backend suite | 183 passed | Clean Python environment, optional ML dependencies, helper-confirmed revocation and disposable PostgreSQL 16 |
 | Native helper and wrapper | Passed | Temporary compiled helper tests; no host tunnel mutation |
 | Architecture report | 32-page PDF | Rebuilt from chapter sources, routing analysis and original SVG diagrams |
 

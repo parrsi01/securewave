@@ -18,8 +18,9 @@ default-off shadow observer, selector integration and focused tests. See the
 | Check | Result |
 | --- | --- |
 | Initial backend, disposable PostgreSQL included | 54 passed |
-| Final clean-environment backend + routing, PostgreSQL included | 168 passed |
+| Final clean-environment backend + routing, PostgreSQL included | 183 passed |
 | Routing-specific correctness and failure handling | 114 passed |
+| Client-owned provisioning and revocation contracts | 33 passed |
 | Flutter analysis and tests, unchanged source | Clean analysis; 133 passed |
 | Native helper/wrapper, unchanged source | Passed |
 | Website design/download/support/navigation, unchanged source | Four checks passed |
@@ -42,7 +43,7 @@ uplift or activation is claimed.
 
 The production release pointer remains
 `20261006T000751Z-usage-c90dc03f5ccb`. Its full older website/API backend was
-preserved. Deployment changed only the selector import/wrapper and added
+preserved. Initial deployment changed only the selector import/wrapper and added
 `services/routing_shadow.py` plus `ml/routing_policy.py`. A dedicated systemd
 drop-in enables shadow mode, with private model/policy storage owned by the
 API identity. The API does not import the trainer or native ML packages.
@@ -55,7 +56,7 @@ check would restore source/config and restart the previous behavior.
 
 | Deployed source | SHA256 |
 | --- | --- |
-| `routes/vpn.py`, full preserved backend file with overlay | `94e4a93757c8f3f93289a4352b8baee4272ca3edc5d1628cb447a706a3251404` |
+| `routes/vpn.py`, preserved backend with shadow and revocation fixes | `b625e08dd2bcb4a433e499ef0923193ae45565ed05a09ae4f398827dcbd21f5b` |
 | `services/routing_shadow.py` | `85ebd02f4ed8574573eaf399fb6dee584b59c5cd178ecc24ee874d0cd6645b14` |
 | `ml/routing_policy.py` | `93077f5bb0c83ef68a775db2a7138ef2e2a4ccccb5b22be1fb0fbbeb48157c38` |
 
@@ -69,6 +70,26 @@ The external collector received no ICMP replies and could not supply RTT.
 It failed without fabricating data or replacing a snapshot. No production
 measured snapshot exists, and no automatic telemetry daemon was installed.
 Fresh legacy health records contain estimated/simulated fields and are excluded.
+
+The post-deployment API smoke confirmed registration/login/me/server-list/config
+success and an actual `routing_shadow ... reason=no_alternative` log. It found
+a separate existing device-revocation HTTP 500: the legacy manager initializes
+`/wg` inside the API's restricted filesystem. Client-owned revocation now uses
+the provisioning helper, verifies assigned-server identity before and after
+removal, confirms absence and only then commits revoked state. All errors
+return 503 with rollback, allowing safe retry after an already-removed peer.
+Ownership, authentication and the legacy server-owned branch are preserved.
+The original overlay hash was `94e4a937...`; its pre-revocation-fix route is
+also backed up in the same private backup directory.
+
+At 20:35:30 UTC, the corrected live API acceptance passed fresh registration,
+login, authenticated identity, server listing, client-owned provisioning,
+helper-confirmed revocation, empty active-device listing, logout and rejection
+of the revoked session token. The original disposable test peer was removed
+with strict owner/time guards and independently confirmed revoked/inactive;
+the repeat test cleaned its own peer through the fixed authenticated endpoint.
+No other account or peer was modified. No host tunnel was started by this API
+smoke; it is separate from the actual GUI/tunnel evidence below.
 
 ## Real app evidence and remaining gate
 

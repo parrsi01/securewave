@@ -422,3 +422,179 @@ def test_post_config_route_uses_existing_auth_dependency():
     )
 
     assert any(dependency.call is get_current_user for dependency in route.dependant.dependencies)
+
+
+@pytest.fixture
+def client_owned_revocation(provisioning, monkeypatch):
+    peer = WireGuardPeer(
+        user_id=provisioning["user"].id,
+        server_id=provisioning["server"].id,
+        public_key=_public_key(33),
+        private_key_encrypted="",
+        ipv4_address="10.8.0.33/32",
+        device_type="linux-client-owned",
+        is_active=True,
+        is_revoked=False,
+    )
+    db = provisioning["db"]
+    db.add(peer)
+    db.commit()
+    state = {peer.public_key: [peer.ipv4_address]}
+    calls = []
+    control = {}
+
+    async def remove(public_key, address):
+        calls.append("remove")
+        assert public_key == peer.public_key
+        assert address == peer.ipv4_address
+        if control.get("remove_error"):
+            raise vpn_routes.wireguard_helper_client.WireGuardHelperError("helper unavailable")
+        if not control.get("keep_present"):
+            state.pop(public_key, None)
+
+    async def inspect():
+        calls.append("inspect")
+        if control.get("inspect_error"):
+            raise vpn_routes.wireguard_helper_client.WireGuardHelperError("helper unavailable")
+        return {
+            "server_public_key": control.get("server_key", provisioning["server"].wg_public_key),
+            "listen_port": control.get("listen_port", provisioning["server"].wg_listen_port),
+            "peers": None if control.get("malformed") else dict(state),
+        }
+
+    monkeypatch.setattr(vpn_routes.wireguard_helper_client, "remove_peer", remove)
+    monkeypatch.setattr(vpn_routes.wireguard_helper_client, "inspect_state", inspect)
+    monkeypatch.setattr(vpn_routes, "get_peer_manager", lambda *_: pytest.fail("Client-owned revocation constructed legacy manager"))
+    return {**provisioning, "peer": peer, "live_state": state, "helper_calls": calls, "control": control}
+
+
+def _revoke(fixture, *, user=None):
+    return asyncio.run(vpn_routes.revoke_device(
+        vpn_routes.DeviceRevokeRequest(device_id=fixture["peer"].id),
+        user or fixture["user"], fixture["db"],
+    ))
+
+
+def test_client_owned_revoke_verifies_helper_removal_before_database_success(client_owned_revocation):
+    fixture = client_owned_revocation
+    response = _revoke(fixture)
+    assert response == {"device_id": fixture["peer"].id, "status": "revoked"}
+    assert fixture["helper_calls"] == ["inspect", "remove", "inspect"]
+    assert fixture["peer"].public_key not in fixture["live_state"]
+    fixture["db"].expire_all()
+    assert fixture["peer"].is_revoked is True
+    assert fixture["peer"].is_active is False
+    assert fixture["peer"].revoked_at is not None
+
+
+def test_client_owned_already_revoked_is_idempotent_without_helper(client_owned_revocation):
+    fixture = client_owned_revocation
+    _revoke(fixture)
+    before = list(fixture["helper_calls"])
+    response = _revoke(fixture)
+    assert response["status"] == "already_revoked"
+    assert fixture["helper_calls"] == before
+
+
+def test_client_owned_revoke_cannot_revoke_another_account(client_owned_revocation):
+    fixture = client_owned_revocation
+    with pytest.raises(HTTPException) as failed:
+        _revoke(fixture, user=fixture["other_user"])
+    assert failed.value.status_code == 404
+    assert fixture["helper_calls"] == []
+    assert fixture["peer"].is_revoked is False
+    assert fixture["peer"].public_key in fixture["live_state"]
+
+
+@pytest.mark.parametrize("control", [
+    {"remove_error": True},
+    {"inspect_error": True},
+    {"keep_present": True},
+    {"malformed": True},
+    {"server_key": _public_key(34)},
+    {"listen_port": 51821},
+])
+def test_client_owned_unconfirmed_removal_never_marks_revoked(client_owned_revocation, control):
+    fixture = client_owned_revocation
+    fixture["control"].update(control)
+    with pytest.raises(HTTPException) as failed:
+        _revoke(fixture)
+    assert failed.value.status_code == 503
+    fixture["db"].expire_all()
+    assert fixture["peer"].is_revoked is False
+    assert fixture["peer"].is_active is True
+    assert fixture["peer"].revoked_at is None
+
+
+def test_wrong_server_is_rejected_before_any_removal(client_owned_revocation):
+    fixture = client_owned_revocation
+    fixture["control"]["server_key"] = _public_key(34)
+    with pytest.raises(HTTPException) as failed:
+        _revoke(fixture)
+    assert failed.value.status_code == 503
+    assert fixture["helper_calls"] == ["inspect"]
+    assert fixture["peer"].public_key in fixture["live_state"]
+
+
+def test_server_identity_must_remain_valid_after_removal(client_owned_revocation, monkeypatch):
+    fixture = client_owned_revocation
+    remove = vpn_routes.wireguard_helper_client.remove_peer
+    async def remove_and_change_server(key, address):
+        await remove(key, address)
+        fixture["control"]["server_key"] = _public_key(34)
+    monkeypatch.setattr(vpn_routes.wireguard_helper_client, "remove_peer", remove_and_change_server)
+    with pytest.raises(HTTPException) as failed:
+        _revoke(fixture)
+    assert failed.value.status_code == 503
+    assert fixture["helper_calls"] == ["inspect", "remove", "inspect"]
+    assert fixture["peer"].is_revoked is False
+
+
+def test_client_owned_commit_failure_rolls_back_and_retry_confirms_absent_peer(client_owned_revocation, monkeypatch):
+    fixture = client_owned_revocation
+    db = fixture["db"]
+    real_commit = db.commit
+    def fail_commit():
+        raise RuntimeError("database commit failed")
+    monkeypatch.setattr(db, "commit", fail_commit)
+    with pytest.raises(HTTPException) as failed:
+        _revoke(fixture)
+    assert failed.value.status_code == 503
+    assert fixture["peer"].public_key not in fixture["live_state"]
+    assert fixture["peer"].is_revoked is False
+    assert fixture["peer"].is_active is True
+    assert fixture["peer"].revoked_at is None
+    monkeypatch.setattr(db, "commit", real_commit)
+    assert _revoke(fixture)["status"] == "revoked"
+    assert _revoke(fixture)["status"] == "already_revoked"
+
+
+def test_client_owned_revoke_handles_peer_already_absent_from_helper(client_owned_revocation):
+    fixture = client_owned_revocation
+    fixture["live_state"].clear()
+    assert _revoke(fixture)["status"] == "revoked"
+    assert fixture["peer"].is_revoked is True
+
+
+def test_server_owned_revoke_retains_legacy_delegate(client_owned_revocation, monkeypatch):
+    fixture = client_owned_revocation
+    fixture["peer"].private_key_encrypted = "legacy-server-owned-key"
+    fixture["db"].commit()
+    manager = object()
+    delegated = []
+    monkeypatch.setattr(vpn_routes, "get_peer_manager", lambda _db: manager)
+    async def revoke(selected_manager, peer):
+        delegated.append((selected_manager, peer))
+        peer.is_revoked = True
+        peer.is_active = False
+        fixture["db"].commit()
+    monkeypatch.setattr(vpn_routes, "revoke_peer_after_remote_removal", revoke)
+    assert _revoke(fixture)["status"] == "revoked"
+    assert delegated == [(manager, fixture["peer"])]
+    assert fixture["helper_calls"] == []
+
+
+def test_revoke_device_retains_existing_auth_dependency():
+    route = next(route for route in vpn_routes.router.routes
+                 if isinstance(route, APIRoute) and route.path == "/api/vpn/revoke-device")
+    assert any(dependency.call is get_current_user for dependency in route.dependant.dependencies)

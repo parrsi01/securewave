@@ -1164,6 +1164,46 @@ async def revoke_device(
         raise HTTPException(status_code=404, detail="Device not found")
     if peer.is_revoked:
         return {"device_id": peer.id, "status": "already_revoked"}
+    if peer.private_key_encrypted == "":
+        # Client-owned keys are provisioned by the local privileged helper.
+        # The legacy peer manager creates a server-key directory during its
+        # construction and cannot run inside the API's read-only sandbox.
+        device_id = peer.id
+        try:
+            initial_state = await wireguard_helper_client.inspect_state()
+            if (
+                peer.server is None
+                or initial_state.get("server_public_key") != peer.server.wg_public_key
+                or initial_state.get("listen_port") != peer.server.wg_listen_port
+                or _parse_wireguard_peer_state(initial_state.get("peers")) is None
+            ):
+                raise WireGuardPeerSyncError("Client-owned server identity was not verified.")
+            if not await _remove_client_owned_peer(peer.public_key, peer.ipv4_address):
+                raise WireGuardPeerSyncError("Client-owned peer removal failed.")
+            state = await wireguard_helper_client.inspect_state()
+            remaining = _parse_wireguard_peer_state(state.get("peers"))
+            if (
+                peer.server is None
+                or state.get("server_public_key") != peer.server.wg_public_key
+                or state.get("listen_port") != peer.server.wg_listen_port
+                or remaining is None
+                or peer.public_key in remaining
+            ):
+                raise WireGuardPeerSyncError("Client-owned peer removal was not verified.")
+            peer.is_revoked = True
+            peer.is_active = False
+            peer.revoked_at = datetime.utcnow()
+            db.commit()
+        except Exception as exc:
+            try:
+                db.rollback()
+            except Exception:
+                pass
+            raise HTTPException(
+                status_code=503,
+                detail="WireGuard peer removal could not be confirmed.",
+            ) from exc
+        return {"device_id": device_id, "status": "revoked"}
     try:
         await revoke_peer_after_remote_removal(get_peer_manager(db), peer)
     except WireGuardPeerSyncError as exc:
