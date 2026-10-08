@@ -19,11 +19,12 @@ from models.user import User
 from models.vpn_server import VPNServer
 from models.wireguard_peer import WireGuardPeer
 from services.wireguard_server_manager import get_wireguard_server_manager, server_connection_from_db
+from services.monthly_usage import FREE_MONTHLY_BYTES, monthly_totals
 
 logger = logging.getLogger(__name__)
 
-FREE_TIER_MONTHLY_GB = float(os.getenv("FREE_TIER_MONTHLY_GB", "5"))
-FREE_TIER_MONTHLY_BYTES = int(FREE_TIER_MONTHLY_GB * 1024 * 1024 * 1024)
+FREE_TIER_MONTHLY_GB = 5
+FREE_TIER_MONTHLY_BYTES = FREE_MONTHLY_BYTES
 FREE_TIER_DEVICE_LIMIT = int(os.getenv("FREE_TIER_DEVICE_LIMIT", "1"))
 
 
@@ -32,7 +33,8 @@ def _get_active_subscription(db: Session, user_id: int) -> Optional[Subscription
         db.query(Subscription)
         .filter(
             Subscription.user_id == user_id,
-            Subscription.status.in_(["active", "trialing"])
+            Subscription.status.in_(["active", "trialing"]),
+            Subscription.plan_id.in_(["basic", "premium", "pro", "ultra"]),
         )
         .order_by(Subscription.current_period_end.desc().nullslast())
         .first()
@@ -81,93 +83,20 @@ async def revoke_user_peers(db: Session, user: User) -> int:
     return revoked
 
 
-async def _sync_user_usage(db: Session, user: User) -> None:
-    """Best-effort sync of peer usage from WireGuard servers."""
-    peers = (
-        db.query(WireGuardPeer)
-        .filter(
-            WireGuardPeer.user_id == user.id,
-            WireGuardPeer.is_revoked == False,
-            WireGuardPeer.server_id.isnot(None),
-        )
-        .all()
-    )
-    if not peers:
-        return
-
-    try:
-        manager = get_wireguard_server_manager()
-    except Exception as exc:
-        logger.warning(f"WireGuard manager unavailable; skipping usage sync: {exc}")
-        return
-    servers = {}
-    for peer in peers:
-        if peer.server_id not in servers:
-            server = db.query(VPNServer).filter(VPNServer.id == peer.server_id).first()
-            if server:
-                servers[peer.server_id] = server
-
-    for server_id, server in servers.items():
-        try:
-            conn = server_connection_from_db(server)
-            success, remote_peers = await manager.list_peers(conn)
-            if not success:
-                continue
-            peer_map = {p["public_key"]: p for p in remote_peers}
-            for peer in peers:
-                if peer.server_id != server_id:
-                    continue
-                remote = peer_map.get(peer.public_key)
-                if not remote:
-                    continue
-                # Remote kernel snapshots are not the durable client ledger.
-                peer.server_transfer_rx = remote.get("transfer_rx", 0)
-                peer.server_transfer_tx = remote.get("transfer_tx", 0)
-                peer.server_snapshot_at = datetime.utcnow()
-                handshake = remote.get("latest_handshake")
-                if handshake:
-                    peer.last_handshake_at = datetime.utcfromtimestamp(handshake)
-        except Exception as exc:
-            logger.warning(f"Usage sync failed for server {server.server_id}: {exc}")
-
-    db.commit()
-
-
-def _user_bytes_used(peers: List[WireGuardPeer]) -> int:
-    total = 0
-    for peer in peers:
-        total += max(
-            (peer.total_data_sent or 0) + (peer.total_data_received or 0),
-            (peer.server_transfer_rx or 0) + (peer.server_transfer_tx or 0),
-        )
-    return total
-
-
 async def enforce_free_tier_cap(db: Session, user: User) -> None:
     """Enforce the free-tier monthly data cap.
 
     This is called for users who have NO active subscription.  If the
-    user's total transfer across all peers is under the cap, they are
-    silently allowed through.  Only when the cap is exceeded are peers
-    revoked and a 402 raised.
+    user's recorded transfer during this UTC calendar month is under the cap, they are
+    silently allowed through. At the limit a 402 blocks new provisioning/start
+    requests. It does not delete peers or prevent reading/finalizing usage.
     """
-    await _sync_user_usage(db, user)
-    peers = (
-        db.query(WireGuardPeer)
-        .filter(
-            WireGuardPeer.user_id == user.id,
-            WireGuardPeer.is_revoked == False
-        )
-        .all()
-    )
-    if not peers:
-        return
-    used_bytes = _user_bytes_used(peers)
+    sent, received = monthly_totals(db, user.id)
+    used_bytes = sent + received
     if used_bytes >= FREE_TIER_MONTHLY_BYTES:
-        await revoke_user_peers(db, user)
         raise HTTPException(
             status_code=status.HTTP_402_PAYMENT_REQUIRED,
-            detail=f"Free plan limit reached ({FREE_TIER_MONTHLY_GB:.0f} GB/month). Upgrade to continue."
+            detail="Your 5 GB monthly allowance is used. It renews on the first of next month (UTC)."
         )
 
 

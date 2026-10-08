@@ -147,6 +147,7 @@ def test_atomic_replacement_failure_preserves_previous_snapshot(inputs, monkeypa
 def test_public_directory_and_output_symlink_rejected(inputs):
     public = inputs.output.parent / "public"
     public.mkdir(mode=0o755)
+    public.chmod(0o755)  # Preserve the intended fixture under a restrictive umask.
     with pytest.raises(ValueError, match="output_directory_not_private"):
         worker.write_snapshot(public / "snapshot.json", {})
     inputs.output.symlink_to(inputs.telemetry)

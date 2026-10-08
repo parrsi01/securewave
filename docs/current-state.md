@@ -1,6 +1,6 @@
 # Current validation record
 
-Updated **7 October 2026**. The consolidated application source is **1.0.0**.
+Updated **8 October 2026**. The consolidated application source is **1.0.0**.
 `master` integrates usage recording, the navy/cyan UI presentation and PyJWT
 2.15.0 maintenance. Helper contract **15**, socket request protocol **1**, and
 usage protocol **2** remain distinct compatibility identifiers.
@@ -11,6 +11,11 @@ overlay, current data limits and exact GUI/package distinction. Post-deployment
 live API and real GUI/WireGuard/usage tests passed; the latter used an isolated
 temporary display while preserving the locked owner desktop. All five GitHub
 checks passed for implementation commit `29c24967`.
+
+The [monthly usage record](development/monthly-usage-validation-2026-10-08.md)
+tracks the subsequent account allowance, persistent usage UI, settings and
+focused cleanup. The earlier user manual acceptance was pushed before those
+features. Package evidence below still refers to the identified earlier builds.
 
 ## Consolidated software checks
 

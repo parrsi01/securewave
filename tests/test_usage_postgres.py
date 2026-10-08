@@ -12,6 +12,7 @@ import test_vpn_client_owned_config as fixtures
 from test_usage_recording import session, TOKEN
 from services.usage_metering_service import UsageMeteringService
 from models.wireguard_peer import WireGuardPeer
+from services.monthly_usage import monthly_totals
 
 
 @pytest.fixture
@@ -50,6 +51,7 @@ def test_concurrent_identical_checkpoints_count_once(postgres_provisioning):
     service.db.expire_all()
     peer = service.db.query(WireGuardPeer).filter_by(id=device_id).one()
     assert (peer.total_data_sent, peer.total_data_received) == (5_000_000_000, 7_000_000_000)
+    assert monthly_totals(service.db, row.user_id) == (5_000_000_000, 7_000_000_000)
 
 
 def test_additive_migration_preserves_legacy_rows(postgres_provisioning):

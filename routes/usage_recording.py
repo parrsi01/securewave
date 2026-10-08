@@ -11,8 +11,17 @@ from models.user import User
 from models.vpn_connection import VPNConnection
 from services.jwt_service import get_current_user
 from services.usage_metering_service import UsageMeteringError, UsageMeteringService
+from services.monthly_usage import monthly_summary
 
 router = APIRouter()
+
+
+@router.get("/usage/monthly")
+async def monthly_usage(current_user: User = Depends(get_current_user),
+                        db: Session = Depends(get_db),
+                        session_ids: list[int] = Query(default=[], max_length=100)):
+    # Reading usage must remain possible after exhausting the allowance.
+    return monthly_summary(db, current_user, session_ids)
 
 
 class UsageCheckpoint(BaseModel):

@@ -11,6 +11,8 @@ import 'transfer_summary.dart';
 /// An explicit presentation mapping. Unrecognized native output is never shown.
 String safeVpnMessage(String message, {required bool canDisconnect}) {
   const known = {
+    'Your 5 GB monthly allowance is used. It renews next month (UTC).':
+        'Your 5 GB monthly allowance is used. It renews next month (UTC).',
     'Unable to reach SecureWave. Check your connection and try again.':
         'Unable to reach SecureWave. Check your connection and try again.',
     'SecureWave server error.': 'SecureWave server error.',
@@ -61,6 +63,9 @@ class ConnectionView extends StatelessWidget {
     required this.onLogout,
     this.error,
     this.recordingNotice,
+    this.monthlyUsage,
+    this.onSettings,
+    this.sessionLabel = 'Session transfer',
   });
   final VpnStatus status;
   final bool canDisconnect;
@@ -73,6 +78,9 @@ class ConnectionView extends StatelessWidget {
   final VoidCallback onLogout;
   final String? error;
   final String? recordingNotice;
+  final Widget? monthlyUsage;
+  final VoidCallback? onSettings;
+  final String sessionLabel;
 
   String get action => switch (status) {
         VpnStatus.connecting => 'Connecting',
@@ -135,10 +143,26 @@ class ConnectionView extends StatelessWidget {
                         children: [
                             const BrandWordmark(),
                             Align(
-                                alignment: Alignment.centerRight, child: logout)
+                                alignment: Alignment.centerRight,
+                                child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      if (onSettings != null)
+                                        IconButton(
+                                            tooltip: 'Settings',
+                                            onPressed: onSettings,
+                                            icon: const Icon(
+                                                Icons.settings_outlined)),
+                                      logout,
+                                    ]))
                           ])
                     : Row(children: [
                         const Expanded(child: BrandWordmark()),
+                        if (onSettings != null)
+                          IconButton(
+                              tooltip: 'Settings',
+                              onPressed: onSettings,
+                              icon: const Icon(Icons.settings_outlined)),
                         logout,
                       ]),
               ),
@@ -222,6 +246,8 @@ class ConnectionView extends StatelessWidget {
                                   upload: upload,
                                   countersAvailable: countersAvailable,
                                   recordingNotice: recordingNotice,
+                                  monthlyUsage: monthlyUsage,
+                                  sessionLabel: sessionLabel,
                                 ),
                               ],
                             ),
@@ -248,6 +274,8 @@ class _ConnectionInformation extends StatelessWidget {
     required this.upload,
     required this.countersAvailable,
     this.recordingNotice,
+    this.monthlyUsage,
+    required this.sessionLabel,
   });
 
   final String productLabel;
@@ -256,6 +284,8 @@ class _ConnectionInformation extends StatelessWidget {
   final String upload;
   final bool countersAvailable;
   final String? recordingNotice;
+  final Widget? monthlyUsage;
+  final String sessionLabel;
 
   @override
   Widget build(BuildContext context) => Container(
@@ -313,10 +343,17 @@ class _ConnectionInformation extends StatelessWidget {
               download: download,
               upload: upload,
               available: countersAvailable,
+              label: sessionLabel,
             ),
             if (recordingNotice != null) ...[
               const SizedBox(height: 12),
               Text(recordingNotice!, style: AppTheme.caption),
+            ],
+            if (monthlyUsage != null) ...[
+              const SizedBox(height: 24),
+              const Divider(),
+              const SizedBox(height: 16),
+              monthlyUsage!,
             ],
           ],
         ),

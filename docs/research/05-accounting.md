@@ -115,3 +115,27 @@ both as if they were independent traffic would double-count the same flow.
 Server snapshots can support future reconciliation, but the current ledger
 protocol does not constitute a fully independent reconciliation or billing
 audit system.
+
+## 5.7 Calendar-month account projection
+
+The account view is a projection of accepted ledger events, not a second
+measurement system. For each cumulative session, the highest accepted sent
+and received values within a UTC calendar month are reduced by their highest
+preceding values. Summing these differences across account-owned sessions,
+plus legacy increment events, produces the monthly total. Device revocation
+does not remove historical events. Server snapshots remain excluded.
+
+The Free allowance is 5,000,000,000 bytes, with decimal display units. The app
+adds only positive differences between its local observations and acknowledged
+session counters to the saved projection. Pending display observations are
+account-keyed; they cannot update the ledger. This preserves monotonic session
+presentation across disconnect and reauthentication without double-counting a
+checkpoint when the reporter catches up.
+
+Accepted-event timestamps determine month attribution. This permits efficient
+aggregation with existing indexes but assigns late offline reports to their
+receipt month. Trusted interval-level timestamps would be needed for exact
+offline allocation across month boundaries. Client-side cap enforcement and
+backend provisioning checks also permit sampling/reporting overrun; they are
+not equivalent to independent server-side shaping. Detailed implementation and
+tests are in the [monthly usage guide](../development/monthly-usage.md).

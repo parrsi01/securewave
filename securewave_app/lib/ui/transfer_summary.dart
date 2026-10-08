@@ -9,16 +9,18 @@ class TransferSummary extends StatelessWidget {
     required this.download,
     required this.upload,
     required this.available,
+    this.label = 'Session transfer',
   });
   final String download;
   final String upload;
   final bool available;
+  final String label;
 
   @override
   Widget build(BuildContext context) => Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Text('Session transfer', style: AppTheme.sectionTitle),
+          Text(label, style: AppTheme.sectionTitle),
           const SizedBox(height: 12),
           LayoutBuilder(builder: (context, constraints) {
             final stacked = constraints.maxWidth < 360 ||
@@ -39,8 +41,7 @@ class TransferSummary extends StatelessWidget {
       );
 
   Widget _value(String label, String value, IconData icon) => Semantics(
-        label:
-            '$label transfer recorded during the current VPN usage session: $value',
+        label: '$label recorded VPN transfer: $value',
         excludeSemantics: true,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,

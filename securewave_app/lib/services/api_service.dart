@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:math';
+import 'account_usage.dart';
 
 import 'package:dio/dio.dart';
 
@@ -239,6 +240,12 @@ class ApiService {
     await _request('GET', '/auth/me');
   }
 
+  Future<MonthlyAccountUsage> fetchMonthlyUsage(
+          {List<int> sessionIds = const []}) async =>
+      MonthlyAccountUsage.fromJson(await _request('GET', '/vpn/usage/monthly',
+          queryParameters:
+              sessionIds.isEmpty ? null : {'session_ids': sessionIds}));
+
   Future<String> currentUserId() async {
     final data = await _request('GET', '/auth/me');
     final id = data['id'];
@@ -388,6 +395,9 @@ class ApiService {
     }
     if (statusCode == 429) {
       return 'Too many attempts. Wait a moment and try again.';
+    }
+    if (statusCode == 402 && path.startsWith('/vpn/')) {
+      return 'Your 5 GB monthly allowance is used. It renews next month (UTC).';
     }
     if (statusCode >= 500) return 'SecureWave server error.';
     return 'SecureWave could not complete the request (HTTP $statusCode).';

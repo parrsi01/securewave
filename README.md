@@ -21,6 +21,8 @@ durable accounting of real tunnel traffic.
 - Connect, Disconnect, and Reconnect through a restricted Linux helper.
 - Connection verification using the interface, expected peer, recent handshake, counters, routing, and changed public egress.
 - Durable usage sessions, cumulative checkpoints, idempotent database updates, and final reporting after window close or process death.
+- Per-account 5 GB monthly Free allowance, live usage bar, retained last-session
+  totals after disconnect/sign-out and a simple account/VPN settings summary.
 - Responsive navy/cyan presentation with keyboard/accessibility and visual regression tests.
 - Optional backend routing research: offline XGBoost and multi-agent Q-learning,
   with measured-input shadow recommendations that preserve normal selection.
@@ -62,6 +64,9 @@ make check
 
 See [Quick Start](QUICK_START.md) for native dependencies and packaging.
 Contract tests use disposable fixtures; they do not establish a production VPN.
+
+The [monthly usage guide](docs/development/monthly-usage.md) explains persistent
+account totals, UTC renewal, exact byte accounting and the app's settings.
 
 The [routing research guide](docs/development/routing-optimizer.md) explains
 the adaptation of the author's MARL/XGBoost research, optional dependencies,

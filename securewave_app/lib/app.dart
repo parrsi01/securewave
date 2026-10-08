@@ -5,9 +5,12 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 import 'services/api_service.dart';
 import 'services/vpn_service.dart';
+import 'services/account_usage.dart';
 import 'ui/theme.dart';
 import 'ui/auth_form.dart';
 import 'ui/connection_view.dart';
+import 'ui/monthly_usage.dart';
+import 'ui/settings_view.dart';
 
 class SecureWaveApp extends StatefulWidget {
   const SecureWaveApp({super.key, this.api});
@@ -337,17 +340,61 @@ class _HomeViewState extends State<_HomeView> {
   String? _recordingNotice;
   Timer? _usageTimer;
   bool _polling = false;
+  late final _accountUsage = AccountUsageStore(widget.api);
+  late final Future<void> _accountReady;
+  Timer? _accountTimer;
+  int? _usageSessionId;
+  bool _showSettings = false;
+  bool _quotaDisconnecting = false;
 
   @override
   void initState() {
     super.initState();
+    _accountUsage.addListener(_accountChanged);
+    _accountReady = _accountUsage.initialize();
+    _accountTimer = Timer.periodic(const Duration(seconds: 30), (_) {
+      final summary = _accountUsage.summary;
+      if (_status == VpnStatus.connected ||
+          _accountUsage.pendingBytes > 0 ||
+          (summary != null &&
+              !DateTime.now().toUtc().isBefore(summary.periodEnd))) {
+        unawaited(_accountUsage.refresh());
+      }
+    });
     unawaited(_restoreTunnel());
   }
 
   @override
   void dispose() {
     _usageTimer?.cancel();
+    _accountTimer?.cancel();
+    _accountUsage.removeListener(_accountChanged);
+    _accountUsage.dispose();
     super.dispose();
+  }
+
+  void _accountChanged() {
+    if (!mounted) return;
+    final saved = _accountUsage.summary?.lastSession;
+    setState(() {
+      if (_status != VpnStatus.connected && !_busy && saved != null) {
+        if (_usageSessionId != saved.id) {
+          _downloadBytes = saved.received;
+          _uploadBytes = saved.sent;
+        } else {
+          if (saved.received > _downloadBytes) _downloadBytes = saved.received;
+          if (saved.sent > _uploadBytes) _uploadBytes = saved.sent;
+        }
+        _countersAvailable = true;
+      }
+    });
+    if (_accountUsage.limitReached &&
+        _status == VpnStatus.connected &&
+        !_busy &&
+        !_quotaDisconnecting) {
+      _quotaDisconnecting = true;
+      unawaited(_disconnect().whenComplete(() => _quotaDisconnecting = false));
+    }
   }
 
   Future<void> _restoreTunnel() async {
@@ -428,6 +475,14 @@ class _HomeViewState extends State<_HomeView> {
 
   Future<void> _connect() async {
     if (_busy) return;
+    await _accountReady;
+    await _accountUsage.refresh();
+    if (!mounted || _busy) return;
+    if (_accountUsage.limitReached) {
+      setState(() => _error =
+          'Your 5 GB monthly allowance is used. It renews next month (UTC).');
+      return;
+    }
     var tunnelAttempted = false;
     UsageSession? usageSession;
     setState(() {
@@ -456,6 +511,9 @@ class _HomeViewState extends State<_HomeView> {
         );
       }
       usageSession = await widget.api.startUsage(parameters);
+      _usageSessionId = usageSession.id;
+      await _accountUsage.observe(usageSession.id, 0, 0);
+      await _accountUsage.refresh();
       tunnelAttempted = true;
       _tunnelMayBeActive = true;
       await _vpn.connect(
@@ -556,7 +614,26 @@ class _HomeViewState extends State<_HomeView> {
     _usageTimer?.cancel();
     _usageTimer = null;
     try {
+      // Bind the local sample to this window while it owns the active tunnel.
+      // Final tail bytes come from the account-scoped server ledger; the native
+      // helper's disconnected "latest" record can belong to another account.
+      if (_usageSessionId != null) {
+        try {
+          final finalUsage = await _vpn.usageRecordingStatus();
+          if (finalUsage['owned'] == true) {
+            _downloadBytes = (finalUsage['bytes_received'] as num?)?.toInt() ??
+                _downloadBytes;
+            _uploadBytes =
+                (finalUsage['bytes_sent'] as num?)?.toInt() ?? _uploadBytes;
+          }
+        } catch (_) {}
+      }
       await _vpn.disconnect();
+      if (_usageSessionId != null) {
+        await _accountUsage.observe(
+            _usageSessionId!, _uploadBytes, _downloadBytes,
+            finalized: true);
+      }
       await _vpn.verifyDisconnected(expectedPublicIp: _baselinePublicIp);
       await _storage.delete(key: _baselineKey);
       _baselinePublicIp = null;
@@ -564,13 +641,12 @@ class _HomeViewState extends State<_HomeView> {
       if (mounted) {
         setState(() {
           _status = VpnStatus.disconnected;
-          _location = 'Germany';
-          _downloadBytes = 0;
-          _uploadBytes = 0;
           _countersAvailable = true;
-          _recordingNotice = null;
+          _recordingNotice = 'Last session saved on this device.';
         });
       }
+      await _accountUsage.refresh();
+      unawaited(_refreshFinalUsage());
       return true;
     } on VpnServiceException catch (error) {
       _tunnelMayBeActive = true;
@@ -592,6 +668,15 @@ class _HomeViewState extends State<_HomeView> {
       return false;
     } finally {
       if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _refreshFinalUsage() async {
+    for (final seconds in [2, 3, 5]) {
+      await Future<void>.delayed(Duration(seconds: seconds));
+      if (!mounted) return;
+      await _accountUsage.refresh();
+      if (_accountUsage.pendingBytes == 0) return;
     }
   }
 
@@ -622,6 +707,7 @@ class _HomeViewState extends State<_HomeView> {
               ? 'The tunnel stopped; usage contains a measurement gap.'
               : 'The tunnel stopped; final measured usage is being saved.';
         });
+        await _accountUsage.refresh();
         return;
       }
       final stats = await _vpn.getTrafficStats();
@@ -645,6 +731,10 @@ class _HomeViewState extends State<_HomeView> {
                 ? 'Measured usage is awaiting server confirmation.'
                 : null;
       });
+      if (_usageSessionId != null) {
+        await _accountUsage.observe(
+            _usageSessionId!, _uploadBytes, _downloadBytes);
+      }
     } catch (_) {
       if (mounted) {
         setState(() {
@@ -686,6 +776,21 @@ class _HomeViewState extends State<_HomeView> {
         _status == VpnStatus.disconnecting;
     final unavailable =
         _status == VpnStatus.connecting ? 'Pending' : 'Unavailable';
+    if (_showSettings) {
+      return SettingsView(
+        store: _accountUsage,
+        location: _location,
+        connectionStatus: switch (_status) {
+          VpnStatus.connected => 'Connected',
+          VpnStatus.disconnected => 'Disconnected',
+          VpnStatus.connecting => 'Connecting',
+          VpnStatus.disconnecting => 'Disconnecting',
+          VpnStatus.error => 'Connection error',
+        },
+        onBack: () => setState(() => _showSettings = false),
+        onRefresh: () => unawaited(_accountUsage.refresh()),
+      );
+    }
     return ConnectionView(
       status: _status,
       canDisconnect: canDisconnect,
@@ -698,17 +803,15 @@ class _HomeViewState extends State<_HomeView> {
       upload: _countersAvailable ? _formatBytes(_uploadBytes) : unavailable,
       onToggle: _toggleConnection,
       onLogout: _handleLogout,
+      onSettings: () => setState(() => _showSettings = true),
+      sessionLabel: connected ? 'Session transfer' : 'Last session transfer',
+      monthlyUsage: MonthlyUsageView(
+          store: _accountUsage,
+          onRefresh: () => unawaited(_accountUsage.refresh())),
     );
   }
 }
 
 String _formatBytes(int bytes) {
-  if (bytes < 1024) return '$bytes B';
-  if (bytes < 1024 * 1024) {
-    return '${(bytes / 1024).toStringAsFixed(1)} KB';
-  }
-  if (bytes < 1024 * 1024 * 1024) {
-    return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
-  }
-  return '${(bytes / (1024 * 1024 * 1024)).toStringAsFixed(2)} GB';
+  return formatDataBytes(bytes);
 }
