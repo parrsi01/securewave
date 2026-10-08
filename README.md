@@ -84,8 +84,9 @@ checks from installed-product evidence. Historical tests demonstrated real
 traffic, teardown, crash recovery, and final database persistence. Version
 1.0.0 is installed with matching package bytes; services, cold launch,
 authenticated Connect/Disconnect/Reconnect, real traffic and final backend
-usage persistence passed. The current public UI bundle also passed fresh
-automated live lifecycle tests on 7 October; installation, public-bundle
+usage persistence passed. The [current public installer](docs/releases/1.0.0-monthly-usage.md) includes
+the monthly usage/settings features and compact layouts, and passed exact-package
+automated live lifecycle and persistence tests on 8 October; installation, public-bundle
 testing and package-specific reboot evidence remain separate in that record.
 
 The [technical monograph](docs/research/README.md) adopts the research-question,

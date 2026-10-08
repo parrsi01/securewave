@@ -27,9 +27,10 @@ def verify():
         assert row['status'] == 'available', path
     for prefix in ['/downloads/', '/static/downloads/', '/api/downloads/file/']:
         data = get(prefix + ENTRY['filename'])
-        assert len(data) == 15181038
+        assert data, prefix
         assert hashlib.sha256(data).hexdigest() == ENTRY['checksum_sha256']
     retired = [
+        'securewave-vpn_1.0.0_arm64-ui-a8096ae5f8fa.deb',
         'securewave-vpn_1.0.0_arm64.deb', 'securewave-vpn_4.0.0+10_arm64.deb', 'securewave-vpn_4.0.0+11_arm64.deb',
         'securewave-vpn_4.0.0+12_arm64.deb', 'securewave-linux-arm64.deb',
         'securewave-linux-x64.deb', 'securewave-linux-x64.AppImage', 'securewave-linux-x64.tar.gz',
@@ -51,7 +52,7 @@ def verify():
         detected = json.loads(get('/api/downloads/detect', ua))
         assert bool(detected['recommended_download']) == available, (ua, detected)
     assert json.loads(get('/api/ready'))['status'] in ['ready', 'ok', 'healthy']
-    print('PASS: four catalogs; three exact package routes; 39 retired URLs; six device recommendations; API readiness.')
+    print(f'PASS: four catalogs; three exact package routes; {len(paths)} retired URLs; six device recommendations; API readiness.')
 
 if __name__ == '__main__':
     verify()

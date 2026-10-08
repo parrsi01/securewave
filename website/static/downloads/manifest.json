@@ -4,13 +4,13 @@
     {
       "platform": "linux",
       "architecture": "arm64",
-      "filename": "securewave-vpn_1.0.0_arm64-ui-a8096ae5f8fa.deb",
-      "url": "/downloads/securewave-vpn_1.0.0_arm64-ui-a8096ae5f8fa.deb",
+      "filename": "securewave-vpn_1.0.0_arm64-monthly-bd39779d835c.deb",
+      "url": "/downloads/securewave-vpn_1.0.0_arm64-monthly-bd39779d835c.deb",
       "version": "1.0.0",
       "status": "available",
       "notes": "SecureWave VPN 1.0.0 for Ubuntu 24.04 ARM64 (aarch64). WireGuard client. Not compatible with Intel/AMD x64 or other operating systems.",
-      "checksum_sha256": "52d1cb49d7152b195ead58b75623722120d1794d5cb95ffe0a6efe8210f0d00e",
-      "source_sha": "a8096ae5f8fa07e380f4fad3cf189767912b816c"
+      "checksum_sha256": "0e73134d1ff7fc3c9c9823431d50895d5e997b6ccb7e25361f5cecf763589b78",
+      "source_sha": "bd39779d835c8d118fe20b5b2d817c97c9abc3d7"
     }
   ]
 }

@@ -23,5 +23,7 @@ for page in root.glob('*.html'):
 manifest = json.loads((root / 'downloads/manifest.json').read_text())
 assert manifest['version'] == '1.0.0'
 assert len(manifest['downloads']) == 1
-assert re.fullmatch(r'securewave-vpn_1\.0\.0_arm64(?:-ui-[0-9a-f]{12})?\.deb', manifest['downloads'][0]['filename'])
+assert re.fullmatch(r'securewave-vpn_1\.0\.0_arm64(?:-(?:ui|monthly)-[0-9a-f]{12})?\.deb', manifest['downloads'][0]['filename'])
+assert set(manifest['downloads'][0]) <= {'platform', 'architecture', 'filename', 'url', 'version', 'status', 'notes', 'checksum_sha256', 'source_sha', 'evidence_url', 'evidence_label'}, 'Download fields must match the live strict manifest schema'
+assert manifest['downloads'][0]['source_sha'][:12] in manifest['downloads'][0]['filename']
 print('PASS: existing palette; minimum CSS text sizes; responsive pricing; explicit billing; page metadata; one release.')

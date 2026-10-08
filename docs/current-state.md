@@ -18,7 +18,16 @@ focused cleanup. The earlier user manual acceptance was pushed before those
 features. Current checks passed 189 backend/ML and 144 Flutter tests. Real GUI
 acceptance preserved a 7,611,344-byte monthly total after disconnect and repeat
 sign-in; a separate Free account returned zero. The live monthly API overlay
-is ready. Package evidence below still refers to the identified earlier builds.
+is ready. Historical installed-package evidence below refers to the identified earlier builds.
+
+The [current 1.0.0 installer](releases/1.0.0-monthly-usage.md) was published on
+8 October from clean source `bd39779d`. It includes the persistent monthly
+usage/settings features and compact layouts. All 153 Flutter tests and all
+five source CI checks passed. The exact extracted release package passed two
+real traffic cycles, saved 6,927,428 bytes across repeat login, and verified
+account separation. Four public catalogs and three package routes select
+this build; older installer routes are retired. This is package/public-bundle
+acceptance, with no new installation or reboot claim.
 
 ## Consolidated software checks
 
