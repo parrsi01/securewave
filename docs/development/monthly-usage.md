@@ -64,7 +64,7 @@ The existing reporter and WireGuard keepalive remain unchanged.
 The app disconnects when its observed monthly balance reaches the allowance.
 The backend blocks further provisioning/session starts with HTTP 402, while
 allowing final reports and usage reads. Sampling/reporting intervals can allow
-a small overrun. This is client-ledger enforcement, not an independent server
+an overrun. This is client-ledger enforcement, not an independent server
 traffic shaper or tamper-proof billing system.
 
 Traffic is not compressed, discounted or divided to make the quota last

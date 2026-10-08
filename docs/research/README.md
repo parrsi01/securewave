@@ -1,7 +1,7 @@
 # SecureWave: Architecture, Algorithms and Assurance
 
 Master's-level engineering report for SecureWave 1.0.0. Prepared for the
-project maintained by Simon Parris, revised 7 October 2026. This is an engineering
+project maintained by Simon Parris, revised 8 October 2026. This is an engineering
 analysis of the repository, not a peer-reviewed publication or an independent
 security certification.
 

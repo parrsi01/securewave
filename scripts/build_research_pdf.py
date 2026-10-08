@@ -171,7 +171,7 @@ def page(canvas, doc):
     canvas.setStrokeColor(colors.HexColor("#d9e1e8"))
     canvas.line(56, 44, WIDTH - 56, 44)
     canvas.setFillColor(NAVY)
-    canvas.drawString(56, 29, "Repository engineering report • 7 October 2026")
+    canvas.drawString(56, 29, "Repository engineering report • 8 October 2026")
     canvas.drawRightString(WIDTH - 56, 29, str(doc.page))
     canvas.restoreState()
 
@@ -182,7 +182,7 @@ def main():
     story = [Spacer(1, 120), Paragraph("SecureWave", st["title"]), Spacer(1, 18),
              Paragraph("Architecture, Algorithms<br/>and Assurance", st["title"]),
              Spacer(1, 40), Paragraph("Master's-level engineering analysis<br/>Source version 1.0.0", st["subtitle"]),
-             Spacer(1, 36), Paragraph("Project author: Simon Parris<br/>7 October 2026", st["subtitle"]),
+             Spacer(1, 36), Paragraph("Project author: Simon Parris<br/>8 October 2026", st["subtitle"]),
              Spacer(1, 48), Paragraph("A source-backed case study of a Linux WireGuard application: "
                                       "privilege separation, verified lifecycle, durable accounting and reproducible delivery.", st["body"]),
              Paragraph("Engineering documentation; not a peer-reviewed publication or security certification.", st["caption"]), PageBreak(),

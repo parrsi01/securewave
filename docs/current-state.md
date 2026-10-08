@@ -15,7 +15,10 @@ checks passed for implementation commit `29c24967`.
 The [monthly usage record](development/monthly-usage-validation-2026-10-08.md)
 tracks the subsequent account allowance, persistent usage UI, settings and
 focused cleanup. The earlier user manual acceptance was pushed before those
-features. Package evidence below still refers to the identified earlier builds.
+features. Current checks passed 189 backend/ML and 144 Flutter tests. Real GUI
+acceptance preserved a 7,611,344-byte monthly total after disconnect and repeat
+sign-in; a separate Free account returned zero. The live monthly API overlay
+is ready. Package evidence below still refers to the identified earlier builds.
 
 ## Consolidated software checks
 
