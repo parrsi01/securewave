@@ -807,6 +807,7 @@ class _HomeViewState extends State<_HomeView> {
       onSettings: () => setState(() => _showSettings = true),
       sessionLabel: connected ? 'Session transfer' : 'Last session transfer',
       monthlyUsage: MonthlyUsageView(
+          compact: true,
           store: _accountUsage,
           onRefresh: () => unawaited(_accountUsage.refresh())),
     );

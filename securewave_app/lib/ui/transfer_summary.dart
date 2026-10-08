@@ -10,20 +10,22 @@ class TransferSummary extends StatelessWidget {
     required this.upload,
     required this.available,
     this.label = 'Session transfer',
+    this.compact = false,
   });
   final String download;
   final String upload;
   final bool available;
   final String label;
+  final bool compact;
 
   @override
   Widget build(BuildContext context) => Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Text(label, style: AppTheme.sectionTitle),
-          const SizedBox(height: 12),
+          SizedBox(height: compact ? 8 : 12),
           LayoutBuilder(builder: (context, constraints) {
-            final stacked = constraints.maxWidth < 360 ||
+            final stacked = constraints.maxWidth < (compact ? 240 : 360) ||
                 MediaQuery.textScalerOf(context).scale(16) / 16 >= 1.5;
             final down = _value('Download', download, Icons.south);
             final up = _value('Upload', upload, Icons.north);
@@ -53,7 +55,11 @@ class TransferSummary extends StatelessWidget {
             ]),
             const SizedBox(height: 4),
             Text(value,
-                style: available ? AppTheme.transfer : AppTheme.smallBody),
+                style: available
+                    ? (compact
+                        ? AppTheme.transfer.copyWith(fontSize: 22)
+                        : AppTheme.transfer)
+                    : AppTheme.smallBody),
           ],
         ),
       );

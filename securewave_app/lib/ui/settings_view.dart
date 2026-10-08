@@ -4,7 +4,7 @@ import '../services/account_usage.dart';
 import 'monthly_usage.dart';
 import 'theme.dart';
 
-/// A summary, with no settings that pretend to control unavailable features.
+/// Read-only account and VPN summaries; scrolling is a small-window fallback.
 class SettingsView extends StatelessWidget {
   const SettingsView(
       {super.key,
@@ -31,50 +31,80 @@ class SettingsView extends StatelessWidget {
                       onPressed: onBack,
                       icon: const Icon(Icons.arrow_back)))),
         ),
-        body: SafeArea(
-            child: SingleChildScrollView(
-          padding: EdgeInsets.all(
-              AppTheme.outerPadding(MediaQuery.sizeOf(context).width)),
-          child: Center(
-              child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 560),
-            child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Text('Account', style: AppTheme.sectionTitle),
-                  const SizedBox(height: 16),
-                  _row('Email', store.summary?.email ?? 'Loading account…'),
-                  _row(
-                      'Account type', store.summary?.planName ?? 'Unavailable'),
-                  const SizedBox(height: 8),
-                  const Divider(),
-                  const SizedBox(height: 16),
-                  MonthlyUsageView(store: store, onRefresh: onRefresh),
-                  const SizedBox(height: 24),
-                  const Divider(),
-                  const SizedBox(height: 24),
-                  Text('VPN', style: AppTheme.sectionTitle),
-                  const SizedBox(height: 16),
-                  _row('Location', location),
-                  _row('Connection', connectionStatus),
-                  _row('Protocol', 'WireGuard'),
-                  _row('App version', '1.0.0'),
-                  const SizedBox(height: 16),
-                  Text(
-                      'Upload and download both count toward your allowance. Saved usage remains after disconnecting or signing out.',
-                      style: AppTheme.smallBody),
-                ]),
-          )),
-        )),
+        body: SafeArea(child: LayoutBuilder(builder: (context, viewport) {
+          final padding = AppTheme.outerPadding(viewport.maxWidth);
+          final wide = viewport.maxWidth >= 760 &&
+              MediaQuery.textScalerOf(context).scale(16) / 16 < 1.5;
+          final account = _section('Account', [
+            _row(context, 'Email', store.summary?.email ?? 'Loading account…'),
+            _row(context, 'Account type',
+                store.summary?.planName ?? 'Unavailable'),
+          ]);
+          final vpn = _section('VPN', [
+            _row(context, 'Location', location),
+            _row(context, 'Connection', connectionStatus),
+            _row(context, 'Protocol', 'WireGuard'),
+            _row(context, 'App version', '1.0.0'),
+          ]);
+          return SingleChildScrollView(
+            padding: EdgeInsets.symmetric(horizontal: padding, vertical: 16),
+            child: Center(
+                child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 800),
+              child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    if (wide)
+                      Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Expanded(child: account),
+                            const SizedBox(width: 32),
+                            Expanded(child: vpn),
+                          ])
+                    else ...[account, const SizedBox(height: 16), vpn],
+                    const SizedBox(height: 16),
+                    const Divider(),
+                    const SizedBox(height: 12),
+                    MonthlyUsageView(
+                        store: store, onRefresh: onRefresh, compact: true),
+                    const SizedBox(height: 16),
+                    Text(
+                        'Upload and download count toward your allowance. Usage stays saved after disconnecting or signing out.',
+                        style: AppTheme.smallBody),
+                  ]),
+            )),
+          );
+        })),
       );
 
-  Widget _row(String label, String value) => Padding(
-        padding: const EdgeInsets.only(bottom: 16),
-        child:
-            Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-          Text(label, style: AppTheme.caption),
-          const SizedBox(height: 4),
-          SelectableText(value, style: AppTheme.body),
-        ]),
+  Widget _section(String title, List<Widget> rows) => Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(title, style: AppTheme.sectionTitle),
+          const SizedBox(height: 12),
+          ...rows
+        ],
+      );
+
+  Widget _row(BuildContext context, String label, String value) => Padding(
+        padding: const EdgeInsets.only(bottom: 12),
+        child: LayoutBuilder(builder: (context, constraints) {
+          final stacked = constraints.maxWidth < 280 ||
+              MediaQuery.textScalerOf(context).scale(16) / 16 >= 1.5;
+          final name = Text(label,
+              style:
+                  AppTheme.smallBody.copyWith(color: AppTheme.textSecondary));
+          final content = SelectableText(value, style: AppTheme.body);
+          return stacked
+              ? Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [name, const SizedBox(height: 4), content])
+              : Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  SizedBox(width: 104, child: name),
+                  const SizedBox(width: 12),
+                  Expanded(child: content),
+                ]);
+        }),
       );
 }

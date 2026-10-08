@@ -5,9 +5,13 @@ import 'theme.dart';
 
 class MonthlyUsageView extends StatelessWidget {
   const MonthlyUsageView(
-      {super.key, required this.store, required this.onRefresh});
+      {super.key,
+      required this.store,
+      required this.onRefresh,
+      this.compact = false});
   final AccountUsageStore store;
   final VoidCallback onRefresh;
+  final bool compact;
 
   @override
   Widget build(BuildContext context) {
@@ -35,14 +39,17 @@ class MonthlyUsageView extends StatelessWidget {
                   button: true,
                   child: IconButton(
                       tooltip: 'Refresh monthly usage',
+                      constraints:
+                          const BoxConstraints(minWidth: 44, minHeight: 44),
+                      padding: const EdgeInsets.all(8),
                       onPressed: store.loading ? null : onRefresh,
                       icon: const Icon(Icons.refresh, size: 20)))),
         ]),
-        const SizedBox(height: 8),
+        SizedBox(height: compact ? 4 : 8),
         Text(label,
             key: const ValueKey('monthly-usage-value'), style: AppTheme.body),
         if (percent != null) ...[
-          const SizedBox(height: 12),
+          SizedBox(height: compact ? 8 : 12),
           Semantics(
             label: label,
             child: LinearProgressIndicator(
@@ -57,17 +64,17 @@ class MonthlyUsageView extends StatelessWidget {
           ),
         ],
         if (summary != null) ...[
-          const SizedBox(height: 8),
+          SizedBox(height: compact ? 4 : 8),
           Text('Renews ${_date(summary.periodEnd)} (UTC)',
               style: AppTheme.caption),
         ],
         if (store.limitReached) ...[
-          const SizedBox(height: 8),
+          SizedBox(height: compact ? 4 : 8),
           Text('Monthly allowance used. Connect again after it renews.',
               style: AppTheme.smallBody.copyWith(color: AppTheme.warning)),
         ],
         if (store.syncNotice != null) ...[
-          const SizedBox(height: 8),
+          SizedBox(height: compact ? 4 : 8),
           Text(store.syncNotice!, style: AppTheme.caption),
         ],
       ],

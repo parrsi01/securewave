@@ -174,6 +174,73 @@ class ConnectionView extends StatelessWidget {
               const Divider(),
               Expanded(
                 child: LayoutBuilder(builder: (context, body) {
+                  if (monthlyUsage != null) {
+                    final wide = viewport.maxWidth >= 640 && scale < 1.5;
+                    final control = Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        _heading(context, true),
+                        const SizedBox(height: 16),
+                        _ConnectionControl(
+                          status: status,
+                          action: action,
+                          compact: true,
+                          disabled: transitioning,
+                          onPressed: onToggle,
+                          baseDiameter: wide ? 180 : 140,
+                        ),
+                        if (error != null) ...[
+                          const SizedBox(height: 12),
+                          UiFeedback(safeVpnMessage(error!,
+                              canDisconnect: canDisconnect)),
+                        ],
+                      ],
+                    );
+                    final information = _ConnectionInformation(
+                      productLabel: productLabel,
+                      compact: true,
+                      download: download,
+                      upload: upload,
+                      countersAvailable: countersAvailable,
+                      recordingNotice: recordingNotice,
+                      monthlyUsage: monthlyUsage,
+                      sessionLabel: sessionLabel,
+                      dense: true,
+                    );
+                    return SingleChildScrollView(
+                      padding: EdgeInsets.symmetric(
+                          horizontal: padding, vertical: 12),
+                      child: ConstrainedBox(
+                        constraints: BoxConstraints(
+                            minHeight: (body.maxHeight - 24)
+                                .clamp(0, double.infinity)),
+                        child: Center(
+                            child: ConstrainedBox(
+                          constraints:
+                              BoxConstraints(maxWidth: wide ? 960 : 560),
+                          child: wide
+                              ? Row(
+                                  crossAxisAlignment: CrossAxisAlignment.center,
+                                  children: [
+                                      SizedBox(
+                                          width: viewport.maxWidth < 800
+                                              ? 200
+                                              : 280,
+                                          child: control),
+                                      const SizedBox(width: 24),
+                                      Expanded(child: information),
+                                    ])
+                              : Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                      control,
+                                      const SizedBox(height: 16),
+                                      information,
+                                    ]),
+                        )),
+                      ),
+                    );
+                  }
                   return SingleChildScrollView(
                     padding: EdgeInsets.fromLTRB(padding, 16, padding, 16),
                     child: ConstrainedBox(
@@ -191,37 +258,7 @@ class ConnectionView extends StatelessWidget {
                             child: Column(
                               mainAxisSize: MainAxisSize.min,
                               children: [
-                                Semantics(
-                                  key: const ValueKey('vpn-state'),
-                                  liveRegion: true,
-                                  label: status == VpnStatus.error
-                                      ? 'VPN connection error.'
-                                      : 'VPN ${headline.toLowerCase()}.',
-                                  excludeSemantics: true,
-                                  child: Row(
-                                    mainAxisAlignment: MainAxisAlignment.center,
-                                    children: [
-                                      Icon(statusIcon,
-                                          size: 20, color: stateColor),
-                                      const SizedBox(width: 12),
-                                      Flexible(
-                                        child: AnimatedSwitcher(
-                                          duration:
-                                              AppTheme.reduceMotion(context)
-                                                  ? Duration.zero
-                                                  : AppTheme.stateDuration,
-                                          child: Text(headline,
-                                              key: ValueKey(headline),
-                                              textAlign: TextAlign.center,
-                                              style: AppTheme.type(
-                                                  compact ? 32 : 40, 600, 1.2,
-                                                  color: stateColor,
-                                                  spacing: -.6)),
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
+                                _heading(context, compact),
                                 const SizedBox(height: 24),
                                 _ConnectionControl(
                                   status: status,
@@ -264,6 +301,33 @@ class ConnectionView extends StatelessWidget {
           }),
         ),
       );
+  Widget _heading(BuildContext context, bool compact) => Semantics(
+        key: const ValueKey('vpn-state'),
+        liveRegion: true,
+        label: status == VpnStatus.error
+            ? 'VPN connection error.'
+            : 'VPN ${headline.toLowerCase()}.',
+        excludeSemantics: true,
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(statusIcon, size: 20, color: stateColor),
+            const SizedBox(width: 12),
+            Flexible(
+              child: AnimatedSwitcher(
+                duration: AppTheme.reduceMotion(context)
+                    ? Duration.zero
+                    : AppTheme.stateDuration,
+                child: Text(headline,
+                    key: ValueKey(headline),
+                    textAlign: TextAlign.center,
+                    style: AppTheme.type(compact ? 32 : 40, 600, 1.2,
+                        color: stateColor, spacing: -.6)),
+              ),
+            ),
+          ],
+        ),
+      );
 }
 
 /// The existing location, protocol and recorded totals share one surface.
@@ -278,6 +342,7 @@ class _ConnectionInformation extends StatelessWidget {
     this.recordingNotice,
     this.monthlyUsage,
     required this.sessionLabel,
+    this.dense = false,
   });
 
   final String productLabel;
@@ -288,6 +353,7 @@ class _ConnectionInformation extends StatelessWidget {
   final String? recordingNotice;
   final Widget? monthlyUsage;
   final String sessionLabel;
+  final bool dense;
 
   @override
   Widget build(BuildContext context) => Container(
@@ -303,7 +369,7 @@ class _ConnectionInformation extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             LayoutBuilder(builder: (context, constraints) {
-              final stacked = constraints.maxWidth < 360 ||
+              final stacked = constraints.maxWidth < (dense ? 280 : 360) ||
                   MediaQuery.textScalerOf(context).scale(16) / 16 >= 1.5;
               final location = Semantics(
                 label: 'Server label: $productLabel. SecureWave Network.',
@@ -338,23 +404,24 @@ class _ConnectionInformation extends StatelessWidget {
                       ],
                     );
             }),
-            const SizedBox(height: 24),
+            SizedBox(height: dense ? 12 : 24),
             const Divider(),
-            const SizedBox(height: 16),
+            SizedBox(height: dense ? 8 : 16),
             TransferSummary(
               download: download,
               upload: upload,
               available: countersAvailable,
               label: sessionLabel,
+              compact: dense,
             ),
             if (recordingNotice != null) ...[
               const SizedBox(height: 12),
               Text(recordingNotice!, style: AppTheme.caption),
             ],
             if (monthlyUsage != null) ...[
-              const SizedBox(height: 24),
+              SizedBox(height: dense ? 12 : 24),
               const Divider(),
-              const SizedBox(height: 16),
+              SizedBox(height: dense ? 8 : 16),
               monthlyUsage!,
             ],
           ],
@@ -370,12 +437,14 @@ class _ConnectionControl extends StatefulWidget {
     required this.compact,
     required this.disabled,
     required this.onPressed,
+    this.baseDiameter,
   });
   final VpnStatus status;
   final String action;
   final bool compact;
   final bool disabled;
   final VoidCallback onPressed;
+  final double? baseDiameter;
 
   @override
   State<_ConnectionControl> createState() => _ConnectionControlState();
@@ -479,7 +548,9 @@ class _ConnectionControlState extends State<_ConnectionControl>
           final desktop = scale <= 1.5
               ? 180 + (scale - 1).clamp(0, .5) * 120
               : 240 + (scale - 1.5).clamp(0, .5) * 80;
-          final desired = desktop - (widget.compact ? 20 : 0);
+          final desired = widget.baseDiameter == null
+              ? desktop - (widget.compact ? 20 : 0)
+              : widget.baseDiameter! + (desktop - 180);
           final diameter =
               math.min(desired, constraints.maxWidth - 12).toDouble();
           final style = AppTheme.button;
