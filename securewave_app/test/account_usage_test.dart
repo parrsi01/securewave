@@ -181,6 +181,23 @@ void main() {
     store.dispose();
   });
 
+  testWidgets('settings navigation and refresh have named accessible actions',
+      (tester) async {
+    final semantics = tester.ensureSemantics();
+    final store = AccountUsageStore(UsageApi(summary()));
+    await store.initialize();
+    await tester.pumpWidget(fixtureHost(SettingsView(
+        store: store,
+        location: 'Germany',
+        connectionStatus: 'Disconnected',
+        onBack: () {},
+        onRefresh: () {})));
+    expect(find.bySemanticsLabel('Back to VPN'), findsOneWidget);
+    expect(find.bySemanticsLabel('Refresh monthly usage'), findsOneWidget);
+    semantics.dispose();
+    store.dispose();
+  });
+
   for (final size in [
     const Size(320, 480),
     const Size(900, 680),

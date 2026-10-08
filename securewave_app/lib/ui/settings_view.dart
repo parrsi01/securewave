@@ -22,10 +22,14 @@ class SettingsView extends StatelessWidget {
         appBar: AppBar(
           backgroundColor: AppTheme.backgroundPrimary,
           title: const Text('Settings'),
-          leading: IconButton(
-              tooltip: 'Back to VPN',
-              onPressed: onBack,
-              icon: const Icon(Icons.arrow_back)),
+          leading: MergeSemantics(
+              child: Semantics(
+                  label: 'Back to VPN',
+                  button: true,
+                  child: IconButton(
+                      tooltip: 'Back to VPN',
+                      onPressed: onBack,
+                      icon: const Icon(Icons.arrow_back)))),
         ),
         body: SafeArea(
             child: SingleChildScrollView(

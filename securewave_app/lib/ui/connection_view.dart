@@ -133,6 +133,17 @@ class ConnectionView extends StatelessWidget {
               onPressed: transitioning ? null : onLogout,
               child: const Text('Log out'),
             );
+            final settings = MergeSemantics(
+              child: Semantics(
+                label: 'Settings',
+                button: true,
+                child: IconButton(
+                  tooltip: 'Settings',
+                  onPressed: onSettings,
+                  icon: const Icon(Icons.settings_outlined),
+                ),
+              ),
+            );
             final header = ConstrainedBox(
               constraints: const BoxConstraints(minHeight: 56, maxWidth: 960),
               child: Padding(
@@ -147,22 +158,13 @@ class ConnectionView extends StatelessWidget {
                                 child: Row(
                                     mainAxisSize: MainAxisSize.min,
                                     children: [
-                                      if (onSettings != null)
-                                        IconButton(
-                                            tooltip: 'Settings',
-                                            onPressed: onSettings,
-                                            icon: const Icon(
-                                                Icons.settings_outlined)),
+                                      if (onSettings != null) settings,
                                       logout,
                                     ]))
                           ])
                     : Row(children: [
                         const Expanded(child: BrandWordmark()),
-                        if (onSettings != null)
-                          IconButton(
-                              tooltip: 'Settings',
-                              onPressed: onSettings,
-                              icon: const Icon(Icons.settings_outlined)),
+                        if (onSettings != null) settings,
                         logout,
                       ]),
               ),

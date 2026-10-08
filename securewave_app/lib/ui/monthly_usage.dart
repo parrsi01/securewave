@@ -29,10 +29,14 @@ class MonthlyUsageView extends StatelessWidget {
       children: [
         Row(children: [
           Expanded(child: Text('Monthly data', style: AppTheme.sectionTitle)),
-          IconButton(
-              tooltip: 'Refresh monthly usage',
-              onPressed: store.loading ? null : onRefresh,
-              icon: const Icon(Icons.refresh, size: 20)),
+          MergeSemantics(
+              child: Semantics(
+                  label: 'Refresh monthly usage',
+                  button: true,
+                  child: IconButton(
+                      tooltip: 'Refresh monthly usage',
+                      onPressed: store.loading ? null : onRefresh,
+                      icon: const Icon(Icons.refresh, size: 20)))),
         ]),
         const SizedBox(height: 8),
         Text(label,
