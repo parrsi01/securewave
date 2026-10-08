@@ -695,10 +695,10 @@ class _HomeViewState extends State<_HomeView> {
     _polling = true;
     try {
       final runtime = await _vpn.refreshRuntimeStatus();
-      if (!mounted) return;
+      if (!mounted || _status != VpnStatus.connected) return;
       if (runtime != VpnStatus.connected) {
         final recording = await _vpn.usageRecordingStatus();
-        if (!mounted) return;
+        if (!mounted || _status != VpnStatus.connected) return;
         _usageTimer?.cancel();
         setState(() {
           _status = runtime;
@@ -711,13 +711,14 @@ class _HomeViewState extends State<_HomeView> {
         return;
       }
       final stats = await _vpn.getTrafficStats();
-      if (!mounted) return;
+      if (!mounted || _status != VpnStatus.connected) return;
       if (!stats.available) {
         setState(() => _countersAvailable = false);
         _recordingNotice = null;
         return;
       }
       final recording = await _vpn.usageRecordingStatus();
+      if (!mounted || _status != VpnStatus.connected) return;
       if (recording['owned'] != true) {
         throw const VpnServiceException('The usage recorder is unavailable.');
       }
@@ -736,7 +737,7 @@ class _HomeViewState extends State<_HomeView> {
             _usageSessionId!, _uploadBytes, _downloadBytes);
       }
     } catch (_) {
-      if (mounted) {
+      if (mounted && _status == VpnStatus.connected) {
         setState(() {
           _countersAvailable = false;
           _recordingNotice = 'Usage recording status is unavailable.';
